@@ -1,2 +1,4 @@
-*.pyc
 jedic
+*.py[co]
+*.sublime
+*.ropeproject
