@@ -1,21 +1,42 @@
-import os
-
 import sublime
 import sublime_plugin
-import imp
 
-jedi = imp.load_source('jedi', os.getcwd() + '/jedi')
+try:
+    import jedi
+except ImportError:
+    import sys
+    import os
+    sys.path.append(os.path.join(os.getcwd(), 'jedi'))
+    import jedi
 
-def get_script(v):
-    text = v.substr(sublime.Region(0, v.size()))
-    source_path = v.file_name()
-    if len(v.sel()) == 1:
-        (current_line,current_column) = v.rowcol(v.sel()[0].begin())
-    else:
-        pass
+
+def get_script(view, location):
+    """ `jedi.Script` fabric
+
+        **view** - sublime.View object
+        **location** - offset from beginning
+
+        Returns: `jedi.Script` object
+    """
+    text = view.substr(sublime.Region(0, view.size()))
+    source_path = view.file_name()
+    (current_line, current_column) = view.rowcol(location)
     return jedi.Script(text, current_line, current_column, source_path)
 
-class SublimeJedi(sublime_plugin.TextCommand):
-    def run(self, edit):
-        anakin = get_script(self.view)
-        print anakin.complete()
+
+class Autocomplete(sublime_plugin.EventListener):
+    def proposal_string(self, complete):
+        """ Returns string that would be visiable in the completion dialog
+
+            **complete** is `jedi.Coplete` object
+
+            Returns: string
+        """
+        output = [complete.word, '\t',  '(from JEDI)']
+        return ''.join(output)
+
+    def on_query_completions(self, view, prefix, locations):
+        script = get_script(view, locations[0])
+        completions = [(self.proposal_string(complete), complete.word)
+            for complete in script.complete()]
+        return completions
