@@ -1,6 +1,7 @@
 import sublime
 import sublime_plugin
 
+
 try:
     import jedi
 except ImportError:
@@ -16,7 +17,7 @@ def get_script(view, location):
         **view** - sublime.View object
         **location** - offset from beginning
 
-        Returns: `jedi.Script` object
+        Returns: `jedi.api.Script` object
     """
     text = view.substr(sublime.Region(0, view.size()))
     source_path = view.file_name()
@@ -28,11 +29,11 @@ class Autocomplete(sublime_plugin.EventListener):
     def proposal_string(self, complete):
         """ Returns string that would be visiable in the completion dialog
 
-            **complete** is `jedi.Coplete` object
+            **complete** is `jedi.api.Complete` object
 
             Returns: string
         """
-        output = [complete.word, '\t',  '(from JEDI)']
+        output = [complete.word, '\t',  complete.description]
         return ''.join(output)
 
     def on_query_completions(self, view, prefix, locations):
