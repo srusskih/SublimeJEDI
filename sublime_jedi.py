@@ -140,3 +140,190 @@ class Autocomplete(sublime_plugin.EventListener):
         _dotcomplete = []
         completions = [format(complete) for complete in completions]
         return completions
+
+class PythonGoTo(sublime_plugin.TextCommand):
+
+    def run(self, edit):
+        script = get_script(self.view, self.view.sel()[0].begin())
+
+        # Not sure if this is the right way around?
+        found = self.attempt_get_definition(script)
+        if not found:
+            found = self.attempt_go_to(script)
+
+            if not found:
+                self.view.run_command('string_go_to')
+
+    def attempt_go_to(self, script):
+        found = script.goto()
+        if len(found) > 0:
+            if len(found) == 1:
+                x = found[0]
+                self.jump_to_in_window(x.module_path, x.start_pos[0], x.start_pos[1])
+
+            else:
+                self.window_quick_panel_open_window(found)
+                return True
+
+        return False
+
+
+    def attempt_get_definition(self, script):
+        found = script.get_definition()
+        if len(found) == 1:
+            x = found[0]
+            self.jump_to_in_window(x.module_path, x.start_pos[0], x.start_pos[1])
+            return True
+        elif len(found) > 1:
+            self.window_quick_panel_open_window(found)
+            return True
+
+        return False
+
+
+    def jump_to_in_window(self, filename, line_number=None, column_number=None):
+        active_window = self.view.window()
+
+        # If the file was selected from a drop down list
+        if isinstance(filename, int):
+            filename = self.options[filename]
+            line_number, column_number = self.options_map[filename]
+
+        active_window.open_file('%s:%s:%s' % (filename, line_number or 0, column_number or 0), sublime.ENCODED_POSITION)
+
+
+    def window_quick_panel_open_window(self, options):
+        """
+        Assumes the options is a list of jedi.api_classed.Definition
+        """
+        # TODO: Maybe handle multiple?
+
+        active_window = self.view.window()
+        self.options = [o.module_path for o in options]
+        self.options_map = dict((o.module_path, (o.start_pos[0], o.start_pos[1])) for o in options)
+        active_window.show_quick_panel(self.options, self.jump_to_in_window)
+
+
+FOUND_PATHS_CACHE = {}
+
+
+class StringGoTo(sublime_plugin.TextCommand):
+    """
+    Is useful in django when we are trying to jump from template to template.
+    Gets the string, and attemps to open a filename associated with it.
+    """
+
+    known_file_types = (
+        'xml', 'html', 'py', 'js',
+    )
+
+    def run(self, edit):
+
+        # Get the selected region
+        sels = self.view.sel()
+        region = self.view.word(sels[0])
+
+        self.file_type = self._get_file_type(self.view.file_name())
+
+        string = self.get_string(region)
+        if string:
+            self.string_dispatch(string)
+
+
+
+    def get_string(self, region):
+        possible_string_end = self.check_if_string(region.a)
+        if possible_string_end is None:
+            return False
+
+        possible_string_start = self.check_if_string(region.a-1, True)
+        if possible_string_start is None:
+            return False
+
+        return possible_string_start + possible_string_end
+
+    def check_if_string(self, starting, reverse=False):
+        # Has got to be a cleaner/better way to do this
+        char = None
+        counter = starting
+        possible_filename = ''
+        found_string_declaration = False
+        while True:
+            char = self.view.substr(counter)
+
+            if char == '\n':
+                break
+
+            if char == "\'" or char == '\"':
+                found_string_declaration = True
+                break
+
+            possible_filename += char
+
+            if not reverse:
+                counter += 1
+            else:
+                counter -= 1
+
+        if reverse:
+            possible_filename = possible_filename[::-1]
+
+        return possible_filename if found_string_declaration else None
+
+
+    def string_dispatch(self, string):
+        possible_filename = string
+
+        found = FOUND_PATHS_CACHE.get(possible_filename)
+        if found:
+            self.possible_files = [found]
+            self.open_file_in_active_window(0)
+            return
+
+
+        filename_parts = possible_filename.split('.')
+        if len(filename_parts) == 1:
+            return
+
+        if filename_parts[-1] not in self.known_file_types:
+            # employers.urls -> employer/urls.py
+            possible_filename = '%s.%s' % ('/'.join(filename_parts), self.file_type)
+
+        self.possible_files = self.get_files(possible_filename)
+
+        active_window = self.view.window()
+
+
+        if len(self.possible_files) > 1:
+            active_window.show_quick_panel(self.possible_files, self.open_file_in_active_window)
+
+        elif len(self.possible_files) == 1:
+            FOUND_PATHS_CACHE[possible_filename] = self.possible_files[0]
+            self.open_file_in_active_window(0)
+
+    def open_file_in_active_window(self, picked):
+        if picked == -1:
+            return
+        active_window = self.view.window()
+        active_window.open_file(self.possible_files[picked])
+
+
+    def get_files(self, possible_filename):
+        possible_files = []
+        for path in self.view.window().folders():
+            for root, dirs, files in os.walk(path): # Walk directory tree
+                for f in files:
+                    full_path = '%s/%s' % (root, f)
+                    if re.search('%s$' % possible_filename, full_path):
+                    # if possible_filename in full_path:
+                        possible_files.append(full_path)
+        return possible_files
+
+    def _get_file_type(self, filename):
+        return filename.split('.')[-1]
+
+
+
+
+
+
