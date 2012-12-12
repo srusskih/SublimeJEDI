@@ -6,9 +6,6 @@ import traceback
 import sys
 import os
 
-os.environ['VIRTUAL_ENV'] = '/home/jonathan/workspace/virtualenvs/gradcon4/'
-sys.path.append('/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/')
-
 try:
     import jedi
 except ImportError:
@@ -143,9 +140,16 @@ class Autocomplete(sublime_plugin.EventListener):
         completions = [format(complete) for complete in completions]
         return completions
 
+
+added_to_path = False
+
 class PythonGoTo(sublime_plugin.TextCommand):
 
     def run(self, edit):
+        global added_to_path
+        if not added_to_path:
+            sys.path.append('/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/')
+            added_to_path = True
 
         script = get_script(self.view, self.view.sel()[0].begin())
 
