@@ -3,17 +3,19 @@ import sublime_plugin
 import os.path
 import re
 import traceback
+import sys
+import os
+
+os.environ['VIRTUAL_ENV'] = '/home/jonathan/workspace/virtualenvs/gradcon4/'
+sys.path.append('/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/')
 
 try:
     import jedi
 except ImportError:
-    import sys
-    import os
     sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'jedi'))
     import jedi
 
 _dotcomplete = []
-
 
 def get_script(view, location):
     """ `jedi.Script` fabric
@@ -144,6 +146,7 @@ class Autocomplete(sublime_plugin.EventListener):
 class PythonGoTo(sublime_plugin.TextCommand):
 
     def run(self, edit):
+
         script = get_script(self.view, self.view.sel()[0].begin())
 
         # Not sure if this is the right way around?
@@ -209,7 +212,7 @@ FOUND_PATHS_CACHE = {}
 
 class StringGoTo(sublime_plugin.TextCommand):
     """
-    Is useful in django when we are trying to jump from template to template.
+    Is useful in Django when we are trying to jump from template to template.
     Gets the string, and attemps to open a filename associated with it.
     """
 
