@@ -312,44 +312,52 @@ class StringGoTo(sublime_plugin.TextCommand):
             if not self.get_and_open_possible_file(possible_filename):
 
                 # Can't handle anything but python files atm.
-                if self.file_type != '.py':
+                if self.file_type != 'py':
                     return
 
                 possible_filename = '%s.%s' % ('/'.join(filename_parts[:-1]), self.file_type)
-                print possible_filename
                 found = self.get_files(possible_filename)
                 possible_definition = filename_parts[-1]
-                found_definitions = []
                 if found:
-                    # TODO: Handle if multiple files are found
                     if len(found) == 1:
-                        filepath = found[0]
-                        src = open(filepath).read()
-                        smallest_column = 100
-                        smallest_column_pos = None
-                        for pattern in python_definition_patterns:
-                            for match in re.finditer(pattern % possible_definition, src):
-                                if match:
-                                    start = match.start()
-                                    line_num = src.count('\n', 0, start) + 1
-                                    column_num = start - src.rfind('\n', 0, start)
+                        self.go_to_in_new_window(found[0], possible_definition)
 
-                                    if column_num < smallest_column:
-                                        smallest_column = column_num
-                                        smallest_column_pos = len(found_definitions)
-
-                                    found_definitions.append((column_num, line_num))
-
-
-                        if found_definitions:
-                            col, line = found_definitions[smallest_column_pos]
-                            self.jump_to_in_window(filepath, line, col)
-
-                    else:
-                        print 'found too many options'
-
+                    elif len(found) > 1:
+                        active_window = self.view.window()
+                        self.options = found
+                        self.possible_definition = possible_definition
+                        active_window.show_quick_panel(self.options, lambda x: self.go_to_in_new_window(self.options[x] if x != -1 else None, possible_definition))
         else:
             self.get_and_open_possible_file(possible_filename)
+
+
+    def go_to_in_new_window(self, filepath, possible_definition):
+        if not filepath:
+            print 'no file'
+            return
+
+        found_definitions = []
+
+        src = open(filepath).read()
+        smallest_column = 100
+        smallest_column_pos = None
+        for pattern in python_definition_patterns:
+            for match in re.finditer(pattern % possible_definition, src):
+                if match:
+                    start = match.start()
+                    line_num = src.count('\n', 0, start) + 1
+                    column_num = start - src.rfind('\n', 0, start)
+
+                    if column_num < smallest_column:
+                        smallest_column = column_num
+                        smallest_column_pos = len(found_definitions)
+
+                    found_definitions.append((column_num, line_num))
+
+
+        if found_definitions:
+            col, line = found_definitions[smallest_column_pos]
+            self.jump_to_in_window(filepath, line, col)
 
 
     def jump_to_in_window(self, filename, line_number=None, column_number=None):
