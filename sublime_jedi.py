@@ -318,7 +318,9 @@ class StringGoTo(sublime_plugin.TextCommand):
                 possible_filename = '%s.%s' % ('/'.join(filename_parts[:-1]), self.file_type)
                 found = self.get_files(possible_filename)
                 possible_definition = filename_parts[-1]
+                print 'searching for %s -> %s' % (possible_filename, possible_definition)
                 if found:
+                    print 'found'
                     if len(found) == 1:
                         self.go_to_in_new_window(found[0], possible_definition)
 
@@ -394,17 +396,24 @@ class StringGoTo(sublime_plugin.TextCommand):
         active_window = self.view.window()
         active_window.open_file(self.possible_files[picked])
 
-
-    def get_files(self, possible_filename):
-        # Not sure whether to cache all possible filenames?
-        possible_files = []
-        for path in self.view.window().folders():
+    CACHED_FILEPATHS = None
+    def cache_file_paths(self):
+        self.CACHED_FILEPATHS = set()
+        for path in sys.path:
             for root, dirs, files in os.walk(path): # Walk directory tree
                 for f in files:
-                    full_path = '%s/%s' % (root, f)
-                    if re.search('%s$' % possible_filename, full_path):
-                        # if possible_filename in full_path:
-                        possible_files.append(full_path)
+                    self.CACHED_FILEPATHS.add('%s/%s' % (root, f))
+
+    def get_files(self, possible_filename):
+
+        if self.CACHED_FILEPATHS is None:
+            self.cache_file_paths()
+
+        possible_files = []
+        for filepath in self.CACHED_FILEPATHS:
+            if re.search('%s$' % possible_filename, filepath):
+                # if possible_filename in full_path:
+                possible_files.append(filepath)
         return possible_files
 
     def _get_file_type(self, filename):
