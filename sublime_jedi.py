@@ -141,12 +141,19 @@ class Autocomplete(sublime_plugin.EventListener):
         return completions
 
 
+# Have we added our site-packages to sys.path
 added_to_path = False
 
 class PythonGoTo(sublime_plugin.TextCommand):
 
     def run(self, edit):
         global added_to_path
+
+        # If we have a string, dispatch it elsewhere
+        if get_string(self.view):
+            self.view.run_command('string_go_to')
+            return
+
         if not added_to_path:
             sys.path.append('/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/')
             added_to_path = True
@@ -157,9 +164,6 @@ class PythonGoTo(sublime_plugin.TextCommand):
         found = self.attempt_get_definition(script)
         if not found:
             found = self.attempt_go_to(script)
-
-            if not found:
-                self.view.run_command('string_go_to')
 
     def attempt_go_to(self, script):
         found = script.goto()
@@ -211,8 +215,58 @@ class PythonGoTo(sublime_plugin.TextCommand):
         active_window.show_quick_panel(self.options, self.jump_to_in_window)
 
 
+def get_string(view):
+    sels = view.sel()
+    region = view.word(sels[0])
+    possible_string_end = check_if_string(view, region.a)
+    if possible_string_end is None:
+        return False
+
+    possible_string_start = check_if_string(view, region.a-1, True)
+    if possible_string_start is None:
+        return False
+
+    return possible_string_start + possible_string_end
+
+def check_if_string(view, starting, reverse=False):
+    # Has got to be a cleaner/better way to do this
+    char = None
+    counter = starting
+    possible_filename = ''
+    found_string_declaration = False
+    while True:
+        char = view.substr(counter)
+
+        if char == '\n':
+            break
+
+        if char == "\'" or char == '\"':
+            found_string_declaration = True
+            break
+
+        possible_filename += char
+
+        if not reverse:
+            counter += 1
+        else:
+            counter -= 1
+
+    if reverse:
+        possible_filename = possible_filename[::-1]
+
+    return possible_filename if found_string_declaration else None
+
 FOUND_PATHS_CACHE = {}
 
+python_function_pattern = 'def %s'
+python_class_pattern = 'class %s'
+python_variable_pattern = '%s.*='
+
+python_definition_patterns = (
+    python_function_pattern,
+    python_class_pattern,
+    python_variable_pattern,
+)
 
 class StringGoTo(sublime_plugin.TextCommand):
     """
@@ -226,61 +280,17 @@ class StringGoTo(sublime_plugin.TextCommand):
 
     def run(self, edit):
 
-        # Get the selected region
-        sels = self.view.sel()
-        region = self.view.word(sels[0])
-
         self.file_type = self._get_file_type(self.view.file_name())
 
-        string = self.get_string(region)
+        string = get_string(self.view)
         if string:
             self.string_dispatch(string)
-
-
-
-    def get_string(self, region):
-        possible_string_end = self.check_if_string(region.a)
-        if possible_string_end is None:
-            return False
-
-        possible_string_start = self.check_if_string(region.a-1, True)
-        if possible_string_start is None:
-            return False
-
-        return possible_string_start + possible_string_end
-
-    def check_if_string(self, starting, reverse=False):
-        # Has got to be a cleaner/better way to do this
-        char = None
-        counter = starting
-        possible_filename = ''
-        found_string_declaration = False
-        while True:
-            char = self.view.substr(counter)
-
-            if char == '\n':
-                break
-
-            if char == "\'" or char == '\"':
-                found_string_declaration = True
-                break
-
-            possible_filename += char
-
-            if not reverse:
-                counter += 1
-            else:
-                counter -= 1
-
-        if reverse:
-            possible_filename = possible_filename[::-1]
-
-        return possible_filename if found_string_declaration else None
 
 
     def string_dispatch(self, string):
         possible_filename = string
 
+        # Return cached results if exist
         found = FOUND_PATHS_CACHE.get(possible_filename)
         if found:
             self.possible_files = [found]
@@ -293,9 +303,66 @@ class StringGoTo(sublime_plugin.TextCommand):
             return
 
         if filename_parts[-1] not in self.known_file_types:
-            # employers.urls -> employer/urls.py
+            # employers.views -> employer/views.py
+            # employer.views.function_in_view -> employer/views.py GOTO function_in_view
             possible_filename = '%s.%s' % ('/'.join(filename_parts), self.file_type)
+            # test_string = 'test.test_string_open.hello_world'
+            # Possibly make this recursive or loop?
+            # Not needed for my django development atm.
+            if not self.get_and_open_possible_file(possible_filename):
 
+                # Can't handle anything but python files atm.
+                if self.file_type != '.py':
+                    return
+
+                possible_filename = '%s.%s' % ('/'.join(filename_parts[:-1]), self.file_type)
+                print possible_filename
+                found = self.get_files(possible_filename)
+                possible_definition = filename_parts[-1]
+                found_definitions = []
+                if found:
+                    # TODO: Handle if multiple files are found
+                    if len(found) == 1:
+                        filepath = found[0]
+                        src = open(filepath).read()
+                        smallest_column = 100
+                        smallest_column_pos = None
+                        for pattern in python_definition_patterns:
+                            for match in re.finditer(pattern % possible_definition, src):
+                                if match:
+                                    start = match.start()
+                                    line_num = src.count('\n', 0, start) + 1
+                                    column_num = start - src.rfind('\n', 0, start)
+
+                                    if column_num < smallest_column:
+                                        smallest_column = column_num
+                                        smallest_column_pos = len(found_definitions)
+
+                                    found_definitions.append((column_num, line_num))
+
+
+                        if found_definitions:
+                            col, line = found_definitions[smallest_column_pos]
+                            self.jump_to_in_window(filepath, line, col)
+
+                    else:
+                        print 'found too many options'
+
+        else:
+            self.get_and_open_possible_file(possible_filename)
+
+
+    def jump_to_in_window(self, filename, line_number=None, column_number=None):
+        active_window = self.view.window()
+
+        # If the file was selected from a drop down list
+        if isinstance(filename, int):
+            filename = self.options[filename]
+            line_number, column_number = self.options_map[filename]
+
+        active_window.open_file('%s:%s:%s' % (filename, line_number or 0, column_number or 0), sublime.ENCODED_POSITION)
+
+    def get_and_open_possible_file(self, possible_filename):
         self.possible_files = self.get_files(possible_filename)
 
         active_window = self.view.window()
@@ -303,10 +370,15 @@ class StringGoTo(sublime_plugin.TextCommand):
 
         if len(self.possible_files) > 1:
             active_window.show_quick_panel(self.possible_files, self.open_file_in_active_window)
+            return True
 
         elif len(self.possible_files) == 1:
+            # Cache filename -> filepath if we found only one result
             FOUND_PATHS_CACHE[possible_filename] = self.possible_files[0]
             self.open_file_in_active_window(0)
+            return True
+
+        return False
 
     def open_file_in_active_window(self, picked):
         if picked == -1:
@@ -316,13 +388,14 @@ class StringGoTo(sublime_plugin.TextCommand):
 
 
     def get_files(self, possible_filename):
+        # Not sure whether to cache all possible filenames?
         possible_files = []
         for path in self.view.window().folders():
             for root, dirs, files in os.walk(path): # Walk directory tree
                 for f in files:
                     full_path = '%s/%s' % (root, f)
                     if re.search('%s$' % possible_filename, full_path):
-                    # if possible_filename in full_path:
+                        # if possible_filename in full_path:
                         possible_files.append(full_path)
         return possible_files
 
