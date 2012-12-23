@@ -1,0 +1,8 @@
+{
+    // we will use it to get PYTHONPATH for interpreter
+    // You cat set a path to your virtualenv
+    "python_interpreter_path": "python",
+
+    // autocomplete then you set a dot after a variable
+    "auto_complete_on_dot": true
+}
