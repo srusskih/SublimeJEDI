@@ -28,23 +28,23 @@
                             { "caption": "-" },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/SublimeJEDI/sublime_jedi.sublime-keymap"},
+                                "args": {"file": "${packages}/SublimeJEDI/Default.sublime-keymap"},
                                 "caption": "Keymap – Default"
                             },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/User/sublime_jedi.sublime-keymap"},
+                                "args": {"file": "${packages}/User/Default.sublime-keymap"},
                                 "caption": "Keymap – User"
                             },
                             { "caption": "-" },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/SublimeJEDI/sublime_jedi.sublime-mousemap"},
+                                "args": {"file": "${packages}/SublimeJEDI/Default.sublime-mousemap"},
                                 "caption": "Mousemap – Default"
                             },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/User/sublime_jedi.sublime-mousemap"},
+                                "args": {"file": "${packages}/User/Default.sublime-mousemap"},
                                 "caption": "Mousemap – User"
                             }
                         ]
