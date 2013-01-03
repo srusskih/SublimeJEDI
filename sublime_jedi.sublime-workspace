@@ -4,6 +4,14 @@
 		"selected_items":
 		[
 			[
+				"get",
+				"get_script(view, location)	def"
+			],
+			[
+				"sub",
+				"sublime_jedi	module"
+			],
+			[
 				"curr",
 				"current_string_quotes	variable"
 			],
@@ -18,10 +26,6 @@
 			[
 				"re",
 				"region	variable"
-			],
-			[
-				"get",
-				"get_string(view)	def"
 			],
 			[
 				"file",
@@ -54,10 +58,6 @@
 			[
 				"py",
 				"python_definition_patterns	variable"
-			],
-			[
-				"sub",
-				"sublime_plugin	module"
 			],
 			[
 				"vi",
@@ -400,10 +400,26 @@
 	"buffers":
 	[
 		{
+			"file": "python_go_to.py",
+			"settings":
+			{
+				"buffer_size": 3878,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "string_go_to.py",
+			"settings":
+			{
+				"buffer_size": 7156,
+				"line_ending": "Unix"
+			}
+		},
+		{
 			"file": "sublime_jedi.py",
 			"settings":
 			{
-				"buffer_size": 14595,
+				"buffer_size": 7995,
 				"line_ending": "Unix"
 			}
 		}
@@ -460,10 +476,15 @@
 	},
 	"file_history":
 	[
-		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/sublime_jedi.sublime-settings",
-		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/__builtin__",
-		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/imports.py",
 		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/test/test_string_open.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/__builtin__",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/string_go_to.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/Default.sublime-keymap",
+		"/home/jonathan/.config/sublime-text-2/Packages/User/Default (Linux).sublime-keymap",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/python_go_to.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/sublime_jedi.sublime-settings",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/builtin.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/imports.py",
 		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/build/jedi/jedi/imports.py",
 		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/test/__init__.py",
 		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/api.py",
@@ -549,7 +570,6 @@
 		"/home/jonathan/workspace/gradcon4/project/users/controller.py",
 		"/home/jonathan/.config/sublime-text-2/Packages/SublimeCodeIntel/Default (Linux).sublime-keymap",
 		"/home/jonathan/.config/sublime-text-2/Packages/Jono/jono.py",
-		"/home/jonathan/.config/sublime-text-2/Packages/User/Default (Linux).sublime-keymap",
 		"/home/jonathan/.config/sublime-text-2/Packages/SublimeCodeIntel/SublimeCodeIntel.py",
 		"/home/jonathan/workspace/gradcon4/project/mail/views.py",
 		"/home/jonathan/workspace/gradcon4/project/mail/urls.py",
@@ -583,11 +603,7 @@
 		"/home/jonathan/workspace/gradcon4/project/users/views.py",
 		"/home/jonathan/workspace/gradcon4/project/users/urls.py",
 		"/home/jonathan/workspace/gradcon4/project/gradprofiles/urls.py",
-		"/home/jonathan/workspace/gradcon4/project/employers/templates/employers/snippets/list_employer_profiles.html",
-		"/home/jonathan/workspace/gradcon4/project/users/templates/snippets/graduate_fill_out_profile.html",
-		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/index.html",
-		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/logout_page.html",
-		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/snippets/warning_messages.html"
+		"/home/jonathan/workspace/gradcon4/project/employers/templates/employers/snippets/list_employer_profiles.html"
 	],
 	"find":
 	{
@@ -754,23 +770,263 @@
 	"groups":
 	[
 		{
-			"selected": 0,
+			"selected": 1,
 			"sheets":
 			[
 				{
 					"buffer": 0,
-					"file": "sublime_jedi.py",
+					"file": "python_go_to.py",
 					"settings":
 					{
-						"buffer_size": 14595,
+						"buffer_size": 3878,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								4500,
-								4500
+								1108,
+								1108
+							]
+						],
+						"settings":
+						{
+							"annotations":
+							[
+								"TODO",
+								"README",
+								"FIXME"
+							],
+							"buffer_scroll_name": "ab3ffa61",
+							"csslint_options":
+							{
+								"adjoining-classes": "warning",
+								"box-model": true,
+								"box-sizing": "warning",
+								"compatible-vendor-prefixes": "warning",
+								"display-property-grouping": true,
+								"duplicate-background-images": "warning",
+								"duplicate-properties": true,
+								"empty-rules": true,
+								"errors": true,
+								"fallback-colors": "warning",
+								"floats": "warning",
+								"font-faces": "warning",
+								"font-sizes": "warning",
+								"gradients": "warning",
+								"ids": "warning",
+								"import": "warning",
+								"important": "warning",
+								"known-properties": true,
+								"outline-none": "warning",
+								"overqualified-elements": "warning",
+								"qualified-headings": "warning",
+								"regex-selectors": "warning",
+								"rules-count": "warning",
+								"shorthand": "warning",
+								"star-property-hack": "warning",
+								"text-indent": "warning",
+								"underscore-property-hack": "warning",
+								"unique-headings": "warning",
+								"universal-selector": "warning",
+								"vendor-prefix": true,
+								"zero-units": "warning"
+							},
+							"gjslint_ignore":
+							[
+								110.0
+							],
+							"gjslint_options":
+							[
+							],
+							"javascript_linter": "jshint",
+							"jshint_options":
+							{
+								"browser": true,
+								"evil": true,
+								"regexdash": true,
+								"sub": true,
+								"trailing": true,
+								"wsh": true
+							},
+							"pep8": false,
+							"pep8_ignore":
+							[
+								"E501"
+							],
+							"perl_linter": "perlcritic",
+							"pyflakes_ignore":
+							[
+							],
+							"pyflakes_ignore_import_*": true,
+							"sublimelinter": true,
+							"sublimelinter_delay": 2.0,
+							"sublimelinter_disable":
+							[
+							],
+							"sublimelinter_executable_map":
+							{
+							},
+							"sublimelinter_fill_outlines": false,
+							"sublimelinter_gutter_marks": false,
+							"sublimelinter_mark_style": "outline",
+							"sublimelinter_notes": false,
+							"sublimelinter_objj_check_ascii": false,
+							"sublimelinter_popup_errors_on_save": false,
+							"sublimelinter_syntax_map":
+							{
+								"C++": "c",
+								"Python Django": "python",
+								"Ruby on Rails": "ruby"
+							},
+							"sublimelinter_wrap_find": true,
+							"syntax": "Packages/Djaneiro/Syntaxes/Python Django.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "string_go_to.py",
+					"settings":
+					{
+						"buffer_size": 7156,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2991,
+								2991
+							]
+						],
+						"settings":
+						{
+							"annotations":
+							[
+								"TODO",
+								"README",
+								"FIXME"
+							],
+							"buffer_scroll_name": "3bb186c0",
+							"csslint_options":
+							{
+								"adjoining-classes": "warning",
+								"box-model": true,
+								"box-sizing": "warning",
+								"compatible-vendor-prefixes": "warning",
+								"display-property-grouping": true,
+								"duplicate-background-images": "warning",
+								"duplicate-properties": true,
+								"empty-rules": true,
+								"errors": true,
+								"fallback-colors": "warning",
+								"floats": "warning",
+								"font-faces": "warning",
+								"font-sizes": "warning",
+								"gradients": "warning",
+								"ids": "warning",
+								"import": "warning",
+								"important": "warning",
+								"known-properties": true,
+								"outline-none": "warning",
+								"overqualified-elements": "warning",
+								"qualified-headings": "warning",
+								"regex-selectors": "warning",
+								"rules-count": "warning",
+								"shorthand": "warning",
+								"star-property-hack": "warning",
+								"text-indent": "warning",
+								"underscore-property-hack": "warning",
+								"unique-headings": "warning",
+								"universal-selector": "warning",
+								"vendor-prefix": true,
+								"zero-units": "warning"
+							},
+							"gjslint_ignore":
+							[
+								110.0
+							],
+							"gjslint_options":
+							[
+							],
+							"javascript_linter": "jshint",
+							"jshint_options":
+							{
+								"browser": true,
+								"evil": true,
+								"regexdash": true,
+								"sub": true,
+								"trailing": true,
+								"wsh": true
+							},
+							"pep8": false,
+							"pep8_ignore":
+							[
+								"E501"
+							],
+							"perl_linter": "perlcritic",
+							"pyflakes_ignore":
+							[
+							],
+							"pyflakes_ignore_import_*": true,
+							"sublimelinter": true,
+							"sublimelinter_delay": 2.0,
+							"sublimelinter_disable":
+							[
+							],
+							"sublimelinter_executable_map":
+							{
+							},
+							"sublimelinter_fill_outlines": false,
+							"sublimelinter_gutter_marks": false,
+							"sublimelinter_mark_style": "outline",
+							"sublimelinter_notes": false,
+							"sublimelinter_objj_check_ascii": false,
+							"sublimelinter_popup_errors_on_save": false,
+							"sublimelinter_syntax_map":
+							{
+								"C++": "c",
+								"Python Django": "python",
+								"Ruby on Rails": "ruby"
+							},
+							"sublimelinter_wrap_find": true,
+							"syntax": "Packages/Djaneiro/Syntaxes/Python Django.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1485.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 2,
+					"file": "sublime_jedi.py",
+					"settings":
+					{
+						"buffer_size": 7995,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								5629,
+								5629
 							]
 						],
 						"settings":
@@ -869,7 +1125,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 2015.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
 					"type": "text"
@@ -894,11 +1150,18 @@
 				0,
 				1,
 				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
 			]
 		],
 		"cols":
 		[
 			0.0,
+			0.601800124146,
 			1.0
 		],
 		"rows":
@@ -1089,6 +1352,6 @@
 	"show_open_files": true,
 	"show_tabs": true,
 	"side_bar_visible": true,
-	"side_bar_width": 458.0,
+	"side_bar_width": 370.0,
 	"status_bar_visible": true
 }

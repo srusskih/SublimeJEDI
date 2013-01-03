@@ -54,6 +54,9 @@ class PythonGoTo(JediEnvMixin, sublime_plugin.TextCommand):
         if not found:
             found = self.attempt_go_to(script)
 
+        # restore sublime env, to keep functionality
+        self.restore_env()
+
     def attempt_go_to(self, script):
         """ Uses `jedi.api.Script` goto function
             for possible definition.

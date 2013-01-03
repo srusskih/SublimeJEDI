@@ -82,6 +82,9 @@ class StringGoTo(JediEnvMixin, sublime_plugin.TextCommand):
         if string:
             self.string_dispatch(string)
 
+        # restore sublime env, to keep functionality
+        self.restore_env()
+
 
     def string_dispatch(self, string):
         possible_filename = string
