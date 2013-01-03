@@ -1,4 +1,7 @@
 [
+
+    { "keys": ["ctrl+b"], "command": "python_go_to"  },
+
     {
         "command": "sublime_jedi_complete",
         // "keys": ["?"],

@@ -130,8 +130,11 @@ class StringGoTo(JediEnvMixin, sublime_plugin.TextCommand):
 
 
     def go_to_in_new_window(self, filepath, possible_definition):
+        """
+        Look for possible python declaration, if found open in a
+        new window, and take the cursor the the declaration.
+        """
         if not filepath:
-            print 'no file'
             return
 
         found_definitions = []
