@@ -41,7 +41,7 @@ You can set Python interpreter in this way...
 
 #### Autocomplete on DOT
 
-By default it's turned on
+By default it's [turned on](https://github.com/svaiter/SublimeJEDI/blob/master/sublime_jedi.sublime-settings#L7)
 
     # sublime_jedi.sublime-settings
     {
