@@ -38,6 +38,7 @@ You can set Python interpreter in this way...
 
 TODO
 ----
+
  - add Jedi "Go To" functionality
  - add Jedi "Get Definitions"
  - add Jedi "Related Names" (Find Usages)
