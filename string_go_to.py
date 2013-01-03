@@ -114,9 +114,7 @@ class StringGoTo(JediEnvMixin, sublime_plugin.TextCommand):
                 possible_filename = '%s.%s' % ('/'.join(filename_parts[:-1]), self.file_type)
                 found = self.get_files(possible_filename)
                 possible_definition = filename_parts[-1]
-                print 'searching for %s -> %s' % (possible_filename, possible_definition)
                 if found:
-                    print 'found'
                     if len(found) == 1:
                         self.go_to_in_new_window(found[0], possible_definition)
 
