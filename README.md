@@ -37,8 +37,8 @@ You can set Python interpreter in this way...
 
 #### Jedi Goto/ Go Definition
 
-    Find function / variable / class definition
-    Shortcuts: `CTRL+B` or `CTRL + LeftMouseButton`
+Find function / variable / class definition
+Shortcuts: `CTRL+B` or `CTRL + LeftMouseButton`
 
 
 TODO
