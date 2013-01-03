@@ -1,0 +1,13 @@
+Main Authors
+============
+
+David Halter (@davidhalter)
+
+
+Contributors
+============
+
+Danilo Bargen (@dbrgn)
+tek (@tek)
+Takafumi Arakaki (@tkf)
+Aaron Griffin

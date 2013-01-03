@@ -1,0 +1,1094 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"curr",
+				"current_string_quotes	variable"
+			],
+			[
+				"cur",
+				"currently_string	variable"
+			],
+			[
+				"cu",
+				"current_string_quotes	variable"
+			],
+			[
+				"re",
+				"region	variable"
+			],
+			[
+				"get",
+				"get_string(view)	def"
+			],
+			[
+				"file",
+				"ffilepath	FilePathField (ffilepath)"
+			],
+			[
+				"pos",
+				"possible_definition	variable"
+			],
+			[
+				"fil",
+				"filepath	variable"
+			],
+			[
+				"small",
+				"smallest_column_pos	variable"
+			],
+			[
+				"foun",
+				"found_definitions	variable"
+			],
+			[
+				"tes",
+				"test_string"
+			],
+			[
+				"te",
+				"test_string_open	module"
+			],
+			[
+				"py",
+				"python_definition_patterns	variable"
+			],
+			[
+				"sub",
+				"sublime_plugin	module"
+			],
+			[
+				"vi",
+				"view_settings	variable"
+			],
+			[
+				"in",
+				"institution_account	variable"
+			],
+			[
+				"e",
+				"employer_account	variable"
+			],
+			[
+				"se",
+				"send_registration(user, site, to_email_test)	def"
+			],
+			[
+				"emp",
+				"employers_count	variable"
+			],
+			[
+				"pro",
+				"profiles_count	variable"
+			],
+			[
+				"abou",
+				"about_institution	variable"
+			],
+			[
+				"about",
+				"about_employer	variable"
+			],
+			[
+				"to",
+				"to_user	variable"
+			],
+			[
+				"add",
+				"addModal"
+			],
+			[
+				"threa",
+				"thread_id"
+			],
+			[
+				"get_",
+				"get_object_or_404"
+			],
+			[
+				"is",
+				"is_authenticated"
+			],
+			[
+				"thre",
+				"threads"
+			],
+			[
+				"G",
+				"GCSite"
+			],
+			[
+				"Empl",
+				"EmployerAccount"
+			],
+			[
+				"Re",
+				"RequestContext"
+			],
+			[
+				"context",
+				"context_instance"
+			],
+			[
+				"clo",
+				"closing_in_24_events"
+			],
+			[
+				"slu",
+				"slug_2"
+			],
+			[
+				"slug",
+				"slug_1"
+			],
+			[
+				"sl",
+				"slug_2"
+			],
+			[
+				"count",
+				"country_name"
+			],
+			[
+				"sel",
+				"self"
+			],
+			[
+				"Emplo",
+				"EmployerEmailData"
+			],
+			[
+				"ee",
+				"eed_pks"
+			],
+			[
+				"empl",
+				"employer_pk"
+			],
+			[
+				"time",
+				"timezone"
+			],
+			[
+				"em",
+				"email_message"
+			],
+			[
+				"html",
+				"html_content"
+			],
+			[
+				"fr",
+				"from_email"
+			],
+			[
+				"mai",
+				"mail_message"
+			],
+			[
+				"po",
+				"possible_files"
+			],
+			[
+				"margin",
+				"margin-right"
+			],
+			[
+				"mim",
+				"mimetype"
+			],
+			[
+				"gra",
+				"graduate_pk"
+			],
+			[
+				"remove",
+				"removeAttr"
+			],
+			[
+				"op",
+				"open_file_in_active_window"
+			],
+			[
+				"a",
+				"active_window"
+			],
+			[
+				"fu",
+				"full_path"
+			],
+			[
+				"dir",
+				"dirs"
+			],
+			[
+				"grad",
+				"grad_account"
+			],
+			[
+				"mon",
+				"monthly_product"
+			],
+			[
+				"acti",
+				"active_employer_account"
+			],
+			[
+				"requ",
+				"request"
+			],
+			[
+				"Job",
+				"JobType  (class)"
+			],
+			[
+				"Employer",
+				"EmployerProfile  (class)"
+			],
+			[
+				"can",
+				"can_postpone"
+			],
+			[
+				"app",
+				"app_name"
+			],
+			[
+				"ins",
+				"INSTALLED_APPS"
+			],
+			[
+				"Fa",
+				"FacebookProfile"
+			],
+			[
+				"Facul",
+				"FacultyProfile"
+			],
+			[
+				"Prod",
+				"ProductType"
+			],
+			[
+				"gc",
+				"gc_account"
+			],
+			[
+				"is_",
+				"is_valid"
+			],
+			[
+				"mo",
+				"modal_content"
+			],
+			[
+				"response",
+				"response"
+			],
+			[
+				"Http",
+				"HttpResponse"
+			],
+			[
+				"shopping",
+				"shopping_cart"
+			],
+			[
+				"Ht",
+				"Http404"
+			],
+			[
+				"req",
+				"request"
+			],
+			[
+				"pur",
+				"purchaseItem"
+			],
+			[
+				"Htt",
+				"HttpResponseBadRequest"
+			],
+			[
+				"item",
+				"item_type"
+			],
+			[
+				"it",
+				"item_id"
+			],
+			[
+				"ite",
+				"item_type"
+			],
+			[
+				"product",
+				"product_items"
+			],
+			[
+				"Pro",
+				"ProductItem"
+			],
+			[
+				"publ",
+				"published"
+			],
+			[
+				"up",
+				"upgrade"
+			],
+			[
+				"rel",
+				"reload"
+			],
+			[
+				"call",
+				"callback"
+			],
+			[
+				"event",
+				"eventType"
+			],
+			[
+				"render",
+				"render_to_string"
+			],
+			[
+				"publish",
+				"publish-job"
+			],
+			[
+				"pr",
+				"profiles_count"
+			],
+			[
+				"pu",
+				"published"
+			],
+			[
+				"pub",
+				"published_job_ad"
+			],
+			[
+				"create",
+				"created"
+			],
+			[
+				"bl",
+				"blurb"
+			],
+			[
+				"job",
+				"job_ad"
+			],
+			[
+				"previous",
+				"previous_job_ads"
+			],
+			[
+				"close",
+				"close_date"
+			],
+			[
+				"JobA",
+				"JobAd"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "sublime_jedi.py",
+			"settings":
+			{
+				"buffer_size": 14595,
+				"line_ending": "Unix"
+			}
+		}
+	],
+	"build_system": "",
+	"command_palette":
+	{
+		"height": 285.0,
+		"selected_items":
+		[
+			[
+				"Package Control: ",
+				"Package Control: Disable Package"
+			],
+			[
+				"instal",
+				"Package Control: Install Package"
+			],
+			[
+				"install p",
+				"Package Control: Install Package"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"ins",
+				"Package Control: Install Package"
+			],
+			[
+				"insta",
+				"Package Control: Install Package"
+			],
+			[
+				"install pa",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 575.0
+	},
+	"console":
+	{
+		"height": 139.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/sublime_jedi.sublime-settings",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/__builtin__",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/imports.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/test/test_string_open.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/build/jedi/jedi/imports.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/test/__init__.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/api.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/__init__.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/jedi/jedi/modules.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeJEDI/.config",
+		"/home/jonathan/workspace/gradcon4/project/settings.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/templates/mail/base_graduate.html",
+		"/home/jonathan/workspace/gradcon4/project/mail/templates/mail/custom_graduate_gradconnection.html",
+		"/home/jonathan/workspace/gradcon4/project/users/models.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/management/commands/alerts_daily_email.py",
+		"/home/jonathan/workspace/gradcon4/project/forum/views.py",
+		"/home/jonathan/workspace/gradcon4/project/forum/models.py",
+		"/home/jonathan/workspace/gradcon4/project/reporting/management/commands/employer_reporting.py",
+		"/home/jonathan/workspace/gradcon4/project/reporting/management/commands/gc_reporting.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/on_demand.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/tasks.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/email_sender.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/templates/base_graduate.html",
+		"/home/jonathan/workspace/gradcon4/project/mail/templates/alerts_daily_email_graduate.html",
+		"/home/jonathan/workspace/gradcon4/project/mail/templates/graduate_no_rhs.html",
+		"/home/jonathan/workspace/gradcon4/project/mail/templates/snippets/employer_alert_row.html",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/js/forum.js",
+		"/home/jonathan/workspace/gradcon4/project/forum/forms.py",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/popups/new_topic.html",
+		"/home/jonathan/workspace/gradcon4/project/forum/urls.py",
+		"/home/jonathan/workspace/gradcon4/project/products/models.py",
+		"/home/jonathan/workspace/gradcon4/gradcon4.sublime-project",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/snippets/thread_user_list.html",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeLinter/README.md",
+		"/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/django/db/models/base.py",
+		"/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/django/db/models/__init__.py",
+		"/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/django/db/models/fields/__init__.py",
+		"/home/jonathan/workspace/gradcon4/project/institutions/templates/institutions/most_recent_posts.html",
+		"/home/jonathan/workspace/gradcon4/project/institutions/views.py",
+		"/home/jonathan/workspace/gradcon4/project/employers/templates/employers/forum.html",
+		"/home/jonathan/workspace/gradcon4/project/employers/templates/employers/employer_profiles.html",
+		"/home/jonathan/workspace/gradcon4/project/employers/views.py",
+		"/home/jonathan/workspace/gradcon4/project/employers/urls.py",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/js/site.js",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/popups/view_full_conversation.html",
+		"/home/jonathan/workspace/gradcon4/templates/snippets/js.html",
+		"/home/jonathan/workspace/gradcon4/project/employers/templates/employers/snippets/employer_account_tabs_navs.html",
+		"/home/jonathan/workspace/gradcon4/templates/base_site.html",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum_base.html",
+		"/home/jonathan/workspace/gradcon4/project/institutions/templates/institutions/popups/view_full_conversation.html",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/thread.html",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/snippets/reply_post_link.html",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/thread_list.html",
+		"/home/jonathan/workspace/gradcon4/project/library/templatetags/custom_filters.py",
+		"/home/jonathan/workspace/gradcon4/project/forum/templatetags/forum_tags.py",
+		"/home/jonathan/workspace/gradcon4/project/forum/templatetags/__init__.py",
+		"/home/jonathan/workspace/gradcon4/project/forum/templatetags",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/forum_list.html",
+		"/home/jonathan/workspace/gradcon4/project/forum/templates/forum/snippets/forum_list_row.html",
+		"/home/jonathan/workspace/gradcon4/project/library/context_processors.py",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/css/forum.css",
+		"/home/jonathan/workspace/gradcon4/templates/snippets/css.html",
+		"/home/jonathan/workspace/gradcon4/project/users/decorators.py",
+		"/home/jonathan/workspace/gradcon4/project/urls.py",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/views.py",
+		"/home/jonathan/workspace/gradcon4/project/library/decorators.py",
+		"/home/jonathan/workspace/gradcon4/project/institutions/urls.py",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/views.py",
+		"/home/jonathan/workspace/gradcon4/templates/popups/generic_popup.html",
+		"/home/jonathan/workspace/gradcon4/project/forum/admin.py",
+		"/home/jonathan/workspace/gradcon4/project/library/middleware.py",
+		"/home/jonathan/workspace/gradcon4/project/events/models.py",
+		"/home/jonathan/workspace/gradcon4/fabfile.py",
+		"/home/jonathan/workspace/gradcon4/project/reporting/models.py",
+		"/home/jonathan/workspace/gradcon4/project/reporting/management/commands/current_reporting_standings.py",
+		"/home/jonathan/workspace/gradcon4/.gitignore",
+		"/home/jonathan/workspace/gradcon4/project/vanity/views.py",
+		"/home/jonathan/workspace/gradcon4/project/sitemaps/models.py",
+		"/home/jonathan/workspace/gradcon4/project/sitemaps/management/commands/gradmaker_sitemaps.py",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/js/blog.js",
+		"/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/django/db/models/manager.py",
+		"/home/jonathan/workspace/gradcon4/project/library/managers.py",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/models.py",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/js/jquery.jqEasyCharCounter.min.js",
+		"/home/jonathan/workspace/gradcon4/project/users/templates/popups/generic_modal_form.html",
+		"/home/jonathan/workspace/virtualenvs/gradcon4/lib/python2.7/site-packages/django/contrib/auth/models.py",
+		"/home/jonathan/workspace/gradcon4/project/users/controller.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeCodeIntel/Default (Linux).sublime-keymap",
+		"/home/jonathan/.config/sublime-text-2/Packages/Jono/jono.py",
+		"/home/jonathan/.config/sublime-text-2/Packages/User/Default (Linux).sublime-keymap",
+		"/home/jonathan/.config/sublime-text-2/Packages/SublimeCodeIntel/SublimeCodeIntel.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/views.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/urls.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/clickthrough.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/templates/base.html",
+		"/home/jonathan/workspace/gradcon4/project/mail/admin.py",
+		"/home/jonathan/workspace/gradcon4/project/events/admin.py",
+		"/home/jonathan/workspace/gradcon4/project/mail/MailMessage.py",
+		"/home/jonathan/workspace/gradcon4/templates/base.html",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/snippets/sliding_tabs.html",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/snippets/news_feed.html",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/snippets/search_box.html",
+		"/home/jonathan/workspace/gradcon4/project/agency/urls.py",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/GradAccountSearchResult.py",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/grad_profile.html",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/snippets/info_and_avatar.html",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/css/gradcon4_style.css",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/snippets/avatar.html",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/snippets/gradprofile_row_result.html",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/js/gradprofiles.js",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/snippets/gradprofile_results.html",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/snippets/gradprofile_row.html",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/popups/invite_to_apply.html",
+		"/home/jonathan/workspace/gradcon4/project/products/views.py",
+		"/home/jonathan/workspace/gradcon4/project/library/admin.py",
+		"/home/jonathan/workspace/gradcon4/project/blog/admin.py",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/my_alerts.html",
+		"/home/jonathan/workspace/gradcon4/site-media/static-media/js/employer_profile.js",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/templates/search.html",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/snippets/choose_short_list.html",
+		"/home/jonathan/workspace/gradcon4/project/users/views.py",
+		"/home/jonathan/workspace/gradcon4/project/users/urls.py",
+		"/home/jonathan/workspace/gradcon4/project/gradprofiles/urls.py",
+		"/home/jonathan/workspace/gradcon4/project/employers/templates/employers/snippets/list_employer_profiles.html",
+		"/home/jonathan/workspace/gradcon4/project/users/templates/snippets/graduate_fill_out_profile.html",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/index.html",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/logout_page.html",
+		"/home/jonathan/workspace/gradcon4/project/gradmaker/templates/gradmaker/snippets/warning_messages.html"
+	],
+	"find":
+	{
+		"height": 35.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+			""
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": true,
+		"find_history":
+		[
+			"get_sys_path",
+			"USE_CACHING",
+			"CreateThre",
+			"send_account_forgot_password",
+			"test_to_email",
+			"def ajax",
+			"posts_by",
+			"get_most_recent_posts",
+			"\n            ",
+			"class PartnerAccount",
+			"datetime",
+			"def forum",
+			"forum",
+			"snippets/sponsor_banner.html",
+			"forums_list",
+			"employer_performance_reporting",
+			"cache_pa",
+			"canInviteToApply",
+			"canInv",
+			"ajax/view-full",
+			")\n",
+			"def codeintel",
+			"Goto",
+			"guess_lang",
+			"EMPLOYER_DATA_COUNTS",
+			"_get_unique_employers_and_increment",
+			"REPLY",
+			"MailType",
+			"email_sender",
+			"graduate-info-pane",
+			"graduate-search-info",
+			"\">\n",
+			"GradAccountSearchResults",
+			"gc_utils",
+			"folders",
+			"get_object_or_404",
+			"prefixr",
+			"python",
+			"updateShortList",
+			"GradAccountSearchResults",
+			"get_cached_grad_accounts",
+			"search_graduates",
+			"MonthlyProductPrice",
+			"MonthlyProductForm",
+			"FeaturedSpotsForm",
+			"mp",
+			"employer_page",
+			"employer_view",
+			"admin_profil",
+			"#job-credits",
+			"admin_profiles",
+			"employer_view_job_ads",
+			"admin_employer_view_profile",
+			"employer_admin",
+			"admin_profiles",
+			"<<<",
+			"EmployerProfileEvent.objects",
+			"(GCBaseTest",
+			"EmployerProfileEvent.objects",
+			"Employer",
+			"file_exclude_patterns",
+			"Employer",
+			"ctrl+shift+f",
+			"EmployerProfileEvent",
+			"class Faculty",
+			"Class Faculty",
+			"INSTALLED_APPS",
+			"requires_model_validation",
+			"validate(",
+			"self.postponed",
+			"app_labels",
+			"app_models",
+			"INSTALLED_APPS",
+			"which has either not been installed",
+			"get_validation_errors",
+			"from social import utils",
+			"social.utils",
+			"facebook_views",
+			"social.models",
+			"'\n",
+			"Metadata",
+			"(Client)",
+			"(CLient)",
+			"def most_recent_posts",
+			"get_popular_employer_applications",
+			"GraduateAlert",
+			"',\n",
+			"social.models",
+			"social.models.",
+			"mail.models",
+			");\n",
+			"class EMployer",
+			"<<<",
+			"showFormErrors",
+			"credit_card_form",
+			"'),\n",
+			");\n",
+			"institution_user_logged_in_handler",
+			"notifications/institution_account_logged_in.html",
+			"showPurchseItemForm",
+			"class EmployerGenericProductForm",
+			"ctrl+b",
+			"purchase_item",
+			"purchase_item_generic",
+			"JobAd",
+			"employer_view_job_ads",
+			"/>\n",
+			");\n",
+			"ctrl+shift+k",
+			"]\n",
+			"class Employer",
+			"   ",
+			">\n",
+			"ajax_create_one_off_job",
+			"create-one-off-job",
+			"job_ads",
+			"get_valid_for_client",
+			"JobAdAdmin",
+			"JobAdPreview",
+			"JobAdForm",
+			"ajax_create_one_off_job",
+			"ajax/create-one-off-job",
+			"();\n",
+			"){\n",
+			"preview",
+			"<<<<",
+			"ctrl+y",
+			"\"\"\"\n"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+			"to_email_test",
+			"monthly_product",
+			"job_Ad"
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "sublime_jedi.py",
+					"settings":
+					{
+						"buffer_size": 14595,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4500,
+								4500
+							]
+						],
+						"settings":
+						{
+							"annotations":
+							[
+								"TODO",
+								"README",
+								"FIXME"
+							],
+							"buffer_scroll_name": "284895ee",
+							"csslint_options":
+							{
+								"adjoining-classes": "warning",
+								"box-model": true,
+								"box-sizing": "warning",
+								"compatible-vendor-prefixes": "warning",
+								"display-property-grouping": true,
+								"duplicate-background-images": "warning",
+								"duplicate-properties": true,
+								"empty-rules": true,
+								"errors": true,
+								"fallback-colors": "warning",
+								"floats": "warning",
+								"font-faces": "warning",
+								"font-sizes": "warning",
+								"gradients": "warning",
+								"ids": "warning",
+								"import": "warning",
+								"important": "warning",
+								"known-properties": true,
+								"outline-none": "warning",
+								"overqualified-elements": "warning",
+								"qualified-headings": "warning",
+								"regex-selectors": "warning",
+								"rules-count": "warning",
+								"shorthand": "warning",
+								"star-property-hack": "warning",
+								"text-indent": "warning",
+								"underscore-property-hack": "warning",
+								"unique-headings": "warning",
+								"universal-selector": "warning",
+								"vendor-prefix": true,
+								"zero-units": "warning"
+							},
+							"gjslint_ignore":
+							[
+								110.0
+							],
+							"gjslint_options":
+							[
+							],
+							"javascript_linter": "jshint",
+							"jshint_options":
+							{
+								"browser": true,
+								"evil": true,
+								"regexdash": true,
+								"sub": true,
+								"trailing": true,
+								"wsh": true
+							},
+							"pep8": false,
+							"pep8_ignore":
+							[
+								"E501"
+							],
+							"perl_linter": "perlcritic",
+							"pyflakes_ignore":
+							[
+							],
+							"pyflakes_ignore_import_*": true,
+							"sublimelinter": true,
+							"sublimelinter_delay": 2.0,
+							"sublimelinter_disable":
+							[
+							],
+							"sublimelinter_executable_map":
+							{
+							},
+							"sublimelinter_fill_outlines": false,
+							"sublimelinter_gutter_marks": false,
+							"sublimelinter_mark_style": "outline",
+							"sublimelinter_notes": false,
+							"sublimelinter_objj_check_ascii": false,
+							"sublimelinter_popup_errors_on_save": false,
+							"sublimelinter_syntax_map":
+							{
+								"C++": "c",
+								"Python Django": "python",
+								"Ruby on Rails": "ruby"
+							},
+							"sublimelinter_wrap_find": true,
+							"syntax": "Packages/Djaneiro/Syntaxes/Python Django.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2015.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 34.0
+	},
+	"input":
+	{
+		"height": 31.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 112.0
+	},
+	"replace":
+	{
+		"height": 64.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+			[
+				"gradprofile_row.html",
+				"project/gradprofiles/templates/snippets/gradprofile_row.html"
+			],
+			[
+				"gradprofile_results.html",
+				"project/gradprofiles/templates/snippets/gradprofile_results.html"
+			],
+			[
+				"employers/base",
+				"project/employers/templates/employers/base.html"
+			],
+			[
+				"snippets/package_upsell.html",
+				"project/products/templates/snippets/package_upsell.html"
+			],
+			[
+				"generic_purchase_credit",
+				"project/employers/templates/employers/snippets/generic_purchase_credit.html"
+			],
+			[
+				"employers/snippets/generic_purchase_credit.html",
+				"project/employers/templates/employers/snippets/generic_purchase_credit.html"
+			],
+			[
+				"employers/job_ads.html",
+				"project/employers/templates/employers/job_ads.html"
+			],
+			[
+				"employers/employer_profiles.html",
+				"project/employers/templates/employers/employer_profiles.html"
+			],
+			[
+				"employers/employer_pro",
+				"project/employers/templates/employers/employer_profiles.html"
+			],
+			[
+				"employers/base.html",
+				"project/employers/templates/employers/base.html"
+			],
+			[
+				"employer_account_profile",
+				"project/employers/templates/employers/snippets/employer_account_profile_edit_job_tab.html"
+			],
+			[
+				"list_employer_profiles",
+				"project/employers/templates/employers/snippets/list_employer_profiles.html"
+			],
+			[
+				"base_shopping.html",
+				"project/employers/templates/employers/base_shopping.html"
+			],
+			[
+				"employers/employer_page.html",
+				"project/employers/templates/employers/employer_page.html"
+			],
+			[
+				"most_recent_posts",
+				"project/institutions/templates/institutions/most_recent_posts.html"
+			],
+			[
+				"institution.html",
+				"project/edumaker/templates/snippets/institution.html"
+			],
+			[
+				"institution_page",
+				"project/edumaker/templates/institution_page.html"
+			],
+			[
+				"new_ca",
+				"project/products/templates/popups/new_card_details.html"
+			],
+			[
+				"institutions/base.html",
+				"project/institutions/templates/institutions/base.html"
+			],
+			[
+				"employers/snippets/employer_account_profile_create_job_tabs.html",
+				"project/employers/templates/employers/snippets/employer_account_profile_create_job_tabs.html"
+			],
+			[
+				"employer_account_profile_edit_job_tab.html",
+				"project/employers/templates/employers/snippets/employer_account_profile_edit_job_tab.html"
+			],
+			[
+				"employer_account_profile_edit_job_tabs.html",
+				"project/employers/templates/employers/snippets/employer_account_profile_edit_job_tabs.html"
+			],
+			[
+				"employers/edit_job_ad.htm",
+				"project/employers/templates/employers/edit_job_ad.html"
+			],
+			[
+				"employer_account_profile_edit_job_tab",
+				"project/employers/templates/employers/snippets/employer_account_profile_edit_job_tab.html"
+			],
+			[
+				"employer_account_profile_edit_job_tabs",
+				"project/employers/templates/employers/snippets/employer_account_profile_edit_job_tabs.html"
+			],
+			[
+				"employers/edit_job_ad.html",
+				"project/employers/templates/employers/edit_job_ad.html"
+			],
+			[
+				"employers/snippets/employer_account_profile_create_job_tabs",
+				"project/employers/templates/employers/snippets/employer_account_profile_create_job_tabs.html"
+			],
+			[
+				"gradmaker/snippets/one_off_job_details.html",
+				"project/gradmaker/templates/gradmaker/snippets/one_off_job_details.html"
+			],
+			[
+				"gradmaker/one_off_job_page.html",
+				"project/gradmaker/templates/gradmaker/one_off_job_page.html"
+			],
+			[
+				"gradmaker/view",
+				"project/gradmaker/views.py"
+			],
+			[
+				"employer_account_profile_create_job_tabs",
+				"project/employers/templates/employers/snippets/employer_account_profile_create_job_tabs.html"
+			],
+			[
+				"sitean",
+				"project/library/SiteAnalytics.py"
+			],
+			[
+				"employers/jo",
+				"project/employers/templates/employers/job_ads.html"
+			],
+			[
+				"gradmaker/views",
+				"project/gradmaker/views.py"
+			],
+			[
+				"edit_job_ad",
+				"project/employers/templates/employers/edit_job_ad.html"
+			],
+			[
+				"employers/edid",
+				"project/employers/templates/employers/edit_job_ad.html"
+			],
+			[
+				"employers/job_ads",
+				"project/employers/templates/employers/job_ads.html"
+			],
+			[
+				"users/views",
+				"project/users/views.py"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 500.0,
+		"selected_items":
+		[
+		],
+		"width": 380.0
+	},
+	"show_minimap": false,
+	"show_open_files": true,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 458.0,
+	"status_bar_visible": true
+}
