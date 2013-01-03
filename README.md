@@ -29,7 +29,7 @@ By default project config name is `<project name>.sublime-project`
 
 You can set Python interpreter in this way...
 
-    # <project name>.sublime-project`
+    # <project name>.sublime-project
     {
         // ...
 
@@ -41,7 +41,13 @@ You can set Python interpreter in this way...
 
 #### Autocomplete on DOT
 
-    "auto_complete_on_dot": true
+By default it's turned on
+
+    # sublime_jedi.sublime-settings
+    {
+        // ...
+        "auto_complete_on_dot": true
+    }
 
 #### Jedi Goto/ Go Definition
 
