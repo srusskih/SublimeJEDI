@@ -36,7 +36,7 @@ def check_if_string(view):
     return currently_string
 
 
-class PythonGoTo(JediEnvMixin, sublime_plugin.TextCommand):
+class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
 
     def run(self, edit):
 

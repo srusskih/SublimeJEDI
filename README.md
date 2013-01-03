@@ -35,11 +35,14 @@ You can set Python interpreter in this way...
 
     "auto_complete_on_dot": true
 
+#### Jedi Goto/ Go Definition
+
+    Find function / variable / class definition
+    Shortcuts: `CTRL+B` or `CTRL + LeftMouseButton`
+
 
 TODO
 ----
 
- - add Jedi "Go To" functionality
- - add Jedi "Get Definitions"
- - add Jedi "Related Names" (Find Usages)
+ - add Jedi "Related Names"
  - reduce PYTHONPATH getting overhead
