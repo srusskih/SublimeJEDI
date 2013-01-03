@@ -3,6 +3,7 @@ import sublime_plugin
 
 from sublime_jedi import get_script, JediEnvMixin
 
+
 def check_if_string(view):
     """ Checks if the current selection is a string
 
@@ -33,6 +34,7 @@ def check_if_string(view):
             return currently_string
 
     return currently_string
+
 
 class PythonGoTo(JediEnvMixin, sublime_plugin.TextCommand):
 
@@ -77,7 +79,6 @@ class PythonGoTo(JediEnvMixin, sublime_plugin.TextCommand):
 
         return False
 
-
     def attempt_get_definition(self, script):
         """ Uses `jedi.api.Script` get_definition function
             for possible definition.
@@ -97,7 +98,6 @@ class PythonGoTo(JediEnvMixin, sublime_plugin.TextCommand):
 
         return False
 
-
     def _jump_to_in_window(self, filename, line_number=None, column_number=None):
         """ Opens a new window and jumps to declaration if possible
 
@@ -113,7 +113,6 @@ class PythonGoTo(JediEnvMixin, sublime_plugin.TextCommand):
             line_number, column_number = self.options_map[filename]
 
         active_window.open_file('%s:%s:%s' % (filename, line_number or 0, column_number or 0), sublime.ENCODED_POSITION)
-
 
     def _window_quick_panel_open_window(self, options):
         """ Shows the active `sublime.Window` quickpanel (dropdown) for
