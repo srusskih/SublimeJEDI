@@ -47,14 +47,18 @@ def get_user_env():
     interpreter_path = project_settings.get(
         'python_interpreter_path',
         plugin_settings.get('python_interpreter_path')
-    )
-
-#    print interpreter_path
+        )
 
     sys_path = get_sys_path(interpreter_path)
     # TODO: add possibility cache project PYTHONPATH
 
-#    print sys_path
+    # get user interpreter, or get system default
+    package_paths = project_settings.get(
+        'python_package_paths',
+        plugin_settings.get('python_package_paths')
+        )
+
+    sys_path.extend(package_paths)
 
     return sys_path
 
