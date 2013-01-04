@@ -3,6 +3,10 @@
     // You cat set a path to your virtualenv
     "python_interpreter_path": "python",
 
+    // additional python package path list
+     "python_package_paths": [],
+
     // autocomplete then you set a dot after a variable
     "auto_complete_on_dot": true
+
 }
