@@ -130,7 +130,7 @@ def format(complete):
             ])
 
     if p:
-        if p.isinstance(jedi.parsing.Function) or p.isinstance(jedi.evaluate.Function):
+        if p.isinstance(jedi.parsing.Function, jedi.evaluate.Function):
             try:
                 cls = root.get_parent_until([jedi.evaluate.Instance])
                 params = list(p.params)
@@ -149,13 +149,10 @@ def format(complete):
                         params.remove(cls.get_func_self_name(p))
                     except:
                         pass
-                paramstr = ", ".join(params)
             except:
                 traceback.print_exc()
                 params = []
-                paramstr = ""
 
-            display = "%s(%s)" % (p.name, paramstr)
             insert = "%s(" % p.name
             num = 1
             for par in params:
@@ -164,13 +161,10 @@ def format(complete):
                 insert += "${%d:%s}" % (num, par)
                 num += 1
             insert += ")"
-            display += "\tdef"
-        elif p.isinstance(jedi.parsing.Statement):
-            display += "\tvariable"
-        elif p.isinstance(jedi.parsing.Import):
-            display += "\tmodule"
-        elif p.isinstance(jedi.parsing.Class):
-            display += "\tclass"
+
+        display += "\t"
+        display += str(complete.description)
+
     return display, insert
 
 
