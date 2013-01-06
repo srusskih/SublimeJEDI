@@ -174,8 +174,25 @@ def format(complete):
     return display, insert
 
 
-class SublimeJediComplete(sublime_plugin.TextCommand):
+class JediEnvMixin(object):
+    """ Mixin to install user virtual env for JEDI """
+
+    def install_env(self):
+        env = get_user_env()
+        self._origin_env = copy.copy(sys.path)
+        sys.path = copy.copy(env)
+
+    def restore_env(self):
+        if self._origin_env:
+            sys.path = copy.copy(self._origin_env)
+            del self._origin_env
+
+
+class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
     def is_enabled(self):
+        return True
+
+    def is_dotcompletion_enabled(self):
         """ Return command enable status
 
             :return: bool
@@ -189,33 +206,26 @@ class SublimeJediComplete(sublime_plugin.TextCommand):
 
         # Hack to redisplay the completion dialog with new information
         # if it was already showing
-
         self.view.run_command("hide_auto_complete")
 
-        sublime.set_timeout(self.delayed_complete, 1)
+        if self.is_dotcompletion_enabled():
+            sublime.set_timeout(self.delayed_complete, 1)
 
     def delayed_complete(self):
-        global _dotcomplete
+        # global _dotcomplete
 
-        script = get_script(self.view, self.view.sel()[0].begin())
-        _dotcomplete = script.complete()
-        if len(_dotcomplete):
-            # Only complete if there's something to complete
-            self.view.run_command("auto_complete")
+        # # install user env
+        # self.install_env()
 
+        # script = get_script(self.view, self.view.sel()[0].begin())
+        # _dotcomplete = script.complete()
 
-class JediEnvMixin(object):
-    """ Mixin to install user virtual env for JEDI """
+        # # restore sublime env
+        # self.restore_env()
 
-    def install_env(self):
-        env = get_user_env()
-        self._origin_env = copy.copy(sys.path)
-        sys.path = copy.copy(env)
-
-    def restore_env(self):
-        if self._origin_env:
-            sys.path = copy.copy(self._origin_env)
-            del self._origin_env
+        # if len(_dotcomplete):
+        #     # Only complete if there's something to complete
+        self.view.run_command("auto_complete")
 
 
 class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
@@ -261,17 +271,20 @@ class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
 
             :return: list
         """
-        global _dotcomplete
+        # global _dotcomplete
 
-        # reuse previously cached completion result
-        if len(_dotcomplete) > 0:
-            completions = _dotcomplete
-        else:
-            script = get_script(view, locations[0])
-            completions = script.complete()
+        # # reuse previously cached completion result
+        # if len(_dotcomplete) > 0:
+        #     completions = _dotcomplete
+        # else:
+        #     script = get_script(view, locations[0])
+        #     completions = script.complete()
 
-        # empty cache
-        _dotcomplete = []
+        # # empty cache
+        # _dotcomplete = []
+
+        script = get_script(view, locations[0])
+        completions = script.complete()
 
         # prepare jedi completions to Sublime format
         completions = [format(complete) for complete in completions]
