@@ -37,6 +37,8 @@ def get_user_env():
     """ Gets user's interpreter from the settings and returns
         PYTHONPATH for this interpreter
 
+        TODO: add possibility cache project PYTHONPATH
+
         :return: list
     """
     # load settings
@@ -50,7 +52,6 @@ def get_user_env():
         )
 
     sys_path = get_sys_path(interpreter_path)
-    # TODO: add possibility cache project PYTHONPATH
 
     # get user interpreter, or get system default
     package_paths = project_settings.get(
@@ -106,9 +107,8 @@ def format(complete):
     """ Returns a tuple of the string that would be visible in the completion
         dialogue, and the snippet to insert for the completion
 
-        **complete** is `jedi.api.Complete` object
-
-        Returns: tuple(string, string)
+        :param complete: `jedi.api.Complete` object
+        :return: tuple(string, string)
     """
     import jedi
 
@@ -134,12 +134,14 @@ def format(complete):
             try:
                 cls = root.get_parent_until([jedi.evaluate.Instance])
                 params = list(p.params)
+
                 def safe_name(name, idx):
                     try:
                         name = a.get_name().get_code()
                     except:
                         name = "unknown_varname%d" % idx
                     return name
+
                 params = [safe_name(a, idx) for idx, a in enumerate(params)]
                 if cls.isinstance(jedi.evaluate.Instance):
                     # Remove "self"
@@ -164,7 +166,7 @@ def format(complete):
             insert += ")"
             display += "\tdef"
         elif p.isinstance(jedi.parsing.Statement):
-            display +=  "\tvariable"
+            display += "\tvariable"
         elif p.isinstance(jedi.parsing.Import):
             display += "\tmodule"
         elif p.isinstance(jedi.parsing.Class):
