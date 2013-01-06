@@ -58,7 +58,9 @@ def get_user_env():
         plugin_settings.get('python_package_paths')
         )
 
-    sys_path.extend(package_paths)
+    # extra paths should in the head on the sys.path list
+    # to override "default" packages from in the environment
+    sys_path = sys_path + package_paths
 
     return sys_path
 
