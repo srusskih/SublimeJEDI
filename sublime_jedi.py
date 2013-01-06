@@ -189,6 +189,20 @@ class JediEnvMixin(object):
 
 
 class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
+    """ On "dot" completion command
+
+        This command allow call the autocomplete command right after user put
+        "." in editor.
+
+        But user can put "." in the "string" content.
+        In this case "autocomplete" have not be shown.
+        For this case we are going run Jedi completion in the command, and if
+        completions will been found we gonna run autocomplete command.
+
+        To prevent Jedi overhiting, we will send completion results in the
+        global namespace
+    """
+
     def is_enabled(self):
         return True
 
@@ -212,20 +226,20 @@ class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
             sublime.set_timeout(self.delayed_complete, 1)
 
     def delayed_complete(self):
-        # global _dotcomplete
+        global _dotcomplete
 
-        # # install user env
-        # self.install_env()
+        # install user env
+        self.install_env()
 
-        # script = get_script(self.view, self.view.sel()[0].begin())
-        # _dotcomplete = script.complete()
+        script = get_script(self.view, self.view.sel()[0].begin())
+        _dotcomplete = script.complete()
 
-        # # restore sublime env
-        # self.restore_env()
+        # restore sublime env
+        self.restore_env()
 
-        # if len(_dotcomplete):
-        #     # Only complete if there's something to complete
-        self.view.run_command("auto_complete")
+        if len(_dotcomplete):
+            # Only complete if there's something to complete
+            self.view.run_command("auto_complete")
 
 
 class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
@@ -271,20 +285,17 @@ class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
 
             :return: list
         """
-        # global _dotcomplete
+        global _dotcomplete
 
-        # # reuse previously cached completion result
-        # if len(_dotcomplete) > 0:
-        #     completions = _dotcomplete
-        # else:
-        #     script = get_script(view, locations[0])
-        #     completions = script.complete()
+        # reuse previously cached completion result
+        if len(_dotcomplete) > 0:
+            completions = _dotcomplete
+        else:
+            script = get_script(view, locations[0])
+            completions = script.complete()
 
-        # # empty cache
-        # _dotcomplete = []
-
-        script = get_script(view, locations[0])
-        completions = script.complete()
+        # empty cache
+        _dotcomplete = []
 
         # prepare jedi completions to Sublime format
         completions = [format(complete) for complete in completions]
