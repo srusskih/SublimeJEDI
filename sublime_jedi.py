@@ -153,14 +153,11 @@ def format(complete):
                 traceback.print_exc()
                 params = []
 
-            insert = "%s(" % p.name
-            num = 1
-            for par in params:
-                if num > 1:
-                    insert += ", "
-                insert += "${%d:%s}" % (num, par)
-                num += 1
-            insert += ")"
+            insert = "%(fname)s(%(params)s)" % {
+                'fname': p.name,
+                'params': ', '.join(["${%d:%s}" % (x + 1, par)
+                                     for x, par in enumerate(params)])
+            }
 
         display += "\t"
         display += str(complete.description)
@@ -227,6 +224,8 @@ class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
 
         script = get_script(self.view, self.view.sel()[0].begin())
         _dotcomplete = script.complete()
+
+        print _dotcomplete
 
         # restore sublime env
         self.restore_env()
