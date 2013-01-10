@@ -2,14 +2,12 @@ import sublime
 import sublime_plugin
 
 import json
-import os
 import sys
 import re
 import traceback
 import copy
 import subprocess
 
-JEDI_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'jedi')
 LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 
 #import pprint
@@ -76,12 +74,7 @@ def get_script(view, location):
 
         :return: `jedi.api.Script` object
     """
-    try:
-        import jedi
-    except ImportError:
-        if JEDI_PATH not in sys.path:
-            sys.path.insert(0, JEDI_PATH)
-        import jedi
+    import jedi
 
     text = view.substr(sublime.Region(0, view.size()))
     source_path = view.file_name()
@@ -224,8 +217,6 @@ class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
 
         script = get_script(self.view, self.view.sel()[0].begin())
         _dotcomplete = script.complete()
-
-        print _dotcomplete
 
         # restore sublime env
         self.restore_env()
