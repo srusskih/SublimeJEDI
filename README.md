@@ -12,9 +12,6 @@ Installation
 
     cd ~/.config/sublime-text-2/Packages/
     git clone https://github.com/svaiter/SublimeJEDI.git
-    cd SublimeJEDI
-    git submodule init
-    git submodule update
 
 Settings
 --------
