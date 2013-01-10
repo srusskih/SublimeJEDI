@@ -11,7 +11,7 @@
                 "*": [
                     {
                         "version": "0.5.0",
-                        "url": "https://nodeload.github.com/svaiter/SublimeJEDI/archive/master.zip"
+                        "url": "https://nodeload.github.com/svaiter/SublimeJEDI/archive/0.5.0.zip"
                     }
                 ]
             }
