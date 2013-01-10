@@ -2,3 +2,4 @@ jedic
 *.py[co]
 *.sublime
 *.ropeproject
+package-metadata.json
