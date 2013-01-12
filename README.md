@@ -10,8 +10,23 @@ Join the effort to bring Jedi to Sublime (see jedi-vim).
 Installation
 ------------
 
+#### with Git
+
     cd ~/.config/sublime-text-2/Packages/
     git clone https://github.com/svaiter/SublimeJEDI.git
+
+
+#### with [Sublime Package Control](http://wbond.net/sublime_packages/package_control)
+
+**NOTE:** plugin still not added to Sublime Package Control repository and you have to add SublimeJEDI manualy.
+SublimeJEDI will appears in Package Control repository soon.
+
+ 1. Open command pallet (default: `ctrl+shift+p`)
+ 2. Type `package control add repo` and select command `Package Control: Add Repository`
+ 3. In the opened command line insert "https://github.com/svaiter/SublimeJEDI/"
+ 4. Now you can Install SublimeJEDI with Package Control plugin right from your editor
+
+Additonal info about adding repository and plugin installations you can find here [http://wbond.net/sublime_packages/package_control/usage](http://wbond.net/sublime_packages/package_control/usage)
 
 Settings
 --------
