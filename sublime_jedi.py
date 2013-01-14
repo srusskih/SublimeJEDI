@@ -7,6 +7,7 @@ import re
 import traceback
 import copy
 import subprocess
+import jedi
 
 LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 
@@ -74,8 +75,6 @@ def get_script(view, location):
 
         :return: `jedi.api.Script` object
     """
-    import jedi
-
     text = view.substr(sublime.Region(0, view.size()))
     source_path = view.file_name()
     current_line, current_column = view.rowcol(location)
@@ -103,8 +102,6 @@ def format(complete):
         :param complete: `jedi.api.Complete` object
         :return: tuple(string, string)
     """
-    import jedi
-
     root = complete.name
     display, insert = complete.word, complete.word
     p = None
