@@ -20,7 +20,7 @@ Installation
 
  1. Open command pallet (default: `ctrl+shift+p`)
  2. Type `package control install` and select command `Package Control: Install Package`
- 3. Type `jedi` and select "SubelimeJEDI"
+ 3. Type `jedi` and select "SublimeJEDI"
 
 Additonal info installations you can find here [http://wbond.net/sublime_packages/package_control/usage](http://wbond.net/sublime_packages/package_control/usage)
 
