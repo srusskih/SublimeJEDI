@@ -1,12 +1,16 @@
-import sublime
-import sublime_plugin
-
+# -*- coding: utf-8 -*-
 import json
 import sys
 import re
 import traceback
 import copy
 import subprocess
+from collections import defaultdict
+
+
+import sublime
+import sublime_plugin
+
 import jedi
 
 LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
@@ -15,57 +19,6 @@ LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 #jedi.debug.debug_function = lambda level, *x: pprint.pprint((repr(level), x))
 
 _dotcomplete = []
-
-SYS_ENVS = {}  # key = interpeter path, value = sys.path
-SETTINGS_INTERP = 'python_interpreter_path'
-
-
-def get_sys_path(python_interpreter):
-    """ Get PYTHONPATH for passed interpreter and return it
-
-        :param python_interpreter: python interpreter path
-        :type python_interpreter: unicode or buffer
-
-        :return: list
-    """
-    command = [python_interpreter, '-c', "import sys; print sys.path"]
-    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE)
-    out = process.communicate()[0]
-    sys_path = json.loads(out.replace("'", '"'))
-    return sys_path
-
-
-def get_user_env():
-    """ Gets user's interpreter from the settings and returns
-        PYTHONPATH for this interpreter
-
-        TODO: add possibility cache project PYTHONPATH
-
-        :return: list
-    """
-    # load settings
-    plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
-    project_settings = sublime.active_window().active_view().settings()
-
-    # get user interpreter, or get system default
-    interpreter_path = project_settings.get(
-        'python_interpreter_path',
-        plugin_settings.get('python_interpreter_path')
-        )
-    if interpreter_path not in SYS_ENVS:
-        sys_path = get_sys_path(interpreter_path)
-
-        # get user interpreter, or get system default
-        package_paths = project_settings.get(
-            'python_package_paths',
-            plugin_settings.get('python_package_paths')
-            )
-
-        # extra paths should in the head on the sys.path list
-        # to override "default" packages from in the environment
-        sys_path = package_paths + sys_path
-        SYS_ENVS[interpreter_path] = sys_path
-    return SYS_ENVS[interpreter_path]
 
 
 def get_script(view, location):
@@ -153,8 +106,66 @@ def format(complete):
 class JediEnvMixin(object):
     """ Mixin to install user virtual env for JEDI """
 
+    SYS_ENVS = defaultdict(dict)  # key = window.id value = dict interpeter path : sys.path
+    SETTINGS_INTERP = 'python_interpreter_path'
+
+    def get_sys_path(self, python_interpreter):
+        """ Get PYTHONPATH for passed interpreter and return it
+
+            :param python_interpreter: python interpreter path
+            :type python_interpreter: unicode or buffer
+
+            :return: list
+        """
+        command = [python_interpreter, '-c', "import sys; print sys.path"]
+        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE)
+        out = process.communicate()[0]
+        sys_path = json.loads(out.replace("'", '"'))
+        return sys_path
+
+    def reset_sys_envs(self, window_id):
+        self.SYS_ENVS[window_id].clear()
+
+    def get_user_env(self):
+        """ Gets user's interpreter from the settings and returns
+            PYTHONPATH for this interpreter
+
+            :return: list
+        """
+        # load settings
+        plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
+        project_settings = sublime.active_window().active_view().settings()
+
+        # get user interpreter, or get system default
+        interpreter_path = project_settings.get(
+            self.SETTINGS_INTERP,
+            plugin_settings.get(self.SETTINGS_INTERP)
+            )
+        window_id = sublime.active_window().id()
+
+        if interpreter_path not in self.SYS_ENVS[window_id]:
+            # register callback which will drop cached sys.path
+            plugin_settings.add_on_change(self.SETTINGS_INTERP,
+                                        lambda: self.reset_sys_envs(window_id))
+            project_settings.add_on_change(self.SETTINGS_INTERP,
+                                    lambda: self.reset_sys_envs(window_id))
+
+            sys_path = self.get_sys_path(interpreter_path)
+
+            # get user interpreter, or get system default
+            package_paths = project_settings.get(
+                'python_package_paths',
+                plugin_settings.get('python_package_paths')
+                )
+
+            # extra paths should in the head on the sys.path list
+            # to override "default" packages from in the environment
+            sys_path = package_paths + sys_path
+            self.SYS_ENVS[window_id][interpreter_path] = sys_path
+        return self.SYS_ENVS[window_id][interpreter_path]
+
     def install_env(self):
-        env = get_user_env()
+        env = self.get_user_env()
         self._origin_env = copy.copy(sys.path)
         sys.path = copy.copy(env)
 
