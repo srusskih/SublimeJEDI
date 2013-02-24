@@ -105,19 +105,11 @@ def format(complete):
     root = complete.name
     display, insert = complete.word, complete.word
     p = None
-    while isinstance(root, jedi.evaluate.ArrayElement):
-        root = root.parent()
 
     if isinstance(root, jedi.keywords.Keyword):
         display += "\tkeyword"
     else:
-        p = root.get_parent_until(
-            [
-                jedi.parsing.Import,
-                jedi.parsing.Statement,
-                jedi.parsing.Class,
-                jedi.parsing.Function, jedi.evaluate.Function
-            ])
+        p = root.get_parent_until()
 
     if p:
         if p.isinstance(jedi.parsing.Function, jedi.evaluate.Function):
