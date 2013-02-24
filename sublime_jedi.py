@@ -221,6 +221,12 @@ class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
         if len(_dotcomplete):
             # Only complete if there's something to complete
             self.view.run_command("auto_complete")
+            self.view.run_command("auto_complete",  {
+                            'disable_auto_insert': True,
+                            'api_completions_only': True,
+                            'next_completion_if_showing': False,
+                            'auto_complete_commit_on_tab': True,
+                        })
 
 
 class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
