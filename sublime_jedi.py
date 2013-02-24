@@ -79,10 +79,10 @@ def get_script(view, location):
     source_path = view.file_name()
     current_line, current_column = view.rowcol(location)
     script = jedi.Script(
-        text.encode("utf-8"),
+        text,
         current_line + 1,
         current_column,
-        source_path.encode("utf-8")
+        source_path
     )
     return script
 
