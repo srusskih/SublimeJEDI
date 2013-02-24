@@ -150,7 +150,7 @@ def format(complete):
             }
 
         display += "\t"
-        display += str(complete.description)
+        display += str(complete.type)
 
     return display, insert
 
