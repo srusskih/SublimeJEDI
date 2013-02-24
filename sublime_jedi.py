@@ -16,6 +16,9 @@ LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 
 _dotcomplete = []
 
+SYS_ENVS = {}  # key = interpeter path, value = sys.path
+SETTINGS_INTERP = 'python_interpreter_path'
+
 
 def get_sys_path(python_interpreter):
     """ Get PYTHONPATH for passed interpreter and return it
@@ -49,20 +52,20 @@ def get_user_env():
         'python_interpreter_path',
         plugin_settings.get('python_interpreter_path')
         )
+    if interpreter_path not in SYS_ENVS:
+        sys_path = get_sys_path(interpreter_path)
 
-    sys_path = get_sys_path(interpreter_path)
+        # get user interpreter, or get system default
+        package_paths = project_settings.get(
+            'python_package_paths',
+            plugin_settings.get('python_package_paths')
+            )
 
-    # get user interpreter, or get system default
-    package_paths = project_settings.get(
-        'python_package_paths',
-        plugin_settings.get('python_package_paths')
-        )
-
-    # extra paths should in the head on the sys.path list
-    # to override "default" packages from in the environment
-    sys_path = sys_path + package_paths
-
-    return sys_path
+        # extra paths should in the head on the sys.path list
+        # to override "default" packages from in the environment
+        sys_path = package_paths + sys_path
+        SYS_ENVS[interpreter_path] = sys_path
+    return SYS_ENVS[interpreter_path]
 
 
 def get_script(view, location):
