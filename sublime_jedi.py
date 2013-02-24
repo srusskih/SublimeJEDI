@@ -169,7 +169,16 @@ class JediEnvMixin(object):
             del self._origin_env
 
 
-class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
+class SublimeMixin(object):
+    "helpers to integrate sublime"
+
+    def filter_completions(self, completions):
+        "filter out completions with same name e.g. os.path"
+        s = set()
+        return [s.add(i.word) or i for i in completions if i.word not in s]
+
+
+class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand):
     """ On "dot" completion command
 
         This command allow call the autocomplete command right after user put
@@ -213,14 +222,13 @@ class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
         self.install_env()
 
         script = get_script(self.view, self.view.sel()[0].begin())
-        _dotcomplete = script.complete()
+        _dotcomplete = self.filter_completions(script.complete())
 
         # restore sublime env
         self.restore_env()
 
         if len(_dotcomplete):
             # Only complete if there's something to complete
-            self.view.run_command("auto_complete")
             self.view.run_command("auto_complete",  {
                             'disable_auto_insert': True,
                             'api_completions_only': True,
@@ -229,7 +237,7 @@ class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
                         })
 
 
-class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
+class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
 
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
@@ -279,7 +287,7 @@ class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
             completions = _dotcomplete
         else:
             script = get_script(view, locations[0])
-            completions = script.complete()
+            completions = self.filter_completions(script.complete())
 
         # empty cache
         _dotcomplete = []
