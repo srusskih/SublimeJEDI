@@ -2,7 +2,7 @@ import sublime
 import sublime_plugin
 
 from sublime_jedi import get_script, JediEnvMixin
-
+from jedi.api import NotFoundError
 
 def check_if_string(view):
     """ Checks if the current selection is a string
@@ -67,7 +67,10 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
 
             :return: bool
         """
-        found = script.goto()
+        try:
+            found = script.goto()
+        except NotFoundError:
+            return False
         if len(found) > 0:
             if len(found) == 1:
                 x = found[0]
@@ -87,10 +90,14 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
 
             :return: bool
         """
-        found = script.get_definition()
+        try:
+            found = script.get_definition()
+        except NotFoundError:
+            return False
         if len(found) == 1:
             x = found[0]
-            self._jump_to_in_window(x.module_path, x.start_pos[0], x.start_pos[1])
+            if not x.in_builtin_module():
+                self._jump_to_in_window(x.module_path, x.start_pos[0], x.start_pos[1])
             return True
         elif len(found) > 1:
             self._window_quick_panel_open_window(found)
@@ -124,10 +131,10 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
         active_window = self.view.window()
 
         # Get the filenames
-        self.options = [o.module_path for o in options]
+        self.options = [o.module_path for o in options if not o.in_builtin_module()]
+        if self.options:
+            # Map the filenames to line and column numbers
+            self.options_map = dict((o.module_path, (o.start_pos[0], o.start_pos[1])) for o in options)
 
-        # Map the filenames to line and column numbers
-        self.options_map = dict((o.module_path, (o.start_pos[0], o.start_pos[1])) for o in options)
-
-        # Show the user a selection of filenames
-        active_window.show_quick_panel(self.options, self._jump_to_in_window)
+            # Show the user a selection of filenames
+            active_window.show_quick_panel(self.options, self._jump_to_in_window)
