@@ -7,7 +7,7 @@ import re
 import traceback
 import copy
 import subprocess
-import jedi
+import SublimeJEDI.jedi
 
 LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 
