@@ -6,7 +6,7 @@ import traceback
 import copy
 import subprocess
 from collections import defaultdict
-
+from contextlib import contextmanager
 
 import sublime
 import sublime_plugin
@@ -108,6 +108,7 @@ class JediEnvMixin(object):
 
     SYS_ENVS = defaultdict(dict)  # key = window.id value = dict interpeter path : sys.path
     SETTINGS_INTERP = 'python_interpreter_path'
+    _origin_env = copy.copy(sys.path)
 
     def get_sys_path(self, python_interpreter):
         """ Get PYTHONPATH for passed interpreter and return it
@@ -164,15 +165,15 @@ class JediEnvMixin(object):
             self.SYS_ENVS[window_id][interpreter_path] = sys_path
         return self.SYS_ENVS[window_id][interpreter_path]
 
-    def install_env(self):
+    @property
+    @contextmanager
+    def env(self):
         env = self.get_user_env()
-        self._origin_env = copy.copy(sys.path)
         sys.path = copy.copy(env)
-
-    def restore_env(self):
-        if self._origin_env:
+        try:
+            yield
+        finally:
             sys.path = copy.copy(self._origin_env)
-            del self._origin_env
 
 
 class SublimeMixin(object):
@@ -224,14 +225,9 @@ class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand
     def delayed_complete(self):
         global _dotcomplete
 
-        # install user env
-        self.install_env()
-
-        script = get_script(self.view, self.view.sel()[0].begin())
-        _dotcomplete = self.filter_completions(script.complete())
-
-        # restore sublime env
-        self.restore_env()
+        with self.env:
+            script = get_script(self.view, self.view.sel()[0].begin())
+            _dotcomplete = self.filter_completions(script.complete())
 
         if len(_dotcomplete):
             # Only complete if there's something to complete
@@ -264,14 +260,9 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
         if get_language(view) != "python":
             return None
 
-        # install user env
-        self.install_env()
-
         # get completions list
-        completions = self.get_completions(view, locations)
-
-        # restore sublime env, to keep functionality
-        self.restore_env()
+        with self.env:
+            completions = self.get_completions(view, locations)
 
         return completions
 

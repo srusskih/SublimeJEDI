@@ -4,6 +4,7 @@ import sublime_plugin
 from sublime_jedi import get_script, JediEnvMixin
 from jedi.api import NotFoundError
 
+
 def check_if_string(view):
     """ Checks if the current selection is a string
 
@@ -45,19 +46,14 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
             self.view.run_command('string_go_to')
             return
 
-        # install user env
-        self.install_env()
+        with self.env:
+            script = get_script(self.view, self.view.sel()[0].begin())
 
-        script = get_script(self.view, self.view.sel()[0].begin())
-
-        # If we have a possible python declaration
-        # use jedi to find possible declarations.
-        found = self.attempt_get_definition(script)
-        if not found:
-            found = self.attempt_go_to(script)
-
-        # restore sublime env, to keep functionality
-        self.restore_env()
+            # If we have a possible python declaration
+            # use jedi to find possible declarations.
+            found = self.attempt_get_definition(script)
+            if not found:
+                found = self.attempt_go_to(script)
 
     def attempt_go_to(self, script):
         """ Uses `jedi.api.Script` goto function
