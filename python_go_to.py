@@ -51,55 +51,28 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
 
             # If we have a possible python declaration
             # use jedi to find possible declarations.
-            found = self.attempt_get_definition(script)
-            if not found:
-                found = self.attempt_go_to(script)
+            # found = self.attempt_get_definition(script)
+            # if not found:
+            #     found = self.attempt_go_to(script)
+            for method in ['get_definition', 'goto']:
+                try:
+                    defns = getattr(script, method)()
+                except NotFoundError:
+                    return
+                else:
+                    self.handle_definitions(defns)
+                    break
 
-    def attempt_go_to(self, script):
-        """ Uses `jedi.api.Script` goto function
-            for possible definition.
-
-            :param script: `jedi.api.Script` object
-
-            :return: bool
-        """
-        try:
-            found = script.goto()
-        except NotFoundError:
+    def handle_definitions(self, defns):
+        # filter out builtin
+        self.defns = [i for i in defns if not i.in_builtin_module()]
+        if not self.defns:
             return False
-        if len(found) > 0:
-            if len(found) == 1:
-                x = found[0]
-                self._jump_to_in_window(x.module_path, x.start_pos[0], x.start_pos[1])
-
-            else:
-                self._window_quick_panel_open_window(found)
-                return True
-
-        return False
-
-    def attempt_get_definition(self, script):
-        """ Uses `jedi.api.Script` get_definition function
-            for possible definition.
-
-            :param script: `jedi.api.Script` object
-
-            :return: bool
-        """
-        try:
-            found = script.get_definition()
-        except NotFoundError:
-            return False
-        if len(found) == 1:
-            x = found[0]
-            if not x.in_builtin_module():
-                self._jump_to_in_window(x.module_path, x.start_pos[0], x.start_pos[1])
-            return True
-        elif len(found) > 1:
-            self._window_quick_panel_open_window(found)
-            return True
-
-        return False
+        if len(self.defns) == 1:
+            defn = self.defns[0]
+            self._jump_to_in_window(defn.module_path, defn.start_pos[0], defn.start_pos[1])
+        else:
+            self._window_quick_panel_open_window(self.defns)
 
     def _jump_to_in_window(self, filename, line_number=None, column_number=None):
         """ Opens a new window and jumps to declaration if possible
@@ -112,10 +85,12 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
 
         # If the file was selected from a drop down list
         if isinstance(filename, int):
-            filename = self.options[filename]
+            if filename == -1:  # cancelled
+                return
             line_number, column_number = self.options_map[filename]
-
-        active_window.open_file('%s:%s:%s' % (filename, line_number or 0, column_number or 0), sublime.ENCODED_POSITION)
+        print 'filename - ', filename, 'active_window - ', active_window
+        active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
+                                column_number or 0), sublime.ENCODED_POSITION)
 
     def _window_quick_panel_open_window(self, options):
         """ Shows the active `sublime.Window` quickpanel (dropdown) for
@@ -126,11 +101,9 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
 
         active_window = self.view.window()
 
-        # Get the filenames
-        self.options = [o.module_path for o in options if not o.in_builtin_module()]
-        if self.options:
-            # Map the filenames to line and column numbers
-            self.options_map = dict((o.module_path, (o.start_pos[0], o.start_pos[1])) for o in options)
+        # Map the filenames to line and column numbers
+        self.options_map = dict((o.module_path, (o.start_pos[0], o.start_pos[1]))
+                                     for o in self.defns)
 
-            # Show the user a selection of filenames
-            active_window.show_quick_panel(self.options, self._jump_to_in_window)
+        # Show the user a selection of filenames
+        active_window.show_quick_panel(self.defns, self._jump_to_in_window)
