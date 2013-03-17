@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import sys
-import re
 import traceback
 import copy
 import subprocess
@@ -12,8 +11,6 @@ import sublime
 import sublime_plugin
 
 import jedi
-
-LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 
 #import pprint
 #jedi.debug.debug_function = lambda level, *x: pprint.pprint((repr(level), x))
@@ -41,14 +38,6 @@ def get_script(view, location):
         source_path
     )
     return script
-
-
-def get_language(view):
-    caret = view.sel()[0].a
-    language = LANGUAGE_REGEX.search(view.scope_name(caret))
-    if language is None:
-        return None
-    return language.group(0)
 
 
 def format(complete):
@@ -257,8 +246,8 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
             :return: list
         """
         # nothing to do with non-python code
-        if get_language(view) != "python":
-            return None
+        if 'python' not in view.settings().get('syntax').lower():
+            return
 
         # get completions list
         with self.env:
