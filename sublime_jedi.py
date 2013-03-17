@@ -114,9 +114,14 @@ class JediEnvMixin(object):
 
 
 class SublimeMixin(object):
-    "helpers to integrate sublime"
+    """ helpers to integrate sublime """
 
-    def format(self, complete, insert_params=True):
+    def is_funcargs_complete_enabled(self, view):
+        return view.settings().get('auto_complete_function_params',
+                        sublime.load_settings(__name__ + '.sublime-settings')\
+                                    .get('auto_complete_function_params', True))
+
+    def format(self, complete, insert_funcargs=True):
         """ Returns a tuple of the string that would be visible in the completion
             dialogue, and the snippet to insert for the completion
 
@@ -125,7 +130,7 @@ class SublimeMixin(object):
         """
         display, insert = complete.word, complete.word
 
-        if not insert_params:
+        if not insert_funcargs:
             if complete.type == 'Function':
                 # if its a function add parentheses
                 return display, insert + "(${1})"
@@ -144,12 +149,12 @@ class SublimeMixin(object):
         return display, insert
 
     def filter_completions(self, completions):
-        "filter out completions with same name e.g. os.path"
+        """ filter out completions with same name e.g. os.path """
         s = set()
         return [s.add(i.word) or i for i in completions if i.word not in s]
 
     def funcargs_from_script(self, script):
-        "get completion in case we are in a function call"
+        """ get completion in case we are in a function call """
         completions = []
         in_call = script.get_in_function_call()
         if in_call is not None:
@@ -165,8 +170,8 @@ class SublimeMixin(object):
         return completions
 
     def completions_from_script(self, script, insert_params):
-        "regular completions"
-        completions = self.filter_completions(script.complete()) or []
+        """ regular completions """
+        completions = self.filter_completions(script.complete())
         completions = [self.format(complete, insert_params) for complete in completions]
         return completions
 
@@ -212,10 +217,8 @@ class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand
         global _dotcomplete
         with self.env:
             script = get_script(self.view, self.view.sel()[0].begin())
-            insert_params = self.view.settings().get('auto_complete_function_params',
-                        sublime.load_settings(__name__ + '.sublime-settings')\
-                                    .get('auto_complete_function_params', True))
-            _dotcomplete = self.completions_from_script(script, insert_params)
+            insert_funcargs = self.is_funcargs_complete_enabled(self.view)
+            _dotcomplete = self.completions_from_script(script, insert_funcargs)
 
         if len(_dotcomplete):
             # Only complete if there's something to complete
@@ -273,11 +276,9 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
         else:
             # get a completions
             script = get_script(view, locations[0])
-            completions = []
-            insert_params = view.settings().get('auto_complete_function_params',
-                        sublime.load_settings(__name__ + '.sublime-settings')\
-                                    .get('auto_complete_function_params', True))
+            insert_funcargs = self.is_funcargs_complete_enabled(view)
             completions = self.funcargs_from_script(script) or \
-                          self.completions_from_script(script, insert_params)
+                          self.completions_from_script(script, insert_funcargs)
+
         _dotcomplete = []
         return completions
