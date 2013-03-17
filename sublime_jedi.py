@@ -40,58 +40,6 @@ def get_script(view, location):
     return script
 
 
-def format(complete):
-    """ Returns a tuple of the string that would be visible in the completion
-        dialogue, and the snippet to insert for the completion
-
-        :param complete: `jedi.api.Complete` object
-        :return: tuple(string, string)
-    """
-    root = complete.name
-    display, insert = complete.word, complete.word
-    p = None
-
-    if isinstance(root, jedi.keywords.Keyword):
-        display += "\tkeyword"
-    else:
-        p = root.get_parent_until()
-
-    if p:
-        if p.isinstance(jedi.parsing.Function, jedi.evaluate.Function):
-            try:
-                cls = root.get_parent_until([jedi.evaluate.Instance])
-                params = list(p.params)
-
-                def safe_name(name, idx):
-                    try:
-                        name = a.get_name().get_code()
-                    except:
-                        name = "unknown_varname%d" % idx
-                    return name
-
-                params = [safe_name(a, idx) for idx, a in enumerate(params)]
-                if cls.isinstance(jedi.evaluate.Instance):
-                    # Remove "self"
-                    try:
-                        params.remove(cls.get_func_self_name(p))
-                    except:
-                        pass
-            except:
-                traceback.print_exc()
-                params = []
-
-            insert = "%(fname)s(%(params)s)" % {
-                'fname': p.name,
-                'params': ', '.join(["${%d:%s}" % (x + 1, par)
-                                     for x, par in enumerate(params)])
-            }
-
-        display += "\t"
-        display += str(complete.type)
-
-    return display, insert
-
-
 class JediEnvMixin(object):
     """ Mixin to install user virtual env for JEDI """
 
@@ -168,10 +116,59 @@ class JediEnvMixin(object):
 class SublimeMixin(object):
     "helpers to integrate sublime"
 
+    def format(self, complete, insert_params=True):
+        """ Returns a tuple of the string that would be visible in the completion
+            dialogue, and the snippet to insert for the completion
+
+            :param complete: `jedi.api.Complete` object
+            :return: tuple(string, string)
+        """
+        display, insert = complete.word, complete.word
+
+        if not insert_params:
+            if complete.type == 'Function':
+                # if its a function add parentheses
+                return display, insert + "(${1})"
+            return display, insert
+
+        if hasattr(complete.definition, 'params'):
+            params = []
+            for index, param in enumerate(complete.definition.params):
+                code = param.code
+                if code != 'self':
+                    params.append("${%d:%s}" % (index + 1, code))
+            insert = "%(fname)s(%(params)s)" % {
+                    'fname': display,
+                    'params': ', '.join(params)
+                }
+        return display, insert
+
     def filter_completions(self, completions):
         "filter out completions with same name e.g. os.path"
         s = set()
         return [s.add(i.word) or i for i in completions if i.word not in s]
+
+    def funcargs_from_script(self, script):
+        "get completion in case we are in a function call"
+        completions = []
+        in_call = script.get_in_function_call()
+        if in_call is not None:
+            for calldef in in_call.params:
+                if '*' in calldef.code or calldef.code == 'self':
+                    continue
+                code = calldef.code.strip().split('=')
+                if len(code) == 1:
+                    completions.append((code[0], '%s=${1}' % code[0]))
+                else:
+                    completions.append((code[0] + '\t' + code[1],
+                                     '%s=${1:%s}' % (code[0], code[1])))
+        return completions
+
+    def completions_from_script(self, script, insert_params):
+        "regular completions"
+        completions = self.filter_completions(script.complete()) or []
+        completions = [self.format(complete, insert_params) for complete in completions]
+        return completions
 
 
 class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand):
@@ -213,10 +210,12 @@ class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand
 
     def delayed_complete(self):
         global _dotcomplete
-
         with self.env:
             script = get_script(self.view, self.view.sel()[0].begin())
-            _dotcomplete = self.filter_completions(script.complete())
+            insert_params = self.view.settings().get('auto_complete_function_params',
+                        sublime.load_settings(__name__ + '.sublime-settings')\
+                                    .get('auto_complete_function_params', True))
+            _dotcomplete = self.completions_from_script(script, insert_params)
 
         if len(_dotcomplete):
             # Only complete if there's something to complete
@@ -272,13 +271,13 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
         if len(_dotcomplete) > 0:
             completions = _dotcomplete
         else:
+            # get a completions
             script = get_script(view, locations[0])
-            completions = self.filter_completions(script.complete())
-
-        # empty cache
+            completions = []
+            insert_params = view.settings().get('auto_complete_function_params',
+                        sublime.load_settings(__name__ + '.sublime-settings')\
+                                    .get('auto_complete_function_params', True))
+            completions = self.funcargs_from_script(script) or \
+                          self.completions_from_script(script, insert_params)
         _dotcomplete = []
-
-        # prepare jedi completions to Sublime format
-        completions = [format(complete) for complete in completions]
-
         return completions

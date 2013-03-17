@@ -88,7 +88,6 @@ class SublimeJediGoto(JediEnvMixin, sublime_plugin.TextCommand):
             if filename == -1:  # cancelled
                 return
             line_number, column_number = self.options_map[filename]
-        print 'filename - ', filename, 'active_window - ', active_window
         active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
                                 column_number or 0), sublime.ENCODED_POSITION)
 
