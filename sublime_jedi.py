@@ -128,7 +128,7 @@ class SublimeMixin(object):
             :param complete: `jedi.api.Complete` object
             :return: tuple(string, string)
         """
-        display, insert = complete.word, complete.word
+        display, insert = complete.word + '\t' + complete.type, complete.word
 
         if not insert_funcargs:
             if complete.type == 'Function':
@@ -143,7 +143,7 @@ class SublimeMixin(object):
                 if code != 'self':
                     params.append("${%d:%s}" % (index + 1, code))
             insert = "%(fname)s(%(params)s)" % {
-                    'fname': display,
+                    'fname': insert,
                     'params': ', '.join(params)
                 }
         return display, insert
