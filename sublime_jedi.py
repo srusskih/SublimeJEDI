@@ -7,8 +7,11 @@ import re
 import traceback
 import copy
 import subprocess
-import SublimeJEDI
-import SublimeJEDI.jedi as jedi
+try:
+    import SublimeJEDI
+    import SublimeJEDI.jedi as jedi
+except ImportError:
+    import jedi
 
 
 LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
@@ -105,10 +108,6 @@ def format(complete):
         :param complete: `jedi.api.Complete` object
         :return: tuple(string, string)
     """
-    import SublimeJEDI.jedi.parsing as parsing
-    import SublimeJEDI.jedi.evaluate as evaluate
-    import SublimeJEDI.jedi.keywords as keywords
-
     root = complete.name
     display, insert = complete.word, complete.word
     p = None
