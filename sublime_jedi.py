@@ -7,7 +7,9 @@ import re
 import traceback
 import copy
 import subprocess
+import SublimeJEDI
 import SublimeJEDI.jedi as jedi
+
 
 LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 
@@ -80,10 +82,10 @@ def get_script(view, location):
     source_path = view.file_name()
     current_line, current_column = view.rowcol(location)
     script = jedi.Script(
-        text.encode("utf-8"),
+        text,
         current_line + 1,
         current_column,
-        source_path.encode("utf-8")
+        source_path
     )
     return script
 
@@ -103,6 +105,10 @@ def format(complete):
         :param complete: `jedi.api.Complete` object
         :return: tuple(string, string)
     """
+    import SublimeJEDI.jedi.parsing as parsing
+    import SublimeJEDI.jedi.evaluate as evaluate
+    import SublimeJEDI.jedi.keywords as keywords
+
     root = complete.name
     display, insert = complete.word, complete.word
     p = None
@@ -112,13 +118,16 @@ def format(complete):
     if isinstance(root, jedi.keywords.Keyword):
         display += "\tkeyword"
     else:
-        p = root.get_parent_until(
-            [
-                jedi.parsing.Import,
-                jedi.parsing.Statement,
-                jedi.parsing.Class,
-                jedi.parsing.Function, jedi.evaluate.Function
-            ])
+        try:
+            p = root.get_parent_until([
+                    jedi.parsing.Import,
+                    jedi.parsing.Statement,
+                    jedi.parsing.Class,
+                    jedi.parsing.Function, 
+                    jedi.evaluate.Function
+                ])
+        except:
+            print ("format error")
 
     if p:
         if p.isinstance(jedi.parsing.Function, jedi.evaluate.Function):
