@@ -108,25 +108,27 @@ def format(complete):
         :param complete: `jedi.api.Complete` object
         :return: tuple(string, string)
     """
+    import SublimeJEDI.jedi.keywords as keywords
+    import SublimeJEDI.jedi.parsing as parsing
+    import SublimeJEDI.jedi.evaluate as evaluate
     root = complete.name
     display, insert = complete.word, complete.word
     p = None
     while isinstance(root, jedi.evaluate.ArrayElement):
         root = root.parent()
 
-    if isinstance(root, jedi.keywords.Keyword):
+    # Sublime 3 has a different import strategy that breaks any try to
+    # check for class equality using isinstance
+    if type(root).__name__ == jedi.keywords.Keyword.__name__:
         display += "\tkeyword"
     else:
-        try:
-            p = root.get_parent_until([
-                    jedi.parsing.Import,
-                    jedi.parsing.Statement,
-                    jedi.parsing.Class,
-                    jedi.parsing.Function, 
-                    jedi.evaluate.Function
-                ])
-        except:
-            print ("format error")
+        p = root.get_parent_until([
+                jedi.parsing.Import,
+                jedi.parsing.Statement,
+                jedi.parsing.Class,
+                jedi.parsing.Function,
+                jedi.evaluate.Function
+            ])
 
     if p:
         if p.isinstance(jedi.parsing.Function, jedi.evaluate.Function):
