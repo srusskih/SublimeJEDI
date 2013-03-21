@@ -9,6 +9,7 @@ from __future__ import with_statement
 
 import os
 
+import cache
 import parsing
 import modules
 import evaluate
@@ -18,6 +19,7 @@ import debug
 import builtin
 import imports
 import api_classes
+import fast_parser
 
 # This is something like the sys.path, but only for searching params. It means
 # that this is the order in which Jedi searches params.
@@ -40,7 +42,7 @@ def get_directory_modules_for_name(mods, name):
 
     def check_fs(path):
         with open(path) as f:
-            source = f.read()
+            source = modules.source_to_unicode(f.read())
             if name in source:
                 return modules.Module(path, source).parser.module
 
@@ -93,7 +95,7 @@ class ParamListener(object):
         self.param_possibilities.append(params)
 
 
-@evaluate.memoize_default([])
+@cache.memoize_default([])
 def search_params(param):
     """
     This is a dynamic search for params. If you try to complete a type:
@@ -202,28 +204,7 @@ def _scan_array(arr, search_name):
     return result
 
 
-counter = 0
-def dec(func):
-    """ TODO delete this """
-    def wrapper(*args, **kwargs):
-        global counter
-        element = args[0]
-        if isinstance(element, evaluate.Array):
-            stmt = element._array.parent_stmt
-        else:
-            # must be instance
-            stmt = element.var_args.parent_stmt
-        print('  ' * counter + 'recursion,', stmt)
-        counter += 1
-        res = func(*args, **kwargs)
-        counter -= 1
-        #print '  '*counter + 'end,'
-        return res
-    return wrapper
-
-
-#@dec
-@evaluate.memoize_default([])
+@cache.memoize_default([])
 def _check_array_additions(compare_array, module, is_list):
     """
     Checks if a `parsing.Array` has "add" statements:
@@ -368,6 +349,16 @@ class ArrayInstance(parsing.Base):
 
 
 def related_names(definitions, search_name, mods):
+    def compare_array(definitions):
+        """ `definitions` are being compared by module/start_pos, because
+        sometimes the id's of the objects change (e.g. executions).
+        """
+        result = []
+        for d in definitions:
+            module = d.get_parent_until()
+            result.append((module, d.start_pos))
+        return result
+
     def check_call(call):
         result = []
         follow = []  # There might be multiple search_name's in one call_path
@@ -381,9 +372,9 @@ def related_names(definitions, search_name, mods):
             follow_res, search = evaluate.goto(call.parent_stmt, f)
             follow_res = related_name_add_import_modules(follow_res, search)
 
-            #print follow_res, [d.parent for d in follow_res]
+            compare_follow_res = compare_array(follow_res)
             # compare to see if they match
-            if any(r in definitions for r in follow_res):
+            if any(r in compare_definitions for r in compare_follow_res):
                 scope = call.parent_stmt
                 result.append(api_classes.RelatedName(search, scope))
 
@@ -392,19 +383,7 @@ def related_names(definitions, search_name, mods):
     if not definitions:
         return set()
 
-    def is_definition(arr):
-        try:
-            for a in arr:
-                assert len(a) == 1
-                a = a[0]
-                if a.isinstance(parsing.Array):
-                    assert is_definition(a)
-                elif a.isinstance(parsing.Call):
-                    assert a.execution is None
-            return True
-        except AssertionError:
-            return False
-
+    compare_definitions = compare_array(definitions)
     mods |= set([d.get_parent_until() for d in definitions])
     names = []
     for m in get_directory_modules_for_name(mods, search_name):
@@ -431,8 +410,7 @@ def related_names(definitions, search_name, mods):
             else:
                 calls = _scan_array(stmt.get_assignment_calls(), search_name)
                 for d in stmt.assignment_details:
-                    if not is_definition(d[1]):
-                        calls += _scan_array(d[1], search_name)
+                    calls += _scan_array(d[1], search_name)
                 for call in calls:
                     names += check_call(call)
     return names
@@ -460,7 +438,7 @@ def check_flow_information(flow, search_name, pos):
     ensures that `k` is a string.
     """
     result = []
-    if isinstance(flow, parsing.Scope) and not result:
+    if isinstance(flow, (parsing.Scope, fast_parser.Module)) and not result:
         for ass in reversed(flow.asserts):
             if pos is None or ass.start_pos > pos:
                 continue

@@ -1,7 +1,7 @@
 import sublime
 import sublime_plugin
 
-from sublime_jedi import get_script, JediEnvMixin
+from SublimeJEDI.sublime_jedi import get_script, JediEnvMixin
 
 
 def check_if_string(view):

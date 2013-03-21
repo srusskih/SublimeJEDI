@@ -2,9 +2,8 @@ from __future__ import with_statement
 
 import os
 import pkgutil
-import imp
+import importlib
 import sys
-import time
 
 import builtin
 import modules
@@ -12,12 +11,10 @@ import debug
 import parsing
 import evaluate
 import itertools
-import settings
+import cache
 
 # for debugging purposes only
 imports_processed = 0
-
-star_import_cache = {}
 
 
 class ModuleNotFound(Exception):
@@ -29,15 +26,15 @@ class ImportPath(parsing.Base):
     An ImportPath is the path of a `parsing.Import` object.
     """
     class _GlobalNamespace(object):
+        def __init__(self):
+            self.start_pos = 0, 0
+            self.line_offset = 0
+
         def get_defined_names(self):
             return []
 
         def get_imports(self):
             return []
-
-        @property
-        def start_pos(self):
-            return (0, 0)
 
         def get_parent_until(self):
             return None
@@ -88,10 +85,10 @@ class ImportPath(parsing.Base):
         # This is not an existing Import statement. Therefore, set position to
         # 0 (0 is not a valid line number).
         zero = (0, 0)
-        n = parsing.Name(i.namespace.names[1:], zero, zero, self.import_stmt)
-        new = parsing.Import(zero, zero, n)
+        names = i.namespace.names[1:]
+        n = parsing.Name(i.module, names, zero, zero, self.import_stmt)
+        new = parsing.Import(i.module, zero, zero, n)
         new.parent = parent
-        evaluate.faked_scopes.append(new)
         debug.dbg('Generated a nested import: %s' % new)
         return new
 
@@ -107,6 +104,14 @@ class ImportPath(parsing.Base):
                     for i in range(self.import_stmt.relative_count - 1):
                         path = os.path.dirname(path)
                     names += self.get_module_names([path])
+
+                    if self.import_stmt.relative_count:
+                        rel_path = self.get_relative_path() + '/__init__.py'
+                        try:
+                            m = modules.Module(rel_path)
+                            names += m.parser.module.get_defined_names()
+                        except IOError:
+                            pass
             else:
                 if on_import_stmt and isinstance(scope, parsing.Module) \
                                         and scope.path.endswith('__init__.py'):
@@ -136,13 +141,24 @@ class ImportPath(parsing.Base):
         names = []
         for module_loader, name, is_pkg in pkgutil.iter_modules(search_path):
             inf_pos = (float('inf'), float('inf'))
-            names.append(parsing.Name([(name, inf_pos)], inf_pos, inf_pos,
-                                                            self.import_stmt))
+            names.append(parsing.Name(self.GlobalNamespace, [(name, inf_pos)],
+                                        inf_pos, inf_pos, self.import_stmt))
         return names
 
     def sys_path_with_modifications(self):
+        # If you edit e.g. gunicorn, there will be imports like this:
+        # `from gunicorn import something`. But gunicorn is not in the
+        # sys.path. Therefore look if gunicorn is a parent directory, #56.
+        parts = self.file_path.split(os.path.sep)
+        in_path = []
+        if self.import_path:
+            for i, p in enumerate(parts):
+                if p == self.import_path[0]:
+                    new = os.path.sep.join(parts[:i])
+                    in_path.append(new)
+
         module = self.import_stmt.get_parent_until()
-        return modules.sys_path_with_modifications(module)
+        return in_path + modules.sys_path_with_modifications(module)
 
     def follow(self, is_goto=False):
         """
@@ -161,8 +177,7 @@ class ImportPath(parsing.Base):
                 return []
 
             scopes = [scope]
-            scopes += itertools.chain.from_iterable(
-                            remove_star_imports(s) for s in scopes)
+            scopes += remove_star_imports(scope)
 
             # follow the rest of the import (not FS -> classes, functions)
             if len(rest) > 1 or rest and self.is_like_search:
@@ -187,37 +202,53 @@ class ImportPath(parsing.Base):
         evaluate.follow_statement.pop_stmt()
         return scopes
 
+    def get_relative_path(self):
+        path = self.file_path
+        for i in range(self.import_stmt.relative_count - 1):
+            path = os.path.dirname(path)
+        return path
+
     def _follow_file_system(self):
         """
         Find a module with a path (of the module, like usb.backend.libusb10).
         """
-        def follow_str(ns, string):
-            debug.dbg('follow_module', ns, string)
+        def follow_str(ns_path, string):
+            debug.dbg('follow_module', ns_path, string)
             path = None
-            if ns:
-                path = ns[1]
+            if ns_path:
+                path = ns_path
             elif self.import_stmt.relative_count:
-                module = self.import_stmt.get_parent_until()
-                path = os.path.abspath(module.path)
-                for i in range(self.import_stmt.relative_count):
-                    path = os.path.dirname(path)
+                path = self.get_relative_path()
 
             global imports_processed
             imports_processed += 1
+            importing = None
             if path is not None:
-                return imp.find_module(string, [path])
+                importing = importlib.find_loader(string, [path])
             else:
                 debug.dbg('search_module', string, self.file_path)
                 # Override the sys.path. It works only good that way.
                 # Injecting the path directly into `find_module` did not work.
                 sys.path, temp = sys_path_mod, sys.path
                 try:
-                    i = imp.find_module(string)
+                    importing = importlib.find_loader(string)
                 except ImportError:
                     sys.path = temp
                     raise
                 sys.path = temp
-                return i
+            
+            returning = (None, None, None)
+            try:
+                filename = importing.get_filename(string)
+                if filename and os.path.exists(filename):
+                    returning = (filename, importing.get_source(string), True)
+                else:
+                    returning = (importing.name, None, False)
+            except AttributeError:
+                returning = (importing.load_module(string).__name__, importing.get_source(string), False)
+
+            return returning
+
 
         if self.file_path:
             sys_path_mod = list(self.sys_path_with_modifications())
@@ -225,39 +256,35 @@ class ImportPath(parsing.Base):
         else:
             sys_path_mod = list(builtin.get_sys_path())
 
-        current_namespace = None
+        current_namespace = (None, None, None)
         # now execute those paths
         rest = []
         for i, s in enumerate(self.import_path):
             try:
-                current_namespace = follow_str(current_namespace, s)
+                current_namespace = follow_str(None, s)
             except ImportError:
-                if current_namespace:
+                if self.import_stmt.relative_count \
+                                and len(self.import_path) == 1:
+                    # follow `from . import some_variable`
+                    rel_path = self.get_relative_path()
+                    try:
+                        current_namespace = follow_str(rel_path, '__init__')
+                    except ImportError:
+                        pass
+                if current_namespace[1]:
                     rest = self.import_path[i:]
                 else:
                     raise ModuleNotFound(
                             'The module you searched has not been found')
 
         sys_path_mod.pop(0)  # TODO why is this here?
-        path = current_namespace[1]
-        is_package_directory = current_namespace[2][2] == imp.PKG_DIRECTORY
 
-        f = None
-        if is_package_directory or current_namespace[0]:
-            # is a directory module
-            if is_package_directory:
-                path += '/__init__.py'
-                with open(path) as f:
-                    source = f.read()
-            else:
-                source = current_namespace[0].read()
-                current_namespace[0].close()
-            if path.endswith('.py'):
-                f = modules.Module(path, source)
-            else:
-                f = builtin.Parser(path=path)
+        if current_namespace[1] is not None:
+            f = modules.Module(current_namespace[0], current_namespace[1])
+        elif current_namespace[2]:
+            f = builtin.Parser(path=current_namespace[0])
         else:
-            f = builtin.Parser(name=path)
+            f = builtin.Parser(name=current_namespace[0])
 
         return f.parser.module, rest
 
@@ -276,44 +303,7 @@ def strip_imports(scopes):
     return result
 
 
-def cache_star_import(func):
-    def wrapper(scope, *args, **kwargs):
-        try:
-            mods = star_import_cache[scope]
-            if mods[0] + settings.star_import_cache_validity > time.time():
-                return mods[1]
-        except KeyError:
-            pass
-        # cache is too old and therefore invalid or not available
-        invalidate_star_import_cache(scope)
-        mods = func(scope, *args, **kwargs)
-        star_import_cache[scope] = time.time(), mods
-
-        return mods
-    return wrapper
-
-
-def invalidate_star_import_cache(module, only_main=False):
-    """ Important if some new modules are being reparsed """
-    try:
-        t, mods = star_import_cache[module]
-
-        del star_import_cache[module]
-
-        for m in mods:
-            invalidate_star_import_cache(m, only_main=True)
-    except KeyError:
-        pass
-
-    if not only_main:
-        # We need a list here because otherwise the list is being changed
-        # during the iteration in py3k: iteritems -> items.
-        for key, (t, mods) in list(star_import_cache.items()):
-            if module in mods:
-                invalidate_star_import_cache(key)
-
-
-@cache_star_import
+@cache.cache_star_import
 def remove_star_imports(scope, ignored_modules=[]):
     """
     Check a module for star imports:

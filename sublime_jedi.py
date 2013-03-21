@@ -7,7 +7,12 @@ import re
 import traceback
 import copy
 import subprocess
-import jedi
+try:
+    import SublimeJEDI
+    import SublimeJEDI.jedi as jedi
+except ImportError:
+    import jedi
+
 
 LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
 
@@ -27,7 +32,7 @@ def get_sys_path(python_interpreter):
     """
     command = [python_interpreter, '-c', "import sys; print(sys.path)"]
     process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE)
-    out = process.communicate()[0]
+    out = process.communicate()[0].decode('utf-8')
     sys_path = json.loads(out.replace("'", '"'))
     return sys_path
 
@@ -41,7 +46,8 @@ def get_user_env():
         :return: list
     """
     # load settings
-    plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
+    settings_file = __name__.split('.')[-1] + '.sublime-settings'
+    plugin_settings = sublime.load_settings(settings_file)
     project_settings = sublime.active_window().active_view().settings()
 
     # get user interpreter, or get system default
@@ -79,10 +85,10 @@ def get_script(view, location):
     source_path = view.file_name()
     current_line, current_column = view.rowcol(location)
     script = jedi.Script(
-        text.encode("utf-8"),
+        text,
         current_line + 1,
         current_column,
-        source_path.encode("utf-8")
+        source_path
     )
     return script
 
@@ -102,21 +108,26 @@ def format(complete):
         :param complete: `jedi.api.Complete` object
         :return: tuple(string, string)
     """
+    import SublimeJEDI.jedi.keywords as keywords
+    import SublimeJEDI.jedi.parsing as parsing
+    import SublimeJEDI.jedi.evaluate as evaluate
     root = complete.name
     display, insert = complete.word, complete.word
     p = None
     while isinstance(root, jedi.evaluate.ArrayElement):
         root = root.parent()
 
-    if isinstance(root, jedi.keywords.Keyword):
+    # Sublime 3 has a different import strategy that breaks any try to
+    # check for class equality using isinstance
+    if type(root).__name__ == jedi.keywords.Keyword.__name__:
         display += "\tkeyword"
     else:
-        p = root.get_parent_until(
-            [
+        p = root.get_parent_until([
                 jedi.parsing.Import,
                 jedi.parsing.Statement,
                 jedi.parsing.Class,
-                jedi.parsing.Function, jedi.evaluate.Function
+                jedi.parsing.Function,
+                jedi.evaluate.Function
             ])
 
     if p:
