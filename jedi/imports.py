@@ -2,7 +2,7 @@ from __future__ import with_statement
 
 import os
 import pkgutil
-import imp
+import importlib
 import sys
 
 import builtin
@@ -222,20 +222,33 @@ class ImportPath(parsing.Base):
 
             global imports_processed
             imports_processed += 1
+            importing = None
             if path is not None:
-                return imp.find_module(string, [path])
+                importing = importlib.find_loader(string, [path])
             else:
                 debug.dbg('search_module', string, self.file_path)
                 # Override the sys.path. It works only good that way.
                 # Injecting the path directly into `find_module` did not work.
                 sys.path, temp = sys_path_mod, sys.path
                 try:
-                    i = imp.find_module(string)
+                    importing = importlib.find_loader(string)
                 except ImportError:
                     sys.path = temp
                     raise
                 sys.path = temp
-                return i
+            
+            returning = (None, None, None)
+            try:
+                filename = importing.get_filename(string)
+                if filename and os.path.exists(filename):
+                    returning = (filename, importing.get_source(string), True)
+                else:
+                    returning = (importing.name, None, False)
+            except AttributeError:
+                returning = (importing.load_module(string).__name__, importing.get_source(string), False)
+
+            return returning
+
 
         if self.file_path:
             sys_path_mod = list(self.sys_path_with_modifications())
@@ -248,7 +261,7 @@ class ImportPath(parsing.Base):
         rest = []
         for i, s in enumerate(self.import_path):
             try:
-                current_namespace = follow_str(current_namespace[1], s)
+                current_namespace = follow_str(None, s)
             except ImportError:
                 if self.import_stmt.relative_count \
                                 and len(self.import_path) == 1:
@@ -265,25 +278,13 @@ class ImportPath(parsing.Base):
                             'The module you searched has not been found')
 
         sys_path_mod.pop(0)  # TODO why is this here?
-        path = current_namespace[1]
-        is_package_directory = current_namespace[2][2] == imp.PKG_DIRECTORY
 
-        f = None
-        if is_package_directory or current_namespace[0]:
-            # is a directory module
-            if is_package_directory:
-                path += '/__init__.py'
-                with open(path) as f:
-                    source = f.read()
-            else:
-                source = current_namespace[0].read()
-                current_namespace[0].close()
-            if path.endswith('.py'):
-                f = modules.Module(path, source)
-            else:
-                f = builtin.Parser(path=path)
+        if current_namespace[1] is not None:
+            f = modules.Module(current_namespace[0], current_namespace[1])
+        elif current_namespace[2]:
+            f = builtin.Parser(path=current_namespace[0])
         else:
-            f = builtin.Parser(name=path)
+            f = builtin.Parser(name=current_namespace[0])
 
         return f.parser.module, rest
 
