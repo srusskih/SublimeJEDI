@@ -56,7 +56,15 @@ class JediEnvMixin(object):
             :return: list
         """
         command = [python_interpreter, '-c', "import sys; print(sys.path)"]
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE)
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            process = subprocess.Popen(command, shell=False,
+                                       stdout=subprocess.PIPE,
+                                       startupinfo=startupinfo)
+        else:
+            process = subprocess.Popen(command, shell=False,
+                                       stdout=subprocess.PIPE)
         out = process.communicate()[0]
         sys_path = json.loads(out.replace("'", '"'))
         return sys_path
