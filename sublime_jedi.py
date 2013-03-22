@@ -1,68 +1,21 @@
-import sublime
-import sublime_plugin
-
+# -*- coding: utf-8 -*-
 import json
 import sys
-import re
 import traceback
 import copy
 import subprocess
-import jedi
+from collections import defaultdict
+from contextlib import contextmanager
 
-LANGUAGE_REGEX = re.compile("(?<=source\.)[\w+#]+")
+import sublime
+import sublime_plugin
+
+import jedi
 
 #import pprint
 #jedi.debug.debug_function = lambda level, *x: pprint.pprint((repr(level), x))
 
 _dotcomplete = []
-
-
-def get_sys_path(python_interpreter):
-    """ Get PYTHONPATH for passed interpreter and return it
-
-        :param python_interpreter: python interpreter path
-        :type python_interpreter: unicode or buffer
-
-        :return: list
-    """
-    command = [python_interpreter, '-c', "import sys; print(sys.path)"]
-    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE)
-    out = process.communicate()[0]
-    sys_path = json.loads(out.replace("'", '"'))
-    return sys_path
-
-
-def get_user_env():
-    """ Gets user's interpreter from the settings and returns
-        PYTHONPATH for this interpreter
-
-        TODO: add possibility cache project PYTHONPATH
-
-        :return: list
-    """
-    # load settings
-    plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
-    project_settings = sublime.active_window().active_view().settings()
-
-    # get user interpreter, or get system default
-    interpreter_path = project_settings.get(
-        'python_interpreter_path',
-        plugin_settings.get('python_interpreter_path')
-        )
-
-    sys_path = get_sys_path(interpreter_path)
-
-    # get user interpreter, or get system default
-    package_paths = project_settings.get(
-        'python_package_paths',
-        plugin_settings.get('python_package_paths')
-        )
-
-    # extra paths should in the head on the sys.path list
-    # to override "default" packages from in the environment
-    sys_path = sys_path + package_paths
-
-    return sys_path
 
 
 def get_script(view, location):
@@ -79,97 +32,151 @@ def get_script(view, location):
     source_path = view.file_name()
     current_line, current_column = view.rowcol(location)
     script = jedi.Script(
-        text.encode("utf-8"),
+        text,
         current_line + 1,
         current_column,
-        source_path.encode("utf-8")
+        source_path
     )
     return script
-
-
-def get_language(view):
-    caret = view.sel()[0].a
-    language = LANGUAGE_REGEX.search(view.scope_name(caret))
-    if language is None:
-        return None
-    return language.group(0)
-
-
-def format(complete):
-    """ Returns a tuple of the string that would be visible in the completion
-        dialogue, and the snippet to insert for the completion
-
-        :param complete: `jedi.api.Complete` object
-        :return: tuple(string, string)
-    """
-    root = complete.name
-    display, insert = complete.word, complete.word
-    p = None
-    while isinstance(root, jedi.evaluate.ArrayElement):
-        root = root.parent()
-
-    if isinstance(root, jedi.keywords.Keyword):
-        display += "\tkeyword"
-    else:
-        p = root.get_parent_until(
-            [
-                jedi.parsing.Import,
-                jedi.parsing.Statement,
-                jedi.parsing.Class,
-                jedi.parsing.Function, jedi.evaluate.Function
-            ])
-
-    if p:
-        if p.isinstance(jedi.parsing.Function, jedi.evaluate.Function):
-            try:
-                cls = root.get_parent_until([jedi.evaluate.Instance])
-                params = list(p.params)
-
-                def safe_name(name, idx):
-                    try:
-                        name = a.get_name().get_code()
-                    except:
-                        name = "unknown_varname%d" % idx
-                    return name
-
-                params = [safe_name(a, idx) for idx, a in enumerate(params)]
-                if cls.isinstance(jedi.evaluate.Instance):
-                    # Remove "self"
-                    try:
-                        params.remove(cls.get_func_self_name(p))
-                    except:
-                        pass
-            except:
-                traceback.print_exc()
-                params = []
-
-            insert = "%(fname)s(%(params)s)" % {
-                'fname': p.name,
-                'params': ', '.join(["${%d:%s}" % (x + 1, par)
-                                     for x, par in enumerate(params)])
-            }
-
-        display += "\t"
-        display += str(complete.description)
-
-    return display, insert
 
 
 class JediEnvMixin(object):
     """ Mixin to install user virtual env for JEDI """
 
-    def install_env(self):
-        env = get_user_env()
-        self._origin_env = copy.copy(sys.path)
+    SYS_ENVS = defaultdict(dict)  # key = window.id value = dict interpeter path : sys.path
+    SETTINGS_INTERP = 'python_interpreter_path'
+    _origin_env = copy.copy(sys.path)
+
+    def get_sys_path(self, python_interpreter):
+        """ Get PYTHONPATH for passed interpreter and return it
+
+            :param python_interpreter: python interpreter path
+            :type python_interpreter: unicode or buffer
+
+            :return: list
+        """
+        command = [python_interpreter, '-c', "import sys; print sys.path"]
+        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE)
+        out = process.communicate()[0]
+        sys_path = json.loads(out.replace("'", '"'))
+        return sys_path
+
+    def reset_sys_envs(self, window_id):
+        self.SYS_ENVS[window_id].clear()
+
+    def get_user_env(self):
+        """ Gets user's interpreter from the settings and returns
+            PYTHONPATH for this interpreter
+
+            :return: list
+        """
+        # load settings
+        plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
+        project_settings = sublime.active_window().active_view().settings()
+
+        # get user interpreter, or get system default
+        interpreter_path = project_settings.get(
+            self.SETTINGS_INTERP,
+            plugin_settings.get(self.SETTINGS_INTERP)
+            )
+        window_id = sublime.active_window().id()
+
+        if interpreter_path not in self.SYS_ENVS[window_id]:
+            # register callback which will drop cached sys.path
+            plugin_settings.add_on_change(self.SETTINGS_INTERP,
+                                        lambda: self.reset_sys_envs(window_id))
+            project_settings.add_on_change(self.SETTINGS_INTERP,
+                                    lambda: self.reset_sys_envs(window_id))
+
+            sys_path = self.get_sys_path(interpreter_path)
+
+            # get user interpreter, or get system default
+            package_paths = project_settings.get(
+                'python_package_paths',
+                plugin_settings.get('python_package_paths')
+                )
+
+            # extra paths should in the head on the sys.path list
+            # to override "default" packages from in the environment
+            sys_path = package_paths + sys_path
+            self.SYS_ENVS[window_id][interpreter_path] = sys_path
+        return self.SYS_ENVS[window_id][interpreter_path]
+
+    @property
+    @contextmanager
+    def env(self):
+        env = self.get_user_env()
         sys.path = copy.copy(env)
-
-    def restore_env(self):
-        if self._origin_env:
+        try:
+            yield
+        finally:
             sys.path = copy.copy(self._origin_env)
-            del self._origin_env
 
 
-class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
+class SublimeMixin(object):
+    """ helpers to integrate sublime """
+
+    def is_funcargs_complete_enabled(self, view):
+        return view.settings().get('auto_complete_function_params',
+                        sublime.load_settings(__name__ + '.sublime-settings')\
+                                    .get('auto_complete_function_params', True))
+
+    def format(self, complete, insert_funcargs=True):
+        """ Returns a tuple of the string that would be visible in the completion
+            dialogue, and the snippet to insert for the completion
+
+            :param complete: `jedi.api.Complete` object
+            :return: tuple(string, string)
+        """
+        display, insert = complete.word + '\t' + complete.type, complete.word
+
+        if not insert_funcargs:
+            if complete.type == 'Function':
+                # if its a function add parentheses
+                return display, insert + "(${1})"
+            return display, insert
+
+        if hasattr(complete.definition, 'params'):
+            params = []
+            for index, param in enumerate(complete.definition.params):
+                code = param.code
+                if code != 'self':
+                    params.append("${%d:%s}" % (index + 1, code))
+            insert = "%(fname)s(%(params)s)" % {
+                    'fname': insert,
+                    'params': ', '.join(params)
+                }
+        return display, insert
+
+    def filter_completions(self, completions):
+        """ filter out completions with same name e.g. os.path """
+        s = set()
+        return [s.add(i.word) or i for i in completions if i.word not in s]
+
+    def funcargs_from_script(self, script):
+        """ get completion in case we are in a function call """
+        completions = []
+        in_call = script.get_in_function_call()
+        if in_call is not None:
+            for calldef in in_call.params:
+                if '*' in calldef.code or calldef.code == 'self':
+                    continue
+                code = calldef.code.strip().split('=')
+                if len(code) == 1:
+                    completions.append((code[0], '%s=${1}' % code[0]))
+                else:
+                    completions.append((code[0] + '\t' + code[1],
+                                     '%s=${1:%s}' % (code[0], code[1])))
+        return completions
+
+    def completions_from_script(self, script, insert_params):
+        """ regular completions """
+        completions = self.filter_completions(script.complete())
+        completions = [self.format(complete, insert_params) for complete in completions]
+        return completions
+
+
+class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand):
     """ On "dot" completion command
 
         This command allow call the autocomplete command right after user put
@@ -208,22 +215,22 @@ class SublimeJediComplete(JediEnvMixin, sublime_plugin.TextCommand):
 
     def delayed_complete(self):
         global _dotcomplete
-
-        # install user env
-        self.install_env()
-
-        script = get_script(self.view, self.view.sel()[0].begin())
-        _dotcomplete = script.complete()
-
-        # restore sublime env
-        self.restore_env()
+        with self.env:
+            script = get_script(self.view, self.view.sel()[0].begin())
+            insert_funcargs = self.is_funcargs_complete_enabled(self.view)
+            _dotcomplete = self.completions_from_script(script, insert_funcargs)
 
         if len(_dotcomplete):
             # Only complete if there's something to complete
-            self.view.run_command("auto_complete")
+            self.view.run_command("auto_complete",  {
+                            'disable_auto_insert': True,
+                            'api_completions_only': True,
+                            'next_completion_if_showing': False,
+                            'auto_complete_commit_on_tab': True,
+                        })
 
 
-class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
+class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
 
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
@@ -241,17 +248,12 @@ class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
             :return: list
         """
         # nothing to do with non-python code
-        if get_language(view) != "python":
-            return None
-
-        # install user env
-        self.install_env()
+        if 'python' not in view.settings().get('syntax').lower():
+            return
 
         # get completions list
-        completions = self.get_completions(view, locations)
-
-        # restore sublime env, to keep functionality
-        self.restore_env()
+        with self.env:
+            completions = self.get_completions(view, locations)
 
         return completions
 
@@ -272,13 +274,11 @@ class Autocomplete(JediEnvMixin, sublime_plugin.EventListener):
         if len(_dotcomplete) > 0:
             completions = _dotcomplete
         else:
+            # get a completions
             script = get_script(view, locations[0])
-            completions = script.complete()
+            insert_funcargs = self.is_funcargs_complete_enabled(view)
+            completions = self.funcargs_from_script(script) or \
+                          self.completions_from_script(script, insert_funcargs)
 
-        # empty cache
         _dotcomplete = []
-
-        # prepare jedi completions to Sublime format
-        completions = [format(complete) for complete in completions]
-
         return completions
