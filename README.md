@@ -55,7 +55,7 @@ You can set Python interpreter, and additional python package directories, using
 
 #### Autocomplete on DOT
 
-By default it's [turned on](https://github.com/svaiter/SublimeJEDI/blob/master/sublime_jedi.sublime-settings#L7)
+By default it's [turned on](sublime_jedi.sublime-settings#L10)
 
     # sublime_jedi.sublime-settings
     {
@@ -65,7 +65,7 @@ By default it's [turned on](https://github.com/svaiter/SublimeJEDI/blob/master/s
 
 #### Function args fill up on completion
 
-SublimeJEDI allow fill up function parameters by default. Thanks to @krya no you can turn it off.
+SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settins#13). Thanks to @krya no you can turn it off.
 
 	# sublime_jedi.sublime-settings
 	{
