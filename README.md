@@ -63,14 +63,24 @@ By default it's [turned on](https://github.com/svaiter/SublimeJEDI/blob/master/s
         "auto_complete_on_dot": true
     }
 
+#### Function args fill up on completion
+
+SublimeJEDI allow fill up function parameters by default. Thanks to @krya no you can turn it off.
+
+	# sublime_jedi.sublime-settings
+	{
+		// ..
+		"auto_complete_function_params": true
+	}
+
+
 #### Jedi Goto/ Go Definition
 
 Find function / variable / class definition
-Shortcuts: `CTRL+B` or `CTRL + LeftMouseButton`
+Shortcuts: `CTRL+SHIFT+G` or `CTRL + LeftMouseButton`
 
 
 TODO
 ----
 
  - add Jedi "Related Names"
- - reduce PYTHONPATH getting overhead
