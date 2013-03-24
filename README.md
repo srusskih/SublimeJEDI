@@ -4,8 +4,6 @@ SublimeJEDI
 [SublimeJEDI](https://github.com/svaiter/SublimeJEDI) is a [Sublime Text 2](http://www.sublimetext.com/) plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
 
-**The plugin has not full functional yet !**
-Join the effort to bring Jedi to Sublime (see jedi-vim).
 
 Installation
 ------------
@@ -84,3 +82,10 @@ TODO
 ----
 
  - add Jedi "Related Names"
+
+
+License
+-------
+
+GNU LGPL v3 
+[full text](http://www.gnu.org/licenses/lgpl.txt)
