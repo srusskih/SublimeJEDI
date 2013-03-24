@@ -63,7 +63,7 @@ By default it's [turned on](sublime_jedi.sublime-settings#L10)
 
 #### Function args fill up on completion
 
-SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settins#13). Thanks to @krya no you can turn it off.
+SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settins#13). Thanks to @krya, now you can turn it off.
 
 	# sublime_jedi.sublime-settings
 	{
