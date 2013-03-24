@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import sys
-import traceback
 import copy
 import subprocess
 from collections import defaultdict
@@ -13,7 +12,7 @@ import sublime_plugin
 import jedi
 
 #import pprint
-#jedi.debug.debug_function = lambda level, *x: pprint.pprint((repr(level), x))
+#jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
 
 _dotcomplete = []
 
@@ -156,11 +155,6 @@ class SublimeMixin(object):
                 }
         return display, insert
 
-    def filter_completions(self, completions):
-        """ filter out completions with same name e.g. os.path """
-        s = set()
-        return [s.add(i.word) or i for i in completions if i.word not in s]
-
     def funcargs_from_script(self, script):
         """ get completion in case we are in a function call """
         completions = []
@@ -179,7 +173,7 @@ class SublimeMixin(object):
 
     def completions_from_script(self, script, insert_params):
         """ regular completions """
-        completions = self.filter_completions(script.complete())
+        completions = script.complete()
         completions = [self.format(complete, insert_params) for complete in completions]
         return completions
 

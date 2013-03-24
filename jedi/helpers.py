@@ -166,7 +166,8 @@ def fast_parent_copy(obj):
                     setattr(new_obj, key, new_elements[value])
                 except KeyError:
                     pass
-            elif key in ['parent_stmt', 'parent_function']:
+            elif key in ['parent_stmt', 'parent_function', 'set_parent',
+                            'module']:
                 continue
             elif isinstance(value, list):
                 setattr(new_obj, key, list_rec(value))
@@ -195,7 +196,6 @@ def generate_param_array(args_tuple, parent_stmt=None):
             values.append([arg])
     pos = None
     arr = parsing.Array(pos, parsing.Array.TUPLE, parent_stmt, values=values)
-    evaluate.faked_scopes.append(arr)
     return arr
 
 
@@ -231,7 +231,7 @@ def scan_array_for_pos(arr, pos):
                     elif s.execution is not None:
                         end = s.execution.end_pos
                         if s.execution.start_pos < pos and \
-                                (end is None or pos < end):
+                                (None in end or pos < end):
                             c, index, stop = scan_array_for_pos(
                                                     s.execution, pos)
                             if stop:
@@ -253,14 +253,3 @@ def scan_array_for_pos(arr, pos):
     # The third return is just necessary for recursion inside, because
     # it needs to know when to stop iterating.
     return call, check_arr_index(), stop
-
-
-@contextlib.contextmanager
-def scale_speed_settings(factor):
-    a = settings.max_executions
-    b = settings.max_until_execution_unique
-    settings.max_executions *= factor
-    settings.max_until_execution_unique *= factor
-    yield
-    settings.max_executions = a
-    settings.max_until_execution_unique = b
