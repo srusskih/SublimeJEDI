@@ -88,7 +88,7 @@ class BaseLookUpJediCommand(JediEnvMixin):
     def prepare_option(self, option):
         """ prepare option to display out in quick panel """
         raise NotImplementedError(
-            "{} require `prepare_option` definition".fomrmat(self.__class__)
+            "{} require `prepare_option` definition".format(self.__class__)
         )
 
 
