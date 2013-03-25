@@ -81,7 +81,7 @@ Shortcuts: `CTRL+SHIFT+G` or `CTRL + LeftMouseButton`
 TODO
 ----
  - allow use SublimeJEDI in SublimeText 3 and Sublime Text 2 [pull request](https://github.com/svaiter/SublimeJEDI/pull/18)
- - add Jedi "Related Names" (Find usages) [Jedi API info](https://jedi.readthedocs.org/en/latest/docs/plugin-api.html#api.Script.related_names)
+ - add Jedi "Related Names" (Find usages) [Jedi API info](https://jedi.readthedocs.org/en/latest/docs/plugin-api.html#api.Script.related_names). Issue #19
 
 
 License
