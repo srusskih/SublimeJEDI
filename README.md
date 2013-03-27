@@ -1,7 +1,7 @@
 SublimeJEDI
 ============
 
-[SublimeJEDI](https://github.com/svaiter/SublimeJEDI) is a [Sublime Text 2](http://www.sublimetext.com/) plugin
+[SublimeJEDI](https://github.com/svaiter/SublimeJEDI) is a [Sublime Text 2 and 3](http://www.sublimetext.com/) and plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
 
 
