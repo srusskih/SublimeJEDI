@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import json
 import sys
 import copy
@@ -8,6 +9,10 @@ from contextlib import contextmanager
 
 import sublime
 import sublime_plugin
+
+BASE = os.path.abspath(os.path.dirname(__file__))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
 
 import jedi
 
@@ -64,7 +69,7 @@ class JediEnvMixin(object):
         else:
             process = subprocess.Popen(command, shell=False,
                                        stdout=subprocess.PIPE)
-        out = process.communicate()[0]
+        out = process.communicate()[0].decode('utf-8')
         sys_path = json.loads(out.replace("'", '"'))
         return sys_path
 
@@ -78,7 +83,8 @@ class JediEnvMixin(object):
             :return: list
         """
         # load settings
-        plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
+        setting_name = 'sublime_jedi.sublime-settings'
+        plugin_settings = sublime.load_settings(setting_name)
         project_settings = sublime.active_window().active_view().settings()
 
         # get user interpreter, or get system default
