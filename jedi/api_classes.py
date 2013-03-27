@@ -7,16 +7,18 @@ interesting information about completion and goto operations.
 import re
 import os
 import warnings
+import functools
 
-from _compatibility import unicode
-import cache
+from jedi._compatibility import unicode, next
+from jedi import settings
+from jedi import parsing_representation as pr
+from jedi import cache
+import keywords
+import recursion
 import dynamic
-import helpers
-import settings
 import evaluate
 import imports
-import parsing
-import keywords
+import evaluate_representation as er
 
 
 def _clear_caches():
@@ -26,11 +28,23 @@ def _clear_caches():
     """
     cache.clear_caches()
     dynamic.search_param_cache.clear()
-    helpers.ExecutionRecursionDecorator.reset()
+    recursion.ExecutionRecursionDecorator.reset()
 
     evaluate.follow_statement.reset()
 
     imports.imports_processed = 0
+
+
+def _clear_caches_after_call(func):
+    """
+    Clear caches just before returning a value.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwds):
+        result = func(*args, **kwds)
+        _clear_caches()
+        return result
+    return wrapper
 
 
 class BaseDefinition(object):
@@ -40,7 +54,10 @@ class BaseDefinition(object):
                'os2emxpath': 'os.path',
                'macpath': 'os.path',
                'genericpath': 'os.path',
+               'posix': 'os',
                '_io': 'io',
+               '_functools': 'functools',
+               '_sqlite3': 'sqlite3',
                '__builtin__': '',
                'builtins': '',
                }
@@ -54,19 +71,71 @@ class BaseDefinition(object):
     def __init__(self, definition, start_pos):
         self.start_pos = start_pos
         self.definition = definition
+        """
+        An instance of :class:`jedi.parsing_representation.Base` subclass.
+        """
         self.is_keyword = isinstance(definition, keywords.Keyword)
 
         # generate a path to the definition
-        self.module_path = unicode(definition.get_parent_until().path)
+        p = definition.get_parent_until().path
+        self.module_path = p if p is None else unicode(p)
 
     @property
     def type(self):
-        """The type of the definition."""
+        """
+        The type of the definition.
+
+        Here is an example of the value of this attribute.  Let's consider
+        the following source.  As what is in ``variable`` is unambiguous
+        to Jedi, :meth:`api.Script.definition` should return a list of
+        definition for ``sys``, ``f``, ``C`` and ``x``.
+
+        >>> from jedi import Script
+        >>> source = '''
+        ... import sys
+        ...
+        ... class C:
+        ...     pass
+        ...
+        ... class D:
+        ...     pass
+        ...
+        ... x = D()
+        ...
+        ... def f():
+        ...     pass
+        ...
+        ... variable = sys or f or C or x'''
+        >>> script = Script(source, len(source.splitlines()), 3, 'example.py')
+        >>> defs = script.definition()
+
+        Before showing what is in ``defs``, let's sort it by :attr:`line`
+        so that it is easy to relate the result to the source code.
+
+        >>> defs = sorted(defs, key=lambda d: d.line)
+        >>> defs                           # doctest: +NORMALIZE_WHITESPACE
+        [<Definition module sys>, <Definition class C>,
+         <Definition class D>, <Definition def f>]
+
+        Finally, here is what you can get from :attr:`type`:
+
+        >>> defs[0].type
+        'module'
+        >>> defs[1].type
+        'class'
+        >>> defs[2].type
+        'instance'
+        >>> defs[3].type
+        'function'
+
+        """
         # generate the type
         stripped = self.definition
-        if isinstance(self.definition, evaluate.InstanceElement):
+        if isinstance(self.definition, er.InstanceElement):
             stripped = self.definition.var
-        return type(stripped).__name__
+        if isinstance(stripped, pr.Name):
+            stripped = stripped.parent
+        return type(stripped).__name__.lower()
 
     @property
     def path(self):
@@ -84,15 +153,26 @@ class BaseDefinition(object):
 
     @property
     def module_name(self):
-        """The module name."""
+        """
+        The module name.
+
+        >>> from jedi import Script
+        >>> source = 'import datetime'
+        >>> script = Script(source, 1, len(source), 'example.py')
+        >>> d = script.definition()[0]
+        >>> print(d.module_name)                       # doctest: +ELLIPSIS
+        datetime
+
+        """
         path = self.module_path
         sep = os.path.sep
-        p = re.sub(r'^.*?([\w\d]+)(%s__init__)?.py$' % sep, r'\1', path)
+        p = re.sub(r'^.*?([\w\d]+)(%s__init__)?.(py|so)$' % sep, r'\1', path)
         return p
 
     def in_builtin_module(self):
         """Whether this is a builtin module."""
-        return not self.module_path.endswith('.py')
+        return not (self.module_path is None or
+                    self.module_path.endswith('.py'))
 
     @property
     def line_nr(self):
@@ -116,7 +196,31 @@ class BaseDefinition(object):
 
     @property
     def doc(self):
-        """Return a document string for this completion object."""
+        r"""
+        Return a document string for this completion object.
+
+        Example:
+
+        >>> from jedi import Script
+        >>> source = '''\
+        ... def f(a, b=1):
+        ...     "Document for function f."
+        ... '''
+        >>> script = Script(source, 1, len('def f'), 'example.py')
+        >>> d = script.definition()[0]
+        >>> print(d.doc)
+        f(a, b = 1)
+        <BLANKLINE>
+        Document for function f.
+
+        Notice that useful extra information is added to the actual
+        docstring.  For function, it is call signature.  If you need
+        actual docstring, use :attr:`raw_doc` instead.
+
+        >>> print(d.raw_doc)
+        Document for function f.
+
+        """
         try:
             return self.definition.doc
         except AttributeError:
@@ -124,7 +228,11 @@ class BaseDefinition(object):
 
     @property
     def raw_doc(self):
-        """The raw docstring ``__doc__`` for any object."""
+        """
+        The raw docstring ``__doc__`` for any object.
+
+        See :attr:`doc` for example.
+        """
         try:
             return unicode(self.definition.docstr)
         except AttributeError:
@@ -132,12 +240,56 @@ class BaseDefinition(object):
 
     @property
     def description(self):
-        """A textual description of the object."""
+        """
+        A textual description of the object.
+
+        Example:
+
+        >>> from jedi import Script
+        >>> source = '''
+        ... def f():
+        ...     pass
+        ...
+        ... class C:
+        ...     pass
+        ...
+        ... variable = f or C'''
+        >>> script = Script(source, len(source.splitlines()), 3, 'example.py')
+        >>> defs = script.definition()                      # doctest: +SKIP
+        >>> defs = sorted(defs, key=lambda d: d.line)       # doctest: +SKIP
+        >>> defs                                            # doctest: +SKIP
+        [<Definition def f>, <Definition class C>]
+        >>> defs[0].description                             # doctest: +SKIP
+        'def f'
+        >>> defs[1].description                             # doctest: +SKIP
+        'class C'
+
+        """
         return unicode(self.definition)
 
     @property
     def full_name(self):
-        """The path to a certain class/function, see #61."""
+        """
+        Dot-separated path of this object.
+
+        It is in the form of ``<module>[.<submodule>[...]][.<object>]``.
+        It is useful when you want to look up Python manual of the
+        object at hand.
+
+        Example:
+
+        >>> from jedi import Script
+        >>> source = '''
+        ... import os
+        ... os.path.join'''
+        >>> script = Script(source, 3, len('os.path.join'), 'example.py')
+        >>> print(script.definition()[0].full_name)
+        os.path.join
+
+        Notice that it correctly returns ``'os.path.join'`` instead of
+        (for example) ``'posixpath.join'``.
+
+        """
         path = [unicode(p) for p in self.path]
         # TODO add further checks, the mapping should only occur on stdlib.
         if not path:
@@ -181,7 +333,7 @@ class Completion(BaseDefinition):
         """
         Return the rest of the word, e.g. completing ``isinstance``::
 
-            >>> isinstan# <-- Cursor is here
+            isinstan# <-- Cursor is here
 
         would return the string 'ce'. It also adds additional stuff, depending
         on your `settings.py`.
@@ -193,18 +345,19 @@ class Completion(BaseDefinition):
             append = '('
 
         if settings.add_dot_after_module:
-            if isinstance(self.base, parsing.Module):
+            if isinstance(self.base, pr.Module):
                 append += '.'
-        if isinstance(self.base, parsing.Param):
+        if isinstance(self.base, pr.Param):
             append += '='
         return dot + self.name.names[-1][self.like_name_length:] + append
 
     @property
     def word(self):
         """
-        Similar to :meth:`Completion.complete`, but return the whole word, e.g. ::
+        Similar to :meth:`Completion.complete`, but return the whole word, for
+        example::
 
-            >>> isinstan
+            isinstan
 
         would return 'isinstance'.
         """
@@ -232,16 +385,16 @@ class Completion(BaseDefinition):
     def follow_definition(self):
         """
         Return the original definitions. I strongly recommend not using it for
-        your completions, because it might slow down |jedi|. If you want to read
-        only a few objects (<=20), it might be useful, especially to
-        get the original docstrings. The basic problem of this function is
-        that it follows all results. This means with 1000 completions (e.g.
-        numpy), it's just PITA-slow.
+        your completions, because it might slow down |jedi|. If you want to
+        read only a few objects (<=20), it might be useful, especially to get
+        the original docstrings. The basic problem of this function is that it
+        follows all results. This means with 1000 completions (e.g.  numpy),
+        it's just PITA-slow.
         """
         if self._followed_definitions is None:
-            if self.definition.isinstance(parsing.Statement):
+            if self.definition.isinstance(pr.Statement):
                 defs = evaluate.follow_statement(self.definition)
-            elif self.definition.isinstance(parsing.Import):
+            elif self.definition.isinstance(pr.Import):
                 defs = imports.strip_imports([self.definition])
             else:
                 return [self]
@@ -259,10 +412,44 @@ class Completion(BaseDefinition):
 class Definition(BaseDefinition):
     """
     *Definition* objects are returned from :meth:`api.Script.goto` or
-    :meth:`api.Script.get_definition`.
+    :meth:`api.Script.definition`.
     """
     def __init__(self, definition):
         super(Definition, self).__init__(definition, definition.start_pos)
+
+    @property
+    def name(self):
+        """
+        Name of variable/function/class/module.
+
+        For example, for ``x = None`` it returns ``'x'``.
+
+        :rtype: str or None
+        """
+        d = self.definition
+        if isinstance(d, er.InstanceElement):
+            d = d.var
+
+        if isinstance(d, pr.Name):
+            return d.names[-1] if d.names else None
+        elif isinstance(d, er.Array):
+            return unicode(d.type)
+        elif isinstance(d, (pr.Class, er.Class, er.Instance,
+                            er.Function, pr.Function)):
+            return unicode(d.name)
+        elif isinstance(d, pr.Module):
+            return self.module_name
+        elif isinstance(d, pr.Import):
+            try:
+                return d.get_defined_names()[0].names[-1]
+            except (AttributeError, IndexError):
+                return None
+        elif isinstance(d, pr.Statement):
+            try:
+                return d.assignment_details[0][1].values[0][0].name.names[-1]
+            except IndexError:
+                return None
+        return None
 
     @property
     def description(self):
@@ -271,18 +458,18 @@ class Definition(BaseDefinition):
         in testing. e.g. for ``isinstance`` it returns ``def isinstance``.
         """
         d = self.definition
-        if isinstance(d, evaluate.InstanceElement):
+        if isinstance(d, er.InstanceElement):
             d = d.var
-        if isinstance(d, evaluate.parsing.Name):
+        if isinstance(d, pr.Name):
             d = d.parent
 
-        if isinstance(d, evaluate.Array):
+        if isinstance(d, er.Array):
             d = 'class ' + d.type
-        elif isinstance(d, (parsing.Class, evaluate.Class, evaluate.Instance)):
+        elif isinstance(d, (pr.Class, er.Class, er.Instance)):
             d = 'class ' + unicode(d.name)
-        elif isinstance(d, (evaluate.Function, evaluate.parsing.Function)):
+        elif isinstance(d, (er.Function, pr.Function)):
             d = 'def ' + unicode(d.name)
-        elif isinstance(d, evaluate.parsing.Module):
+        elif isinstance(d, pr.Module):
             # only show module name
             d = 'module %s' % self.module_name
         elif self.is_keyword:
@@ -303,12 +490,38 @@ class Definition(BaseDefinition):
             `module.class.function` path.
         """
         if self.module_path.endswith('.py') \
-                    and not isinstance(self.definition, parsing.Module):
+                    and not isinstance(self.definition, pr.Module):
             position = '@%s' % (self.line)
         else:
             # is a builtin or module
             position = ''
         return "%s:%s%s" % (self.module_name, self.description, position)
+
+    def defined_names(self):
+        """
+        List sub-definitions (e.g., methods in class).
+
+        :rtype: list of Definition
+        """
+        d = self.definition
+        if isinstance(d, er.InstanceElement):
+            d = d.var
+        if isinstance(d, pr.Name):
+            d = d.parent
+        return _defined_names(d)
+
+
+def _defined_names(scope):
+    """
+    List sub-definitions (e.g., methods in class).
+
+    :type scope: Scope
+    :rtype: list of Definition
+    """
+    pair = next(evaluate.get_names_of_scope(
+        scope, star_search=False, include_builtin=False), None)
+    names = pair[1] if pair else []
+    return [Definition(d) for d in sorted(names, key=lambda s: s.start_pos)]
 
 
 class RelatedName(BaseDefinition):
@@ -332,9 +545,11 @@ class RelatedName(BaseDefinition):
 
 
 class CallDef(object):
-    """ `CallDef` objects is the return value of `Script.get_in_function_call`.
+    """
+    `CallDef` objects is the return value of `Script.function_definition`.
     It knows what functions you are currently in. e.g. `isinstance(` would
-    return the `isinstance` function. without `(` it would return nothing."""
+    return the `isinstance` function. without `(` it would return nothing.
+    """
     def __init__(self, executable, index, call):
         self.executable = executable
         self.index = index
@@ -342,8 +557,8 @@ class CallDef(object):
 
     @property
     def params(self):
-        if self.executable.isinstance(evaluate.Function):
-            if isinstance(self.executable, evaluate.InstanceElement):
+        if self.executable.isinstance(er.Function):
+            if isinstance(self.executable, er.InstanceElement):
                 return self.executable.params[1:]
             return self.executable.params
         else:
