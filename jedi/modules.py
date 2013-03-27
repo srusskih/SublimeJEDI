@@ -1,22 +1,65 @@
-from __future__ import with_statement
+"""
+Don't confuse these classes with :mod:`parsing_representation` modules, the
+modules here can access these representation with ``module.parser.module``.
+``Module`` exists mainly for caching purposes.
 
-from _compatibility import exec_function, unicode
+Basically :mod:`modules` offers the classes:
+
+- ``CachedModule``, a base class for Cachedmodule.
+- ``Module`` the class for all normal Python modules (not builtins, they are at
+  home at :mod:`builtin`).
+- ``ModuleWithCursor``, holds the module information for :class:`api.Script`.
+
+Apart from those classes there's a ``sys.path`` fetching function, as well as
+`Virtual Env` and `Django` detection.
+"""
+from __future__ import with_statement
 
 import re
 import tokenize
 import sys
 import os
-import time
 
-import cache
-import parsing
-import fast_parser
-import builtin
-import debug
-import settings
+from jedi._compatibility import exec_function, unicode, is_py25, literal_eval
+from jedi import cache
+from jedi import parsing
+from jedi import parsing_representation as pr
+from jedi import fast_parser
+from jedi import debug
+from jedi import settings
 
 
-class Module(builtin.CachedModule):
+class CachedModule(object):
+    """
+    The base type for all modules, which is not to be confused with
+    `parsing_representation.Module`. Caching happens here.
+    """
+
+    def __init__(self, path=None, name=None):
+        self.path = path and os.path.abspath(path)
+        self.name = name
+        self._parser = None
+
+    @property
+    def parser(self):
+        """ get the parser lazy """
+        if self._parser is None:
+            self._parser = cache.load_module(self.path, self.name) \
+                                or self._load_module()
+        return self._parser
+
+    def _get_source(self):
+        raise NotImplementedError()
+
+    def _load_module(self):
+        source = self._get_source()
+        p = self.path or self.name
+        p = fast_parser.FastParser(source, p)
+        cache.save_module(self.path, self.name, p)
+        return p
+
+
+class Module(CachedModule):
     """
     Manages all files, that are parsed and caches them.
 
@@ -65,10 +108,8 @@ class ModuleWithCursor(Module):
         """ get the parser lazy """
         if not self._parser:
             try:
-                ts, parser = builtin.CachedModule.cache[self.path]
+                parser = cache.parser_cache[self.path].parser
                 cache.invalidate_star_import_cache(parser.module)
-
-                del builtin.CachedModule.cache[self.path]
             except KeyError:
                 pass
             # Call the parser already here, because it will be used anyways.
@@ -76,9 +117,9 @@ class ModuleWithCursor(Module):
             # default), therefore fill the cache here.
             self._parser = fast_parser.FastParser(self.source, self.path,
                                                         self.position)
-            if self.path is not None:
-                builtin.CachedModule.cache[self.path] = time.time(), \
-                                                        self._parser
+            # don't pickle that module, because it's changing fast
+            cache.save_module(self.path, self.name, self._parser,
+                                                            pickling=False)
         return self._parser
 
     def get_path_until_cursor(self):
@@ -195,7 +236,9 @@ class ModuleWithCursor(Module):
 
     def get_line(self, line_nr):
         if not self._line_cache:
-            self._line_cache = self.source.split('\n')
+            self._line_cache = self.source.splitlines()
+            if not self.source:  # ''.splitlines() == []
+                self._line_cache = [self.source]
 
         if line_nr == 0:
             # This is a fix for the zeroth line. We need a newline there, for
@@ -218,10 +261,25 @@ class ModuleWithCursor(Module):
         # TODO check for docstrings
         length = settings.part_line_length
         offset = max(self.position[0] - length, 0)
-        s = '\n'.join(self.source.split('\n')[offset:offset + length])
-        self._part_parser = parsing.PyFuzzyParser(s, self.path, self.position,
-                                                        line_offset=offset)
+        s = '\n'.join(self.source.splitlines()[offset:offset + length])
+        self._part_parser = parsing.Parser(s, self.path, self.position,
+                                           offset=(offset, 0))
         return self._part_parser
+
+
+def get_sys_path():
+    def check_virtual_env(sys_path):
+        """ Add virtualenv's site-packages to the `sys.path`."""
+        venv = os.getenv('VIRTUAL_ENV')
+        if not venv:
+            return
+        venv = os.path.abspath(venv)
+        p = os.path.join(
+            venv, 'lib', 'python%d.%d' % sys.version_info[:2], 'site-packages')
+        sys_path.insert(0, p)
+
+    check_virtual_env(sys.path)
+    return [p for p in sys.path if p != ""]
 
 
 @cache.memoize_default([])
@@ -247,16 +305,18 @@ def sys_path_with_modifications(module):
         try:
             possible_stmts = module.used_names['path']
         except KeyError:
-            return builtin.get_sys_path()
+            return get_sys_path()
 
-        sys_path = list(builtin.get_sys_path())  # copy
+        sys_path = list(get_sys_path())  # copy
         for p in possible_stmts:
-            try:
-                call = p.get_assignment_calls().get_only_subelement()
-            except AttributeError:
+            if not isinstance(p, pr.Statement):
                 continue
+            commands = p.get_commands()
+            if len(commands) != 1:  # sys.path command is just one thing.
+                continue
+            call = commands[0]
             n = call.name
-            if not isinstance(n, parsing.Name) or len(n.names) != 3:
+            if not isinstance(n, pr.Name) or len(n.names) != 3:
                 continue
             if n.names[:2] != ('sys', 'path'):
                 continue
@@ -269,7 +329,7 @@ def sys_path_with_modifications(module):
                 continue
 
             if array_cmd == 'insert':
-                exe_type, exe.type = exe.type, parsing.Array.NOARRAY
+                exe_type, exe.type = exe.type, pr.Array.NOARRAY
                 exe_pop = exe.values.pop(0)
                 res = execute_code(exe.get_code())
                 if res is not None:
@@ -328,20 +388,20 @@ def source_to_unicode(source, encoding=None):
         http://docs.python.org/2/reference/lexical_analysis.html#encoding-\
                                                                 declarations
         """
-        if encoding is not None:
-            return encoding
-
-        if source.startswith('\xef\xbb\xbf'):
+        byte_mark = '\xef\xbb\xbf' if is_py25 else \
+                                        literal_eval(r"b'\xef\xbb\xbf'")
+        if source.startswith(byte_mark):
             # UTF-8 byte-order mark
             return 'utf-8'
 
-        first_two_lines = re.match(r'(?:[^\n]*\n){0,2}', source).group(0)
-        possible_encoding = re.match("coding[=:]\s*([-\w.]+)", first_two_lines)
+        first_two_lines = re.match(r'(?:[^\n]*\n){0,2}', str(source)).group(0)
+        possible_encoding = re.search(r"coding[=:]\s*([-\w.]+)",
+                                                            first_two_lines)
         if possible_encoding:
             return possible_encoding.group(1)
         else:
             # the default if nothing else has been set -> PEP 263
-            return 'iso-8859-1'
+            return encoding if encoding is not None else 'iso-8859-1'
 
     if isinstance(source, unicode):
         # only cast str/bytes

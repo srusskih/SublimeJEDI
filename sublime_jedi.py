@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import json
 import sys
 import copy
@@ -8,6 +9,10 @@ from contextlib import contextmanager
 
 import sublime
 import sublime_plugin
+
+BASE = os.path.abspath(os.path.dirname(__file__))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
 
 import jedi
 
@@ -64,7 +69,7 @@ class JediEnvMixin(object):
         else:
             process = subprocess.Popen(command, shell=False,
                                        stdout=subprocess.PIPE)
-        out = process.communicate()[0]
+        out = process.communicate()[0].decode('utf-8')
         sys_path = json.loads(out.replace("'", '"'))
         return sys_path
 
@@ -78,7 +83,8 @@ class JediEnvMixin(object):
             :return: list
         """
         # load settings
-        plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
+        setting_name = 'sublime_jedi.sublime-settings'
+        plugin_settings = sublime.load_settings(setting_name)
         project_settings = sublime.active_window().active_view().settings()
 
         # get user interpreter, or get system default
@@ -146,7 +152,7 @@ class SublimeMixin(object):
         if hasattr(complete.definition, 'params'):
             params = []
             for index, param in enumerate(complete.definition.params):
-                code = param.code
+                code = param.get_code()
                 if code != 'self':
                     params.append("${%d:%s}" % (index + 1, code))
             insert = "%(fname)s(%(params)s)" % {
@@ -161,9 +167,9 @@ class SublimeMixin(object):
         in_call = script.get_in_function_call()
         if in_call is not None:
             for calldef in in_call.params:
-                if '*' in calldef.code or calldef.code == 'self':
+                if '*' in calldef.get_code() or calldef.get_code() == 'self':
                     continue
-                code = calldef.code.strip().split('=')
+                code = calldef.get_code().strip().split('=')
                 if len(code) == 1:
                     completions.append((code[0], '%s=${1}' % code[0]))
                 else:

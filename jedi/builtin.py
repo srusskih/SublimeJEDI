@@ -1,5 +1,28 @@
+"""
+A big part of the Python standard libraries are unfortunately not only written
+in Python. The process works like this:
+
+- ``BuiltinModule`` imports the builtin module (e.g. ``sys``)
+- then ``BuiltinModule`` generates code with the docstrings of builtin
+  functions.
+- The :mod:`parsing` parser processes the generated code.
+
+This is possible, because many builtin functions supply docstrings, for example
+the method ``list.index`` has the following attribute ``__doc__``:
+
+    L.index(value, [start, [stop]]) -> integer -- return first index of value.
+        Raises ValueError if the value is not present.
+
+`PEP 257 <http://www.python.org/dev/peps/pep-0257/#one-line-docstrings>`_
+teaches how docstrings should look like for C functions.
+
+Additionally there's a ``Builtin``  instance in this module, to make it
+possible to access functions like ``list`` and ``int`` directly, the same way
+|jedi| access other functions.
+"""
+
 from __future__ import with_statement
-from _compatibility import exec_function, is_py3k
+from jedi._compatibility import exec_function, is_py3k
 
 import re
 import sys
@@ -9,74 +32,14 @@ if is_py3k:
 import types
 import inspect
 
-import cache
-import common
-import debug
-import parsing
-import fast_parser
+from jedi import common
+from jedi import debug
+from jedi import parsing
+from jedi import modules
 import evaluate
 
 
-def get_sys_path():
-    def check_virtual_env(sys_path):
-        """ Add virtualenv's site-packages to the `sys.path`."""
-        venv = os.getenv('VIRTUAL_ENV')
-        if not venv:
-            return
-        venv = os.path.abspath(venv)
-        p = os.path.join(
-            venv, 'lib', 'python%d.%d' % sys.version_info[:2], 'site-packages')
-        sys_path.insert(0, p)
-
-    p = sys.path[1:]
-    check_virtual_env(p)
-    return p
-
-
-class CachedModule(object):
-    """
-    The base type for all modules, which is not to be confused with
-    `parsing.Module`. Caching happens here.
-    """
-    cache = {}
-
-    def __init__(self, path=None, name=None):
-        self.path = path and os.path.abspath(path)
-        self.name = name
-        self._parser = None
-
-    @property
-    def parser(self):
-        """ get the parser lazy """
-        if not self._parser:
-            try:
-                timestamp, parser = self.cache[self.path or self.name]
-                if not self.path or os.path.getmtime(self.path) <= timestamp:
-                    self._parser = parser
-                else:
-                    # In case there is already a module cached and this module
-                    # has to be reparsed, we also need to invalidate the import
-                    # caches.
-                    cache.invalidate_star_import_cache(parser.module)
-                    raise KeyError()
-            except KeyError:
-                self._load_module()
-        return self._parser
-
-    def _get_source(self):
-        raise NotImplementedError()
-
-    def _load_module(self):
-        source = self._get_source()
-        p = self.path or self.name
-        self._parser = fast_parser.FastParser(source, p)
-        p_time = None if not self.path else os.path.getmtime(self.path)
-
-        if self.path or self.name:
-            self.cache[self.path or self.name] = p_time, self._parser
-
-
-class Parser(CachedModule):
+class BuiltinModule(modules.CachedModule):
     """
     This module is a parser for all builtin modules, which are programmed in
     C/C++. It should also work on third party modules.
@@ -104,15 +67,13 @@ class Parser(CachedModule):
     if is_py3k:
         map_types['file object'] = 'import io; return io.TextIOWrapper()'
 
-    module_cache = {}
-
     def __init__(self, path=None, name=None, sys_path=None):
         if sys_path is None:
-            sys_path = get_sys_path()
+            sys_path = modules.get_sys_path()
         if not name:
             name = os.path.basename(path)
             name = name.rpartition('.')[0]  # cut file type (normally .so)
-        super(Parser, self).__init__(path=path, name=name)
+        super(BuiltinModule, self).__init__(path=path, name=name)
 
         self.sys_path = list(sys_path)
         self._module = None
@@ -220,8 +181,7 @@ class Parser(CachedModule):
 
 def _generate_code(scope, mixin_funcs={}, depth=0):
     """
-    Generate a string, which uses python syntax as an input to the
-    PyFuzzyParser.
+    Generate a string, which uses python syntax as an input to the Parser.
     """
     def get_doc(obj, indent=False):
         doc = inspect.getdoc(obj)
@@ -314,7 +274,7 @@ def _generate_code(scope, mixin_funcs={}, depth=0):
 
     # functions
     for name, func in funcs.items():
-        params, ret = parse_function_doc(func)
+        params, ret = _parse_function_doc(func)
         if depth > 0:
             params = 'self, ' + params
         doc_str = get_doc(func, indent=True)
@@ -385,7 +345,7 @@ def _generate_code(scope, mixin_funcs={}, depth=0):
     return code
 
 
-def parse_function_doc(func):
+def _parse_function_doc(func):
     """
     Takes a function and returns the params and return value as a tuple.
     This is nothing more than a docstring parser.
@@ -439,7 +399,7 @@ def parse_function_doc(func):
         # New object -> object()
         ret_str = re.sub(r'[nN]ew (.*)', r'\1()', ret_str)
 
-        ret = Parser.map_types.get(ret_str, ret_str)
+        ret = BuiltinModule.map_types.get(ret_str, ret_str)
         if ret == ret_str and ret not in ['None', 'object', 'tuple', 'set']:
             debug.dbg('not working', ret_str)
         if ret != 'pass':
@@ -460,7 +420,7 @@ class Builtin(object):
     @property
     def builtin(self):
         if self._builtin is None:
-            self._builtin = Parser(name=self.name)
+            self._builtin = BuiltinModule(name=self.name)
         return self._builtin
 
     @property
@@ -476,7 +436,7 @@ class Builtin(object):
             class Container(object):
                 FunctionType = types.FunctionType
             source = _generate_code(Container, depth=0)
-            parser = parsing.PyFuzzyParser(source, None)
+            parser = parsing.Parser(source, None)
             module = parser.module
             module.parent = self.scope
             typ = evaluate.follow_path(iter(['FunctionType']), module, module)

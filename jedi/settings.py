@@ -22,12 +22,19 @@ Completion output
 .. autodata:: no_completion_duplicates
 
 
+Filesystem cache
+~~~~~~~~~~~~~~~~
+
+.. autodata:: cache_directory
+.. autodata:: use_filesystem_cache
+
+
 Parser
 ~~~~~~
 
 .. autodata:: fast_parser
 .. autodata:: fast_parser_always_reparse
-.. autodata:: use_get_in_function_call_cache
+.. autodata:: use_function_definition_cache
 
 
 Dynamic stuff
@@ -39,6 +46,8 @@ Dynamic stuff
 .. autodata:: dynamic_params_for_other_modules
 .. autodata:: additional_dynamic_modules
 
+
+.. _settings-recursion:
 
 Recursions
 ~~~~~~~~~~
@@ -57,14 +66,14 @@ definitely worse in some cases. But a completion should also be fast.
 .. autodata:: max_function_recursion_level
 .. autodata:: max_executions_without_builtins
 .. autodata:: max_executions
-.. autodata:: scale_get_in_function_call
+.. autodata:: scale_function_definition
 
 
 Caching
 ~~~~~~~
 
 .. autodata:: star_import_cache_validity
-.. autodata:: get_in_function_call_validity
+.. autodata:: function_definition_validity
 
 
 Various
@@ -74,6 +83,8 @@ Various
 
 
 """
+import os
+import platform
 
 # ----------------
 # completion output settings
@@ -104,6 +115,31 @@ but are in the `same_name_completions` attribute.
 """
 
 # ----------------
+# Filesystem cache
+# ----------------
+
+use_filesystem_cache = True
+"""
+Use filesystem cache to save once parsed files with pickle.
+"""
+
+if platform.system().lower() == 'windows':
+    _cache_directory = os.path.join(os.getenv('APPDATA') or '~', 'Jedi',
+                                    'Jedi')
+elif platform.system().lower() == 'darwin':
+    _cache_directory = os.path.join('~', 'Library', 'Caches', 'Jedi')
+else:
+    _cache_directory = os.path.join(os.getenv('XDG_CACHE_HOME') or '~/.cache',
+                                    'jedi')
+cache_directory = os.path.expanduser(_cache_directory)
+"""
+The path where all the caches can be found.
+
+On Linux, this defaults to ``~/.cache/jedi/``, on OS X to ``~/.jedi/`` and on
+Windows to ``%APPDATA%\\Jedi\\Jedi\\``.
+"""
+
+# ----------------
 # parser
 # ----------------
 
@@ -120,9 +156,9 @@ This is just a debugging option. Always reparsing means that the fast parser
 is basically useless. So don't use it.
 """
 
-use_get_in_function_call_cache = True
+use_function_definition_cache = True
 """
-Use the cache (full cache) to generate get_in_function_call's. This may fail
+Use the cache (full cache) to generate function_definition's. This may fail
 with multiline docstrings (likely) and other complicated changes (unlikely).
 The goal is to move away from it by making the rest faster.
 """
@@ -189,9 +225,9 @@ max_executions = 250
 A maximum amount of time, the completion may use.
 """
 
-scale_get_in_function_call = 0.1
+scale_function_definition = 0.1
 """
-Because get_in_function_call is normally used on every single key hit, it has
+Because function_definition is normally used on every single key hit, it has
 to be faster than a normal completion. This is the factor that is used to
 scale `max_executions` and `max_until_execution_unique`:
 """
@@ -217,7 +253,7 @@ might be slow, therefore we do a star import caching, that lasts a certain
 time span (in seconds).
 """
 
-get_in_function_call_validity = 3.0
+function_definition_validity = 3.0
 """
 Finding function calls might be slow (0.1-0.5s). This is not acceptible for
 normal writing. Therefore cache it for a short time.

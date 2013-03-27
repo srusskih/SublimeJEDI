@@ -3,3 +3,4 @@ jedic
 *.sublime
 *.ropeproject
 package-metadata.json
+.DS_Store

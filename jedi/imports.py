@@ -1,17 +1,31 @@
+"""
+:mod:`imports` is here to resolve import statements and return the
+modules/classes/functions/whatever, which they stand for. However there's not
+any actual importing done. This module is about finding modules in the
+filesystem. This can be quite tricky sometimes, because Python imports are not
+always that simple.
+
+This module uses imp for python up to 3.2 and importlib for python 3.3 on; the
+correct implementation is delegated to _compatibility.
+
+This module also supports import autocompletion, which means to complete
+statements like ``from datetim`` (curser at the end would return ``datetime``).
+"""
+
 from __future__ import with_statement
 
 import os
 import pkgutil
-import imp
 import sys
-
-import builtin
-import modules
-import debug
-import parsing
-import evaluate
 import itertools
-import cache
+
+from jedi._compatibility import find_module
+from jedi import modules
+from jedi import debug
+from jedi import parsing_representation as pr
+from jedi import cache
+import builtin
+import evaluate
 
 # for debugging purposes only
 imports_processed = 0
@@ -21,9 +35,9 @@ class ModuleNotFound(Exception):
     pass
 
 
-class ImportPath(parsing.Base):
+class ImportPath(pr.Base):
     """
-    An ImportPath is the path of a `parsing.Import` object.
+    An ImportPath is the path of a `pr.Import` object.
     """
     class _GlobalNamespace(object):
         def __init__(self):
@@ -46,7 +60,7 @@ class ImportPath(parsing.Base):
         self.import_stmt = import_stmt
         self.is_like_search = is_like_search
         self.direct_resolve = direct_resolve
-        self.is_partial_import = bool(kill_count)
+        self.is_partial_import = bool(max(0, kill_count))
         path = import_stmt.get_parent_until().path
         self.file_path = os.path.dirname(path) if path is not None else None
 
@@ -69,8 +83,9 @@ class ImportPath(parsing.Base):
     def is_nested_import(self):
         """
         This checks for the special case of nested imports, without aliases and
-        from statement:
-        >>> import foo.bar
+        from statement::
+
+            import foo.bar
         """
         return not self.import_stmt.alias and not self.import_stmt.from_ns \
                 and len(self.import_stmt.namespace.names) > 1 \
@@ -86,8 +101,8 @@ class ImportPath(parsing.Base):
         # 0 (0 is not a valid line number).
         zero = (0, 0)
         names = i.namespace.names[1:]
-        n = parsing.Name(i.module, names, zero, zero, self.import_stmt)
-        new = parsing.Import(i.module, zero, zero, n)
+        n = pr.Name(i._sub_module, names, zero, zero, self.import_stmt)
+        new = pr.Import(i._sub_module, zero, zero, n)
         new.parent = parent
         debug.dbg('Generated a nested import: %s' % new)
         return new
@@ -113,11 +128,11 @@ class ImportPath(parsing.Base):
                         except IOError:
                             pass
             else:
-                if on_import_stmt and isinstance(scope, parsing.Module) \
+                if on_import_stmt and isinstance(scope, pr.Module) \
                                         and scope.path.endswith('__init__.py'):
                     pkg_path = os.path.dirname(scope.path)
                     names += self.get_module_names([pkg_path])
-                for s, scope_names in evaluate.get_names_for_scope(scope,
+                for s, scope_names in evaluate.get_names_of_scope(scope,
                                                     include_builtin=False):
                     for n in scope_names:
                         if self.import_stmt.from_ns is None \
@@ -141,7 +156,7 @@ class ImportPath(parsing.Base):
         names = []
         for module_loader, name, is_pkg in pkgutil.iter_modules(search_path):
             inf_pos = (float('inf'), float('inf'))
-            names.append(parsing.Name(self.GlobalNamespace, [(name, inf_pos)],
+            names.append(pr.Name(self.GlobalNamespace, [(name, inf_pos)],
                                         inf_pos, inf_pos, self.import_stmt))
         return names
 
@@ -185,8 +200,8 @@ class ImportPath(parsing.Base):
             elif rest:
                 if is_goto:
                     scopes = itertools.chain.from_iterable(
-                        evaluate.get_scopes_for_name(s, rest[0], is_goto=True)
-                            for s in scopes)
+                                evaluate.find_name(s, rest[0], is_goto=True)
+                                for s in scopes)
                 else:
                     scopes = itertools.chain.from_iterable(
                                         evaluate.follow_path(iter(rest), s, s)
@@ -222,26 +237,31 @@ class ImportPath(parsing.Base):
 
             global imports_processed
             imports_processed += 1
+            importing = None
             if path is not None:
-                return imp.find_module(string, [path])
+                importing = find_module(string, [path])
             else:
                 debug.dbg('search_module', string, self.file_path)
                 # Override the sys.path. It works only good that way.
                 # Injecting the path directly into `find_module` did not work.
                 sys.path, temp = sys_path_mod, sys.path
                 try:
-                    i = imp.find_module(string)
+                    importing = find_module(string)
                 except ImportError:
                     sys.path = temp
                     raise
                 sys.path = temp
-                return i
+            
+            return importing
 
         if self.file_path:
             sys_path_mod = list(self.sys_path_with_modifications())
             sys_path_mod.insert(0, self.file_path)
         else:
-            sys_path_mod = list(builtin.get_sys_path())
+            sys_path_mod = list(modules.get_sys_path())
+
+        def module_not_found():
+            raise ModuleNotFound('The module you searched has not been found')
 
         current_namespace = (None, None, None)
         # now execute those paths
@@ -261,12 +281,14 @@ class ImportPath(parsing.Base):
                 if current_namespace[1]:
                     rest = self.import_path[i:]
                 else:
-                    raise ModuleNotFound(
-                            'The module you searched has not been found')
+                    module_not_found()
+
+        if current_namespace == (None, None, False):
+            module_not_found()
 
         sys_path_mod.pop(0)  # TODO why is this here?
         path = current_namespace[1]
-        is_package_directory = current_namespace[2][2] == imp.PKG_DIRECTORY
+        is_package_directory = current_namespace[2]
 
         f = None
         if is_package_directory or current_namespace[0]:
@@ -281,9 +303,9 @@ class ImportPath(parsing.Base):
             if path.endswith('.py'):
                 f = modules.Module(path, source)
             else:
-                f = builtin.Parser(path=path)
+                f = builtin.BuiltinModule(path=path)
         else:
-            f = builtin.Parser(name=path)
+            f = builtin.BuiltinModule(name=path)
 
         return f.parser.module, rest
 
@@ -295,7 +317,7 @@ def strip_imports(scopes):
     """
     result = []
     for s in scopes:
-        if isinstance(s, parsing.Import):
+        if isinstance(s, pr.Import):
             result += ImportPath(s).follow()
         else:
             result.append(s)
@@ -303,7 +325,7 @@ def strip_imports(scopes):
 
 
 @cache.cache_star_import
-def remove_star_imports(scope, ignored_modules=[]):
+def remove_star_imports(scope, ignored_modules=()):
     """
     Check a module for star imports:
     >>> from module import *

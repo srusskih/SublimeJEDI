@@ -1,17 +1,22 @@
+"""
+Basically a parser that is faster, because it tries to parse only parts and if
+anything changes, it only reparses the changed parts. But because it's not
+finished (and still not working as I want), I won't document it any further.
+"""
 import re
 import operator
 
-from _compatibility import use_metaclass, reduce, property
-import settings
-import parsing
+from jedi._compatibility import use_metaclass, reduce, property
+from jedi import settings
+from jedi import parsing
+from jedi import parsing_representation as pr
+from jedi import cache
 
-parser_cache = {}
 
-
-class Module(parsing.Simple, parsing.Module):
+class Module(pr.Simple, pr.Module):
     def __init__(self, parsers):
         self._end_pos = None, None
-        super(Module, self).__init__(self, (1,0))
+        super(Module, self).__init__(self, (1, 0))
         self.parsers = parsers
         self.reset_caches()
         self.line_offset = 0
@@ -137,22 +142,23 @@ class Module(parsing.Simple, parsing.Module):
 
 class CachedFastParser(type):
     """ This is a metaclass for caching `FastParser`. """
-    def __call__(self, code, module_path=None, user_position=None):
+    def __call__(self, source, module_path=None, user_position=None):
         if not settings.fast_parser:
-            return parsing.PyFuzzyParser(code, module_path, user_position)
-        if module_path is None or module_path not in parser_cache:
-            p = super(CachedFastParser, self).__call__(code, module_path,
+            return parsing.Parser(source, module_path, user_position)
+
+        pi = cache.parser_cache.get(module_path, None)
+        if pi is None or isinstance(pi.parser, parsing.Parser):
+            p = super(CachedFastParser, self).__call__(source, module_path,
                                                             user_position)
-            parser_cache[module_path] = p
         else:
-            p = parser_cache[module_path]
-            p.update(code, user_position)
+            p = pi.parser  # pi is a `cache.ParserCacheItem`
+            p.update(source, user_position)
         return p
 
 
 class FastParser(use_metaclass(CachedFastParser)):
     def __init__(self, code, module_path=None, user_position=None):
-        # set values like `parsing.Module`.
+        # set values like `pr.Module`.
         self.module_path = module_path
         self.user_position = user_position
 
@@ -168,11 +174,11 @@ class FastParser(use_metaclass(CachedFastParser)):
             for p in self.parsers:
                 if p.user_scope:
                     if self._user_scope is not None and not \
-                            isinstance(self._user_scope, parsing.SubModule):
+                            isinstance(self._user_scope, pr.SubModule):
                         continue
                     self._user_scope = p.user_scope
 
-        if isinstance(self._user_scope, parsing.SubModule):
+        if isinstance(self._user_scope, pr.SubModule):
             self._user_scope = self.module
         return self._user_scope
 
@@ -193,10 +199,10 @@ class FastParser(use_metaclass(CachedFastParser)):
 
     def scan_user_scope(self, sub_module):
         """ Scan with self.user_position.
-        :type sub_module: parsing.SubModule
+        :type sub_module: pr.SubModule
         """
         for scope in sub_module.statements + sub_module.subscopes:
-            if isinstance(scope, parsing.Scope):
+            if isinstance(scope, pr.Scope):
                 if scope.start_pos <= self.user_position <= scope.end_pos:
                     return self.scan_user_scope(scope) or scope
         return None
@@ -248,9 +254,9 @@ class FastParser(use_metaclass(CachedFastParser)):
                             p.user_scope = self.scan_user_scope(m) \
                                             or self.module
                 else:
-                    p = parsing.PyFuzzyParser(code[start:],
+                    p = parsing.Parser(code[start:],
                                 self.module_path, self.user_position,
-                                line_offset=line_offset, stop_on_scope=True,
+                                offset=(line_offset, 0), stop_on_scope=True,
                                 top_module=self.module)
 
                     p.hash = h
