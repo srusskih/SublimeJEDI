@@ -44,6 +44,12 @@ def get_script(view, location):
     return script
 
 
+def get_plugin_settings():
+    setting_name = 'sublime_jedi.sublime-settings'
+    plugin_settings = sublime.load_settings(setting_name)
+    return plugin_settings
+
+
 class JediEnvMixin(object):
     """ Mixin to install user virtual env for JEDI """
 
@@ -83,23 +89,26 @@ class JediEnvMixin(object):
             :return: list
         """
         # load settings
-        setting_name = 'sublime_jedi.sublime-settings'
-        plugin_settings = sublime.load_settings(setting_name)
+        plugin_settings = get_plugin_settings()
         project_settings = sublime.active_window().active_view().settings()
 
         # get user interpreter, or get system default
         interpreter_path = project_settings.get(
             self.SETTINGS_INTERP,
             plugin_settings.get(self.SETTINGS_INTERP)
-            )
+        )
         window_id = sublime.active_window().id()
 
         if interpreter_path not in self.SYS_ENVS[window_id]:
             # register callback which will drop cached sys.path
-            plugin_settings.add_on_change(self.SETTINGS_INTERP,
-                                        lambda: self.reset_sys_envs(window_id))
-            project_settings.add_on_change(self.SETTINGS_INTERP,
-                                    lambda: self.reset_sys_envs(window_id))
+            plugin_settings.add_on_change(
+                self.SETTINGS_INTERP,
+                lambda: self.reset_sys_envs(window_id)
+            )
+            project_settings.add_on_change(
+                self.SETTINGS_INTERP,
+                lambda: self.reset_sys_envs(window_id)
+            )
 
             sys_path = self.get_sys_path(interpreter_path)
 
@@ -107,7 +116,7 @@ class JediEnvMixin(object):
             package_paths = project_settings.get(
                 'python_package_paths',
                 plugin_settings.get('python_package_paths')
-                )
+            )
 
             # extra paths should in the head on the sys.path list
             # to override "default" packages from in the environment
@@ -130,9 +139,12 @@ class SublimeMixin(object):
     """ helpers to integrate sublime """
 
     def is_funcargs_complete_enabled(self, view):
-        return view.settings().get('auto_complete_function_params',
-                        sublime.load_settings(__name__ + '.sublime-settings')\
-                                    .get('auto_complete_function_params', True))
+        plugin_settings = get_plugin_settings()
+        project_settings = view.settings()
+        return project_settings.get(
+            'auto_complete_function_params',
+            plugin_settings.get('auto_complete_function_params', True)
+        )
 
     def format(self, complete, insert_funcargs=True):
         """ Returns a tuple of the string that would be visible in the completion
@@ -152,13 +164,13 @@ class SublimeMixin(object):
         if hasattr(complete.definition, 'params'):
             params = []
             for index, param in enumerate(complete.definition.params):
-                code = param.get_code()
+                code = param.get_code().strip()  # get_code contains "\n"
                 if code != 'self':
                     params.append("${%d:%s}" % (index + 1, code))
             insert = "%(fname)s(%(params)s)" % {
-                    'fname': insert,
-                    'params': ', '.join(params)
-                }
+                'fname': insert,
+                'params': ', '.join(params)
+            }
         return display, insert
 
     def funcargs_from_script(self, script):
@@ -167,14 +179,15 @@ class SublimeMixin(object):
         in_call = script.get_in_function_call()
         if in_call is not None:
             for calldef in in_call.params:
-                if '*' in calldef.get_code() or calldef.get_code() == 'self':
+                code = calldef.get_code().strip()  # get_code contains "\n"
+                if '*' in code or code == 'self':
                     continue
-                code = calldef.get_code().strip().split('=')
+                code = code.split('=')
                 if len(code) == 1:
                     completions.append((code[0], '%s=${1}' % code[0]))
                 else:
                     completions.append((code[0] + '\t' + code[1],
-                                     '%s=${1:%s}' % (code[0], code[1])))
+                                       '%s=${1:%s}' % (code[0], code[1])))
         return completions
 
     def completions_from_script(self, script, insert_params):
@@ -207,7 +220,7 @@ class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand
 
             :return: bool
         """
-        plugin_settings = sublime.load_settings(__name__ + '.sublime-settings')
+        plugin_settings = get_plugin_settings()
         return plugin_settings.get('auto_complete_on_dot', True)
 
     def run(self, edit):
@@ -231,11 +244,11 @@ class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand
         if len(_dotcomplete):
             # Only complete if there's something to complete
             self.view.run_command("auto_complete",  {
-                            'disable_auto_insert': True,
-                            'api_completions_only': True,
-                            'next_completion_if_showing': False,
-                            'auto_complete_commit_on_tab': True,
-                        })
+                                  'disable_auto_insert': True,
+                                  'api_completions_only': True,
+                                  'next_completion_if_showing': False,
+                                  'auto_complete_commit_on_tab': True,
+                                  })
 
 
 class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
@@ -286,7 +299,7 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
             script = get_script(view, locations[0])
             insert_funcargs = self.is_funcargs_complete_enabled(view)
             completions = self.funcargs_from_script(script) or \
-                          self.completions_from_script(script, insert_funcargs)
+                self.completions_from_script(script, insert_funcargs)
 
         _dotcomplete = []
         return completions
