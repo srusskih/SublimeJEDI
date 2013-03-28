@@ -164,7 +164,9 @@ class SublimeMixin(object):
         if hasattr(complete.definition, 'params'):
             params = []
             for index, param in enumerate(complete.definition.params):
-                code = param.get_code().strip()  # get_code contains "\n"
+                # Strip all whitespace to make it PEP8 compatible
+                code = param.get_code().strip()
+                code = '='.join(s.strip() for s in code.split('='))
                 if code != 'self':
                     params.append("${%d:%s}" % (index + 1, code))
             insert = "%(fname)s(%(params)s)" % {
@@ -179,10 +181,11 @@ class SublimeMixin(object):
         in_call = script.get_in_function_call()
         if in_call is not None:
             for calldef in in_call.params:
-                code = calldef.get_code().strip()  # get_code contains "\n"
+                # Strip all whitespace to make it PEP8 compatible
+                code = calldef.get_code().strip()
                 if '*' in code or code == 'self':
                     continue
-                code = code.split('=')
+                code = [s.strip() for s in code.split('=')]
                 if len(code) == 1:
                     completions.append((code[0], '%s=${1}' % code[0]))
                 else:
