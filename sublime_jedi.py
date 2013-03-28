@@ -19,8 +19,6 @@ import jedi
 #import pprint
 #jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
 
-_dotcomplete = []
-
 
 def get_script(view, location):
     """ `jedi.Script` fabric
@@ -197,60 +195,6 @@ class SublimeMixin(object):
         return completions
 
 
-class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand):
-    """ On "dot" completion command
-
-        This command allow call the autocomplete command right after user put
-        "." in editor.
-
-        But user can put "." in the "string" content.
-        In this case "autocomplete" have not be shown.
-        For this case we are going run Jedi completion in the command, and if
-        completions will been found we gonna run autocomplete command.
-
-        To prevent Jedi overhiting, we will send completion results in the
-        global namespace
-    """
-
-    def is_enabled(self):
-        return True
-
-    def is_dotcompletion_enabled(self):
-        """ Return command enable status
-
-            :return: bool
-        """
-        plugin_settings = get_plugin_settings()
-        return plugin_settings.get('auto_complete_on_dot', True)
-
-    def run(self, edit):
-        for region in self.view.sel():
-            self.view.insert(edit, region.end(), ".")
-
-        # Hack to redisplay the completion dialog with new information
-        # if it was already showing
-        self.view.run_command("hide_auto_complete")
-
-        if self.is_dotcompletion_enabled():
-            sublime.set_timeout(self.delayed_complete, 1)
-
-    def delayed_complete(self):
-        global _dotcomplete
-        with self.env:
-            script = get_script(self.view, self.view.sel()[0].begin())
-            insert_funcargs = self.is_funcargs_complete_enabled(self.view)
-            _dotcomplete = self.completions_from_script(script, insert_funcargs)
-
-        if len(_dotcomplete):
-            # Only complete if there's something to complete
-            self.view.run_command("auto_complete",  {
-                                  'disable_auto_insert': True,
-                                  'api_completions_only': True,
-                                  'next_completion_if_showing': False,
-                                  'auto_complete_commit_on_tab': True,
-                                  })
-
-
 class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
 
     def on_query_completions(self, view, prefix, locations):
@@ -289,17 +233,9 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
 
             :return: list
         """
-        global _dotcomplete
+        script = get_script(view, locations[0])
+        insert_funcargs = self.is_funcargs_complete_enabled(view)
+        completions = self.funcargs_from_script(script) or \
+            self.completions_from_script(script, insert_funcargs)
 
-        # reuse previously cached completion result
-        if len(_dotcomplete) > 0:
-            completions = _dotcomplete
-        else:
-            # get a completions
-            script = get_script(view, locations[0])
-            insert_funcargs = self.is_funcargs_complete_enabled(view)
-            completions = self.funcargs_from_script(script) or \
-                self.completions_from_script(script, insert_funcargs)
-
-        _dotcomplete = []
         return completions
