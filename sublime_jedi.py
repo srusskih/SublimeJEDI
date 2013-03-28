@@ -39,7 +39,7 @@ def get_script(view, location):
         text,
         current_line + 1,
         current_column,
-        source_path
+        source_path or ''  # if 'untitled' tab then file_name will be `None`
     )
     return script
 
