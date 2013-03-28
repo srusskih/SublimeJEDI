@@ -251,4 +251,5 @@ def plugin_loaded():
 
 
 if int(sublime.version()) < 3000:
-    plugin_loaded()
+    # Wait for preferences loaded
+    sublime.set_timeout(plugin_loaded, 2000)
