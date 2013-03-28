@@ -239,3 +239,16 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
             self.completions_from_script(script, insert_funcargs)
 
         return completions
+
+
+def plugin_loaded():
+    plugin_settings = get_plugin_settings()
+    if plugin_settings.get('auto_complete_on_dot', True):
+        preferences = sublime.load_settings('Preferences.sublime-settings')
+        triggers = preferences.get('auto_complete_triggers')
+        triggers.append({'selector': 'source.python', 'characters': '.'})
+        preferences.set('auto_complete_triggers', triggers)
+
+
+if int(sublime.version()) < 3000:
+    plugin_loaded()
