@@ -66,7 +66,7 @@ class BaseLookUpJediCommand(JediEnvMixin):
         if isinstance(filename, int):
             if filename == -1:  # cancelled
                 return
-            line_number, column_number = self.options_map[filename]
+            filename, line_number, column_number = self.options_map[filename]
         active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
                                 column_number or 0), sublime.ENCODED_POSITION)
 
@@ -76,12 +76,12 @@ class BaseLookUpJediCommand(JediEnvMixin):
 
             :param option: list of `jedi.api_classes.BasDefinition`
         """
-
+        options = list(options)
         active_window = self.view.window()
 
         # Map the filenames to line and column numbers
-        self.options_map = dict((o.module_path, (o.line, o.column))
-                                for o in options)
+        self.options_map = dict((i, (o.module_path, o.line, o.column))
+                                for i, o in enumerate(options))
 
         # Show the user a selection of filenames
         active_window.show_quick_panel(
