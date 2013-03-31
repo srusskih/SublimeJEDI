@@ -9,7 +9,10 @@
     // autocomplete then you set a dot after a variable
     "auto_complete_on_dot": true,
 
-    // insert function parameters on autocomplete
-    "auto_complete_function_params": true
+    // insert function parameters on autocomplete (required)
+    "auto_complete_function_params": true,
+
+    //  insert all function parameters (including params with default value)
+    "auto_complete_all_function_params": true
 
 }

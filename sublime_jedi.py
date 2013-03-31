@@ -138,15 +138,21 @@ class JediEnvMixin(object):
 class SublimeMixin(object):
     """ helpers to integrate sublime """
 
-    def is_funcargs_complete_enabled(self, view):
+    def get_settings_param(self, view, param_name):
         plugin_settings = get_plugin_settings()
         project_settings = view.settings()
         return project_settings.get(
-            'auto_complete_function_params',
-            plugin_settings.get('auto_complete_function_params', True)
+            param_name,
+            plugin_settings.get(param_name, None)
         )
 
-    def format(self, complete, insert_funcargs=True):
+    def is_funcargs_complete_enabled(self, view):
+        return self.get_settings_param(view, 'auto_complete_function_params') or True
+
+    def is_funcargs_all_complete_enabled(self, view):
+        return self.get_settings_param(view, 'auto_complete_all_function_params') or False
+
+    def format(self, complete, insert_funcargs=True, insert_all_funcargs=True):
         """ Returns a tuple of the string that would be visible in the completion
             dialogue, and the snippet to insert for the completion
 
@@ -165,10 +171,17 @@ class SublimeMixin(object):
             params = []
             for index, param in enumerate(complete.definition.params):
                 # Strip all whitespace to make it PEP8 compatible
-                code = param.get_code().strip()
-                code = '='.join(s.strip() for s in code.split('='))
-                if code != 'self':
-                    params.append("${%d:%s}" % (index + 1, code))
+                code = [s.strip() for s in param.get_code().strip().split('=')]
+                if 'self' in code or code[0].startswith('*'):
+                    # drop self from method calls and args, *kwargs
+                    continue
+
+                if len(code) > 1 and insert_all_funcargs:
+                    # param with default value
+                    params.append("%s=${%d:%s}" % (code[0], index + 1, code[1]))
+                elif len(code) == 1:
+                    # required param
+                    params.append("${%d:%s}" % (index + 1, code[0]))
             insert = "%(fname)s(%(params)s)" % {
                 'fname': insert,
                 'params': ', '.join(params)
@@ -193,10 +206,13 @@ class SublimeMixin(object):
                                        '%s=${1:%s}' % (code[0], code[1])))
         return completions
 
-    def completions_from_script(self, script, insert_params):
+    def completions_from_script(self, script, view):
         """ regular completions """
         completions = script.complete()
-        completions = [self.format(complete, insert_params) for complete in completions]
+        insert_funcargs = self.is_funcargs_complete_enabled(view)
+        insert_all_funcargs = self.is_funcargs_all_complete_enabled(view)
+        completions = [self.format(complete, insert_funcargs, insert_all_funcargs)
+                        for complete in completions]
         return completions
 
 
@@ -241,8 +257,7 @@ class SublimeJediComplete(JediEnvMixin, SublimeMixin, sublime_plugin.TextCommand
         global _dotcomplete
         with self.env:
             script = get_script(self.view, self.view.sel()[0].begin())
-            insert_funcargs = self.is_funcargs_complete_enabled(self.view)
-            _dotcomplete = self.completions_from_script(script, insert_funcargs)
+            _dotcomplete = self.completions_from_script(script, self.view)
 
         if len(_dotcomplete):
             # Only complete if there's something to complete
@@ -300,9 +315,9 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
         else:
             # get a completions
             script = get_script(view, locations[0])
-            insert_funcargs = self.is_funcargs_complete_enabled(view)
+
             completions = self.funcargs_from_script(script) or \
-                self.completions_from_script(script, insert_funcargs)
+                self.completions_from_script(script, view)
 
         _dotcomplete = []
         return completions
