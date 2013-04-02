@@ -53,12 +53,23 @@ You can set Python interpreter, and additional python package directories, using
 
 #### Autocomplete on DOT
 
-By default it's [turned on](sublime_jedi.sublime-settings#L10)
+If you want auto-completion on dot, you can define a trigger in the
+Sublime User or Python preferences:
 
-    # sublime_jedi.sublime-settings
+    # User/Preferences.sublime-settings or User/Python.sublime-settings
     {
         // ...
-        "auto_complete_on_dot": true
+        "auto_complete_triggers": [{"selector": "source.python", "characters": "."}],
+    }
+
+If you want auto-completion ONLY on dot and not while typing, you can
+set (additionally to the trigger above):
+
+
+    # User/Preferences.sublime-settings or User/Python.sublime-settings
+    {
+        // ...
+        "auto_complete_selector": "-",
     }
 
 #### Function args fill up on completion
@@ -86,5 +97,5 @@ TODO
 License
 -------
 
-GNU LGPL v3 
+GNU LGPL v3
 [full text](http://www.gnu.org/licenses/lgpl.txt)
