@@ -48,6 +48,15 @@ def get_plugin_settings():
     return plugin_settings
 
 
+def get_settings_param(view, param_name, default=None):
+    plugin_settings = get_plugin_settings()
+    project_settings = view.settings()
+    return project_settings.get(
+        param_name,
+        plugin_settings.get(param_name, default)
+        )
+
+
 class JediEnvMixin(object):
     """ Mixin to install user virtual env for JEDI """
 
@@ -136,19 +145,11 @@ class JediEnvMixin(object):
 class SublimeMixin(object):
     """ helpers to integrate sublime """
 
-    def get_settings_param(self, view, param_name):
-        plugin_settings = get_plugin_settings()
-        project_settings = view.settings()
-        return project_settings.get(
-            param_name,
-            plugin_settings.get(param_name, None)
-        )
-
     def is_funcargs_complete_enabled(self, view):
-        return self.get_settings_param(view, 'auto_complete_function_params') or False
+        return get_settings_param(view, 'auto_complete_function_params')
 
     def is_funcargs_all_complete_enabled(self, view):
-        return self.get_settings_param(view, 'auto_complete_function_params') == "all" or False
+        return get_settings_param(view, 'auto_complete_function_params') == "all"
 
     def format(self, complete, insert_funcargs=True, insert_all_funcargs=True):
         """ Returns a tuple of the string that would be visible in the completion
