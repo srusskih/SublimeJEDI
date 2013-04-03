@@ -89,11 +89,6 @@ Find function / variable / class definition
 Shortcuts: `CTRL+SHIFT+G` or `CTRL + LeftMouseButton`
 
 
-TODO
-----
- - add Jedi "Related Names" (Find usages). Issue #19
-
-
 License
 -------
 
