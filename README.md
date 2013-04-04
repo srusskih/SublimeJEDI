@@ -111,12 +111,14 @@ Function parameters completion has 3 different behavior:
 #### Jedi Goto / Go Definition
 
 Find function / variable / class definition
+
 Shortcuts: `CTRL+SHIFT+G` or `CTRL + LeftMouseButton`
 
 
 #### Jedi Find Related Names ("Find Usages")
 
 Find function / method / variable / class usage, definition
+
 Shortcut: `Alt+Shift+f`
 
 
