@@ -85,7 +85,6 @@ Function parameters completion has 3 different behavior:
         # sublime_jedi.sublime-settins
         {
             "auto_complete_function_params": "all"
-            // 
         }	
     
 
