@@ -74,14 +74,40 @@ set (additionally to the trigger above):
 
 #### Function args fill up on completion
 
-SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settins#13). Thanks to @krya, now you can turn it off.
+SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settins#12). Thanks to @krya, now you can turn it off.
+Function parameters completion has 3 different behavior:
 
-	# sublime_jedi.sublime-settings
-	{
-		// ..
-		"auto_complete_function_params": true
-	}
+  - insert all function arguments on autocomplete (default behavior)
 
+        # complete result
+        func(a, b, c, d=True, e=1, f=None)        
+
+        # sublime_jedi.sublime-settins
+        {
+            "auto_complete_function_params": "all"
+            // 
+        }	
+    
+
+  - insert arguments that don't have default value (e.g. required)
+
+        # complete result
+        func(a, b, c)
+
+        # sublime_jedi.sublime-settins
+        {
+            "auto_complete_function_params": "required"
+        }
+
+  - do not insert any arguments
+        
+        # complete result
+        func()
+
+        # sublime_jedi.sublime-settins
+        {
+            "auto_complete_function_params": ""
+        }
 
 #### Jedi Goto/ Go Definition
 
