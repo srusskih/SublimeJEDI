@@ -1,10 +1,13 @@
+import os
+import sys
 import sublime
 import sublime_plugin
 
-try:
-    from SublimeJEDI.sublime_jedi import get_script, JediEnvMixin
-except ImportError:
-    from sublime_jedi import get_script, JediEnvMixin
+BASE = os.path.abspath(os.path.dirname(__file__))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
+
+from sublime_jedi import get_script, JediEnvMixin
 
 from jedi.api import NotFoundError
 
