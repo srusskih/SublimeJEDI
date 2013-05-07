@@ -70,6 +70,20 @@ class BaseLookUpJediCommand(JediEnvMixin):
         active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
                                 column_number or 0), sublime.ENCODED_POSITION)
 
+    def _preview_jump_target(self, filename, line_number=None, column_number=None):
+        """ Opens a new window for preview and jumps to declaration if possible
+
+            :param filename: string or int
+            :param line_number: int
+            :param column_number: int
+        """
+        active_window = self.view.window()
+
+        filename, line_number, column_number = self.options_map[filename]
+        active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
+                                column_number or 0),
+                                sublime.ENCODED_POSITION | sublime.TRANSIENT)
+
     def _window_quick_panel_open_window(self, options):
         """ Shows the active `sublime.Window` quickpanel (dropdown) for
             user selection.
@@ -86,7 +100,7 @@ class BaseLookUpJediCommand(JediEnvMixin):
         # Show the user a selection of filenames
         active_window.show_quick_panel(
             [self.prepare_option(o) for o in options],
-            self._jump_to_in_window
+            self._jump_to_in_window, on_highlight=self._preview_jump_target
         )
 
     def prepare_option(self, option):
