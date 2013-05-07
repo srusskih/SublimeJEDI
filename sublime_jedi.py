@@ -54,7 +54,7 @@ def get_settings_param(view, param_name, default=None):
     return project_settings.get(
         param_name,
         plugin_settings.get(param_name, default)
-        )
+    )
 
 
 class JediEnvMixin(object):
@@ -209,8 +209,10 @@ class SublimeMixin(object):
         completions = script.complete()
         insert_funcargs = self.is_funcargs_complete_enabled(view)
         insert_all_funcargs = self.is_funcargs_all_complete_enabled(view)
-        completions = [self.format(complete, insert_funcargs, insert_all_funcargs)
-                        for complete in completions]
+        completions = [
+            self.format(complete, insert_funcargs, insert_all_funcargs)
+            for complete in completions
+        ]
         return completions
 
 
@@ -253,7 +255,7 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
             :return: list
         """
         script = get_script(view, locations[0])
-        completions = self.funcargs_from_script(script) or \
-            self.completions_from_script(script, view)
+        completions = self.completions_from_script(script, view) +\
+            self.funcargs_from_script(script)
 
         return completions
