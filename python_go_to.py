@@ -1,8 +1,10 @@
 import sublime
 import sublime_plugin
 
-from . import sublime_jedi
-from sublime_jedi import get_script, JediEnvMixin
+try:
+    from SublimeJEDI.sublime_jedi import get_script, JediEnvMixin
+except ImportError:
+    from sublime_jedi import get_script, JediEnvMixin
 
 from jedi.api import NotFoundError
 
