@@ -209,29 +209,40 @@ class SublimeJediParamsAutocomplete(JediEnvMixin, SublimeMixin,
     Function / Class constructor autocompletion command
     """
     def run(self, edit, characters='('):
+        """
+        Insert completion character, and complete function parameters
+        if possible
+
+        :param edit: sublime.Edit
+        :param characters: str
+        """
+        self._insert_characters(edit, characters)
+
+        if self.is_funcargs_complete_enabled(self.view):
+            with self.env:
+                self.run_complete(self.view.sel()[0].end())
+
+    def _insert_characters(self, edit, characters):
+        """
+        Insert autocomplete character with closed pair
+        and update selection regions
+
+        :param edit: sublime.Edit
+        :param characters: str
+        """
         regions = [a for a in self.view.sel()]
         self.view.sel().clear()
-
-        is_enabled = self.is_funcargs_complete_enabled(self.view)
-
         for region in reversed(regions):
-            position = 0
-            if region.size() > 0:
-                self.view.replace(edit, region, characters)
-                position = region.begin() + len(characters)
-            else:
-                self.view.insert(edit, region.end(), characters + ')')
-                position = region.end() + len(characters)
-
+            self.view.insert(edit, region.end(), characters + ')')
+            position = region.end() + len(characters)
             self.view.sel().add(sublime.Region(position, position))
 
-            # if function arguemtns completion enabled
-            # return list of function args
-            if is_enabled:
-                with self.env:
-                    self.get_complete(position)
+    def run_complete(self, position):
+        """
+        Insert function parameters completion snippet for current position
 
-    def get_complete(self, position):
+        :param: position: sublime.Region
+        """
         complete_all = self.is_funcargs_all_complete_enabled(self.view)
         script = get_script(self.view, position)
         parameters = get_function_parameters(script.function_definition())
@@ -270,6 +281,9 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
         """
         # nothing to do with non-python code
         if 'python' not in view.settings().get('syntax').lower():
+            return
+
+        if 'python string' in view.scope_name(locations[0]):
             return
 
         # get completions list
