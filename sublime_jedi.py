@@ -1,220 +1,97 @@
 # -*- coding: utf-8 -*-
+
 import os
-import json
-import sys
-import copy
-import subprocess
+import functools
+from uuid import uuid1
 from collections import defaultdict
-from contextlib import contextmanager
 
 import sublime
 import sublime_plugin
 
-BASE = os.path.abspath(os.path.dirname(__file__))
-if BASE not in sys.path:
-    sys.path.insert(0, BASE)
-
-import jedi
+try:
+    from SublimeJEDI.utils import Empty, get_settings_param, start_daemon
+except ImportError:
+    from utils import Empty, get_settings_param, start_daemon
 
 #import pprint
 #jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
 
+DAEMONS = defaultdict(dict)  # per window
+WAITING = defaultdict(dict)  # per window callback
 
-def get_script(view, location):
-    """ `jedi.Script` fabric
 
-        :param view: `sublime.View` object
-        :type view: sublime.View
-        :param location: offset from beginning
-        :type location: int
+def ask_daemon(view, callback, ask_type, location=None):
+    window_id = view.window().id()
+    if window_id not in DAEMONS:
+        # there is no api to get current project's name
+        # so force user to enter it in settings or use first folder in project
+        first_folder = ''
+        if view.window().folders():
+            first_folder = os.path.split(view.window().folders()[0])[-1]
+        project_name = get_settings_param(
+            view,
+            'project_name',
+            first_folder,
+        )
 
-        :return: `jedi.api.Script` object
-    """
-    text = view.substr(sublime.Region(0, view.size()))
-    source_path = view.file_name()
+        daemon = start_daemon(
+            interp=get_settings_param(view, 'python_interpreter_path', 'python'),
+            extra_packages=get_settings_param(view, 'python_package_paths', []),
+            project_name=project_name,
+            complete_funcargs=get_settings_param(view, 'auto_complete_function_params', 'all'),
+        )
+
+        if not DAEMONS:
+            # first time so start loop which will check for gui updates
+            sublime.set_timeout(check_sublime_queue, 100)
+        DAEMONS[window_id] = daemon
+
+    if location is None:
+        location = view.sel()[0].begin()
     current_line, current_column = view.rowcol(location)
-    script = jedi.Script(
-        text,
-        current_line + 1,
-        current_column,
-        source_path or ''  # if 'untitled' tab then file_name will be `None`
-    )
-    return script
+    source = view.substr(sublime.Region(0, view.size()))
+
+    uuid = uuid1().get_hex()
+    data = {
+        'source': source,
+        'line': current_line + 1,
+        'offset': current_column,
+        'filename': view.file_name() or '',
+        'type': ask_type,
+        'uuid': uuid,
+    }
+    WAITING[window_id][uuid] = {
+        'callback': callback,
+        'view_id': view.id(),
+    }  # XXX track position
+    DAEMONS[window_id].stdin.put_nowait(data)
 
 
-def get_plugin_settings():
-    setting_name = 'sublime_jedi.sublime-settings'
-    plugin_settings = sublime.load_settings(setting_name)
-    return plugin_settings
-
-
-def get_settings_param(view, param_name, default=None):
-    plugin_settings = get_plugin_settings()
-    project_settings = view.settings()
-    return project_settings.get(
-        param_name,
-        plugin_settings.get(param_name, default)
-        )
-
-
-class JediEnvMixin(object):
-    """ Mixin to install user virtual env for JEDI """
-
-    SYS_ENVS = defaultdict(dict)  # key = window.id value = dict interpeter path : sys.path
-    SETTINGS_INTERP = 'python_interpreter_path'
-    _origin_env = copy.copy(sys.path)
-
-    def get_sys_path(self, python_interpreter):
-        """ Get PYTHONPATH for passed interpreter and return it
-
-            :param python_interpreter: python interpreter path
-            :type python_interpreter: unicode or buffer
-
-            :return: list
-        """
-        command = [python_interpreter, '-c', "import sys; print(sys.path)"]
-        if sys.platform == "win32":
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            process = subprocess.Popen(command, shell=False,
-                                       stdout=subprocess.PIPE,
-                                       startupinfo=startupinfo)
-        else:
-            process = subprocess.Popen(command, shell=False,
-                                       stdout=subprocess.PIPE)
-        out = process.communicate()[0].decode('utf-8')
-        sys_path = json.loads(out.replace("'", '"'))
-        return sys_path
-
-    def reset_sys_envs(self, window_id):
-        self.SYS_ENVS[window_id].clear()
-
-    def get_user_env(self):
-        """ Gets user's interpreter from the settings and returns
-            PYTHONPATH for this interpreter
-
-            :return: list
-        """
-        # load settings
-        plugin_settings = get_plugin_settings()
-        project_settings = sublime.active_window().active_view().settings()
-
-        # get user interpreter, or get system default
-        interpreter_path = project_settings.get(
-            self.SETTINGS_INTERP,
-            plugin_settings.get(self.SETTINGS_INTERP)
-        )
-        window_id = sublime.active_window().id()
-
-        if interpreter_path not in self.SYS_ENVS[window_id]:
-            # register callback which will drop cached sys.path
-            plugin_settings.add_on_change(
-                self.SETTINGS_INTERP,
-                lambda: self.reset_sys_envs(window_id)
-            )
-            project_settings.add_on_change(
-                self.SETTINGS_INTERP,
-                lambda: self.reset_sys_envs(window_id)
-            )
-
-            sys_path = self.get_sys_path(interpreter_path)
-
-            # get user interpreter, or get system default
-            package_paths = project_settings.get(
-                'python_package_paths',
-                plugin_settings.get('python_package_paths')
-            )
-
-            # extra paths should in the head on the sys.path list
-            # to override "default" packages from in the environment
-            sys_path = package_paths + sys_path
-            self.SYS_ENVS[window_id][interpreter_path] = sys_path
-        return self.SYS_ENVS[window_id][interpreter_path]
-
-    @property
-    @contextmanager
-    def env(self):
-        env = self.get_user_env()
-        sys.path = copy.copy(env)
-        try:
-            yield
-        finally:
-            sys.path = copy.copy(self._origin_env)
-
-
-class SublimeMixin(object):
-    """ helpers to integrate sublime """
-
-    def is_funcargs_complete_enabled(self, view):
-        return get_settings_param(view, 'auto_complete_function_params')
-
-    def is_funcargs_all_complete_enabled(self, view):
-        return get_settings_param(view, 'auto_complete_function_params') == "all"
-
-    def format(self, complete, insert_funcargs=True, insert_all_funcargs=True):
-        """ Returns a tuple of the string that would be visible in the completion
-            dialogue, and the snippet to insert for the completion
-
-            :param complete: `jedi.api.Complete` object
-            :return: tuple(string, string)
-        """
-        display, insert = complete.word + '\t' + complete.type, complete.word
-        if not insert_funcargs:
-            if complete.type == 'function':
-                # if its a function add parentheses
-                return display, insert + "(${1})"
-            return display, insert
-
-        if hasattr(complete.definition, 'params'):
-            params = []
-            for index, param in enumerate(complete.definition.params):
-                # Strip all whitespace to make it PEP8 compatible
-                code = [s.strip() for s in param.get_code().strip().split('=')]
-                if 'self' in code or code[0].startswith('*'):
-                    # drop self and *args, **kwargs from method calls
+def check_sublime_queue():
+    # check for incoming first
+    for window_id, daemon in DAEMONS.items():
+        for thread in [daemon.stdout, daemon.stderr]:
+            try:
+                data = thread.get_nowait()
+            except Empty:
+                continue
+            if isinstance(data, dict):
+                callback_request = WAITING[window_id].pop(data['uuid'], None)
+                if callback_request is None:
                     continue
+                for window in sublime.windows():
+                    if window.id() == window_id:
+                        callback_request['callback'](window.active_view(), data[data['type']])
+                        break
+            else:
+                print data
 
-                if len(code) > 1 and insert_all_funcargs:
-                    # param with default value
-                    params.append("%s=${%d:%s}" % (code[0], index + 1, code[1]))
-                elif len(code) == 1:
-                    # required param
-                    params.append("${%d:%s}" % (index + 1, code[0]))
-            insert = "%(fname)s(%(params)s)" % {
-                'fname': insert,
-                'params': ', '.join(params)
-            }
-        return display, insert
-
-    def funcargs_from_script(self, script):
-        """ get completion in case we are in a function call """
-        completions = []
-        in_call = script.get_in_function_call()
-        if in_call is not None:
-            for calldef in in_call.params:
-                # Strip all whitespace to make it PEP8 compatible
-                code = calldef.get_code().strip()
-                if '*' in code or code == 'self':
-                    continue
-                code = [s.strip() for s in code.split('=')]
-                if len(code) == 1:
-                    completions.append((code[0], '%s=${1}' % code[0]))
-                else:
-                    completions.append((code[0] + '\t' + code[1],
-                                       '%s=${1:%s}' % (code[0], code[1])))
-        return completions
-
-    def completions_from_script(self, script, view):
-        """ regular completions """
-        completions = script.complete()
-        insert_funcargs = self.is_funcargs_complete_enabled(view)
-        insert_all_funcargs = self.is_funcargs_all_complete_enabled(view)
-        completions = [self.format(complete, insert_funcargs, insert_all_funcargs)
-                        for complete in completions]
-        return completions
+    sublime.set_timeout(check_sublime_queue, 50)
 
 
-class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
+class Autocomplete(sublime_plugin.EventListener):
+
+    completions = []
 
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
@@ -234,26 +111,25 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
         # nothing to do with non-python code
         if 'python' not in view.settings().get('syntax').lower():
             return
+        if self.completions:
+            cplns, self.completions = self.completions, []
+            return [tuple(i) for i in cplns]
 
         # get completions list
-        with self.env:
-            completions = self.get_completions(view, locations)
+        ask_daemon(view, self.show_completions, 'autocomplete', locations[0])
+        return
 
-        return completions
+    def show_completions(self, view, completions):
+        # XXX check position
+        if completions:
+            self.completions = completions
+            view.run_command("hide_auto_complete")
+            sublime.set_timeout(functools.partial(self.show, view), 0)
 
-    def get_completions(self, view, locations):
-        """ Get Jedi Completions for current `location` in the current `view`
-            and return list of ('possible completion', 'completion type')
-
-            :param view: `sublime.View` object
-            :type view: sublime.View
-            :param locations: offset from beginning
-            :type locations: int
-
-            :return: list
-        """
-        script = get_script(view, locations[0])
-        completions = self.funcargs_from_script(script) or \
-            self.completions_from_script(script, view)
-
-        return completions
+    def show(self, view):
+        view.run_command("auto_complete", {
+            'disable_auto_insert': True,
+            'api_completions_only': True,
+            'next_completion_if_showing': False,
+            'auto_complete_commit_on_tab': True,
+        })
