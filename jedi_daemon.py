@@ -31,56 +31,48 @@ auto_complete_function_params = 'required'
 
 
 def format(complete):
-    """ Returns a tuple of the string that would be visible in the completion
-        dialogue, and the snippet to insert for the completion
+    """ Returns a tuple of the string that would be visible in
+            the completion dialogue and the completion word
 
-        :param complete: `jedi.api.Complete` object
-        :return: tuple(string, string)
-    """
+            :param complete: `jedi.api.Complete` object
+            :return: tuple(string, string)
+        """
     display, insert = complete.word + '\t' + complete.type, complete.word
-    if not is_funcargs_complete_enabled:
-        if complete.type == 'function':
-            # if its a function add parentheses
-            return display, insert + "(${1})"
-        return display, insert
-
-    if hasattr(complete.definition, 'params'):
-        params = []
-        for index, param in enumerate(complete.definition.params):
-            # Strip all whitespace to make it PEP8 compatible
-            code = [s.strip() for s in param.get_code().strip().split('=')]
-            if 'self' in code or code[0].startswith('*'):
-                # drop self and *args, **kwargs from method calls
-                continue
-            if len(code) > 1 and auto_complete_function_params == 'all':
-                # param with default value
-                params.append("%s=${%d:%s}" % (code[0], index + 1, code[1]))
-            elif len(code) == 1:
-                # required param
-                params.append("${%d:%s}" % (index + 1, code[0]))
-        insert = "%(fname)s(%(params)s)" % {
-            'fname': insert,
-            'params': ', '.join(params)
-        }
     return display, insert
+
+
+def get_function_parameters(callDef):
+    """ (jedi.api_classes.CallDef) -> list of tuple(str, str)
+
+    Return list function paramets, prepared for sublime completion.
+    Tuple contains parameter name and default value
+
+    Parameters list excludes: self, *args and **kwargs parameters
+    """
+    if not callDef:
+        return []
+
+    params = []
+    for param in callDef.params:
+        cleaned_param = param.get_code().strip()
+        if '*' in cleaned_param or cleaned_param == 'self':
+            continue
+        params.append([s.strip() for s in cleaned_param.split('=')])
+    return params
 
 
 def funcargs_from_script(script):
     """ get completion in case we are in a function call """
     completions = []
-    in_call = script.get_in_function_call()
-    if in_call is not None:
-        for calldef in in_call.params:
-            # Strip all whitespace to make it PEP8 compatible
-            code = calldef.get_code().strip()
-            if '*' in code or code == 'self':
-                continue
-            code = [s.strip() for s in code.split('=')]
-            if len(code) == 1:
-                completions.append((code[0], '%s=${1}' % code[0]))
-            else:
-                completions.append((code[0] + '\t' + code[1],
-                                   '%s=${1:%s}' % (code[0], code[1])))
+    in_call = script.function_definition()
+
+    params = get_function_parameters(in_call)
+    for code in params:
+        if len(code) == 1:
+            completions.append((code[0], '%s=${1}' % code[0]))
+        else:
+            completions.append((code[0] + '\t' + code[1],
+                               '%s=${1:%s}' % (code[0], code[1])))
     return completions
 
 
@@ -108,26 +100,41 @@ def usages_from_script(script):
             ]
 
 
+def funcrargs_from_script(script):
+    complete_all = auto_complete_function_params == 'all'
+    parameters = get_function_parameters(script.function_definition())
+
+    completions = []
+    for index, parameter in enumerate(parameters):
+        name = parameter[0]
+        if len(parameter) > 1 and complete_all:
+            value = parameter[1]
+            completions.append('%s=${%d:%s}' % (name, index + 1, value))
+        elif len(parameter) == 1:
+            completions.append('%s=${%d}' % (name, index + 1))
+
+    return ", ".join(completions)
+
+
 def process_line(line):
     data = json.loads(line.strip())
     req_type = data.get('type', None)
-    if req_type in ['autocomplete', 'goto', 'usages']:
-        script = jedi.Script(data['source'], int(data['line']), int(data['offset']),
-                             data['filename'] or '', 'utf-8')
+    script = jedi.Script(data['source'], int(data['line']), int(data['offset']),
+                         data['filename'] or '', 'utf-8')
 
-        out_data = {'uuid': data['uuid'], 'type': data['type']}
+    out_data = {'uuid': data['uuid'], 'type': data['type']}
 
-        if req_type == 'autocomplete':
-            out_data[req_type] = funcargs_from_script(script) or []
-            out_data[req_type].extend(completions_from_script(script) or [])
-        elif req_type == 'goto':
-            out_data[req_type] = goto_from_script(script)
-        elif req_type == 'usages':
-            out_data[req_type] = usages_from_script(script)
+    if req_type == 'autocomplete':
+        out_data[req_type] = funcargs_from_script(script) or []
+        out_data[req_type].extend(completions_from_script(script) or [])
+    elif req_type == 'goto':
+        out_data[req_type] = goto_from_script(script)
+    elif req_type == 'usages':
+        out_data[req_type] = usages_from_script(script)
+    elif req_type == 'funcargs':
+        out_data[req_type] = funcrargs_from_script(script)
 
-        write(out_data)
-    elif req_type == 'configure':
-        reconfigure(data)
+    write(out_data)
 
 if __name__ == '__main__':
     parser = OptionParser()

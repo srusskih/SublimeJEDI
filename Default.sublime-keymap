@@ -1,4 +1,5 @@
 [
     {"command": "sublime_jedi_goto", "keys": ["ctrl+shift+g"]},
-    {"command": "sublime_jedi_find_usages", "keys": ["alt+shift+f"]}
+    {"command": "sublime_jedi_find_usages", "keys": ["alt+shift+f"]},
+	{"command": "sublime_jedi_params_autocomplete", "keys": ["("]}
 ]

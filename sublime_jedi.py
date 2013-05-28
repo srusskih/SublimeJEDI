@@ -89,7 +89,45 @@ def check_sublime_queue():
     sublime.set_timeout(check_sublime_queue, 50)
 
 
+class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
+    """
+    Function / Class constructor autocompletion command
+    """
+    def run(self, edit, characters='('):
+        """
+        Insert completion character, and complete function parameters
+        if possible
+
+        :param edit: sublime.Edit
+        :param characters: str
+        """
+        self._insert_characters(edit, characters)
+
+        ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
+
+    def _insert_characters(self, edit, characters):
+        """
+        Insert autocomplete character with closed pair
+        and update selection regions
+
+        :param edit: sublime.Edit
+        :param characters: str
+        """
+        regions = [a for a in self.view.sel()]
+        self.view.sel().clear()
+        for region in reversed(regions):
+            self.view.insert(edit, region.end(), characters + ')')
+            position = region.end() + len(characters)
+            self.view.sel().add(sublime.Region(position, position))
+
+    def show_template(self, view, template):
+        view.run_command('insert_snippet', {"contents": template})
+
+
 class Autocomplete(sublime_plugin.EventListener):
+    """
+    Sublime Text autocompletion integration
+    """
 
     completions = []
 
@@ -111,6 +149,10 @@ class Autocomplete(sublime_plugin.EventListener):
         # nothing to do with non-python code
         if 'python' not in view.settings().get('syntax').lower():
             return
+
+        if 'python string' in view.scope_name(locations[0]):
+            return
+
         if self.completions:
             cplns, self.completions = self.completions, []
             return [tuple(i) for i in cplns]
