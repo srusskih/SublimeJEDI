@@ -130,6 +130,7 @@ class Autocomplete(sublime_plugin.EventListener):
     """
 
     completions = []
+    cplns_ready = None
 
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
@@ -147,22 +148,28 @@ class Autocomplete(sublime_plugin.EventListener):
             :return: list
         """
         # nothing to do with non-python code
-        if 'python' not in view.settings().get('syntax').lower():
+        scope = view.scope_name(locations[0])
+        if 'source.python' not in scope \
+                or 'string.quoted' in scope \
+                or 'comment.line' in scope:
             return
 
-        if 'python string' in view.scope_name(locations[0]):
+        if self.cplns_ready:
+            self.cplns_ready = None
+            if self.completions:
+                cplns, self.completions = self.completions, []
+                return [tuple(i) for i in cplns]
             return
-
-        if self.completions:
-            cplns, self.completions = self.completions, []
-            return [tuple(i) for i in cplns]
 
         # get completions list
-        ask_daemon(view, self.show_completions, 'autocomplete', locations[0])
+        if self.cplns_ready is None:
+            ask_daemon(view, self.show_completions, 'autocomplete', locations[0])
+            self.cplns_ready = False
         return
 
     def show_completions(self, view, completions):
         # XXX check position
+        self.cplns_ready = True
         if completions:
             self.completions = completions
             view.run_command("hide_auto_complete")
