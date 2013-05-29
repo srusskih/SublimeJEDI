@@ -52,6 +52,18 @@ def related_names(view):
 
 
 class BaseLookUpJediCommand(JediEnvMixin):
+    def is_enabled(self):
+        """ check if we can run the command """
+
+        # nothing to do with non-python code
+        if 'python' not in self.view.settings().get('syntax').lower():
+            return False
+
+        # check if this is python string, then avoid goto event
+        location = get_current_location(self.view)
+        if 'python string' in self.view.scope_name(location):
+            return False
+        return True
 
     def _jump_to_in_window(self, filename, line_number=None, column_number=None):
         """ Opens a new window and jumps to declaration if possible
@@ -97,14 +109,8 @@ class BaseLookUpJediCommand(JediEnvMixin):
 
 
 class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
-
+    """ go to object definition """
     def run(self, edit):
-
-        # If we have a string, dispatch it elsewhere
-        if check_if_string(self.view):
-            self.view.run_command('string_go_to')
-            return
-
         with self.env:
             script = get_script(self.view, get_current_location(self.view))
 
@@ -143,9 +149,6 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
 class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
     """ find object usages """
     def run(self, edit):
-        # If we have a string, nothing to do this that
-        if check_if_string(self.view):
-            return
         usages = self.find_usages()
         self._window_quick_panel_open_window(usages)
 
