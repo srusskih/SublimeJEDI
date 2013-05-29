@@ -114,19 +114,12 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
         with self.env:
             script = get_script(self.view, get_current_location(self.view))
 
-            # If we have a possible python declaration
-            # use jedi to find possible declarations.
-            # found = self.attempt_get_definition(script)
-            # if not found:
-            #     found = self.attempt_go_to(script)
-            for method in ['get_definition', 'goto']:
-                try:
-                    defns = getattr(script, method)()
-                except NotFoundError:
-                    return
-                else:
-                    self.handle_definitions(defns)
-                    break
+            try:
+                defns = script.goto()
+            except NotFoundError:
+                return
+            else:
+                self.handle_definitions(defns)
 
     def handle_definitions(self, defns):
         # filter out builtin
