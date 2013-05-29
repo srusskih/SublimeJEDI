@@ -254,7 +254,7 @@ class SublimeJediParamsAutocomplete(JediEnvMixin, SublimeMixin,
                 value = parameter[1]
                 completions.append('%s=${%d:%s}' % (name, index + 1, value))
             elif len(parameter) == 1:
-                completions.append('%s=${%d}' % (name, index + 1))
+                completions.append('${%d:%s}' % (index + 1, name))
 
         template = ", ".join(completions)
         self.view.run_command('insert_snippet', {"contents": template})
