@@ -57,6 +57,10 @@ def get_settings_param(view, param_name, default=None):
     )
 
 
+def get_current_location(view):
+    return view.sel()[0].begin()
+
+
 def get_function_parameters(callDef):
     """ (jedi.api_classes.CallDef) -> list of tuple(str, str)
 
@@ -166,6 +170,11 @@ class SublimeMixin(object):
     """
     helpers to integrate sublime
     """
+    def allow_completion(self, view):
+        """ check if we in python scope """
+        location = get_current_location(view)
+        return view.match_selector(location, "source.python - string - comment")
+
     def is_funcargs_complete_enabled(self, view):
         return get_settings_param(view, 'auto_complete_function_params')
 
@@ -176,14 +185,18 @@ class SublimeMixin(object):
         """ Returns a tuple of the string that would be visible in
             the completion dialogue and the completion word
 
-            :param complete: `jedi.api.Complete` object
-            :return: tuple(string, string)
+        :type complete: jedi.api_classes.Completion
+
+        :return: tuple(string, string)
         """
         display, insert = complete.word + '\t' + complete.type, complete.word
         return display, insert
 
     def funcargs_from_script(self, script):
-        """ get completion in case we are in a function call """
+        """ get completion in case we are in a function call
+
+        :type script: jedi.Script
+        """
         completions = []
         in_call = script.function_definition()
 
@@ -217,6 +230,9 @@ class SublimeJediParamsAutocomplete(JediEnvMixin, SublimeMixin,
         :param characters: str
         """
         self._insert_characters(edit, characters)
+
+        if not self.allow_completion(self.view):
+            return
 
         if self.is_funcargs_complete_enabled(self.view):
             with self.env:
@@ -267,41 +283,37 @@ class Autocomplete(JediEnvMixin, SublimeMixin, sublime_plugin.EventListener):
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
 
-            Get completions depends on current cursor position and return
-            them as list of ('possible completion', 'completion type')
+        Get completions depends on current cursor position and return
+        them as list of ('possible completion', 'completion type')
 
-            :param view: `sublime.View` object
-            :type view: sublime.View
-            :param prefix: string for completions
-            :type prefix: basestring
-            :param locations: offset from beginning
-            :type locations: int
+        :param view: `sublime.View` object
+        :type view: sublime.View
+        :param prefix: string for completions
+        :type prefix: basestring
+        :param locations: offset from beginning
+        :type locations: int
 
-            :return: list
+        :return: list
         """
-        # nothing to do with non-python code
-        if 'python' not in view.settings().get('syntax').lower():
+        if not self.allow_completion(view):
             return
 
-        if 'python string' in view.scope_name(locations[0]):
-            return
-
-        # get completions list
         with self.env:
             completions = self.get_completions(view, locations)
 
         return completions
 
     def get_completions(self, view, locations):
-        """ Get Jedi Completions for current `location` in the current `view`
-            and return list of ('possible completion', 'completion type')
+        """
+        Get Jedi Completions for current `location` in the current `view`
+        and return list of ('possible completion', 'completion type')
 
-            :param view: `sublime.View` object
-            :type view: sublime.View
-            :param locations: offset from beginning
-            :type locations: int
+        :param view: `sublime.View` object
+        :type view: sublime.View
+        :param locations: offset from beginning
+        :type locations: int
 
-            :return: list
+        :return: list
         """
         script = get_script(view, locations[0])
         completions = self.completions_from_script(script, view) +\

@@ -2,47 +2,12 @@ import sublime
 import sublime_plugin
 
 try:
-    from SublimeJEDI.sublime_jedi import get_script, JediEnvMixin
+    from SublimeJEDI.sublime_jedi import (get_script, JediEnvMixin,
+                                          get_current_location)
 except ImportError:
-    from sublime_jedi import get_script, JediEnvMixin
+    from sublime_jedi import get_script, JediEnvMixin, get_current_location
 
 from jedi.api import NotFoundError
-
-
-def check_if_string(view):
-    """ Checks if the current selection is a string
-
-        :param view: `sublime.View` object
-
-        :return: bool
-    """
-    sels = view.sel()
-    region = view.word(sels[0])
-
-    line = view.line(region)
-    currently_string = False
-    current_string_quotes = []
-
-    for x in range(line.a, line.b):
-        char = view.substr(x)
-        if char in ('\'', '"'):
-
-            if len(current_string_quotes) == 1 and current_string_quotes[-1] == char:
-                currently_string = False
-                current_string_quotes.pop()
-
-            else:
-                currently_string = True
-                current_string_quotes.append(char)
-
-        if x >= region.a:
-            return currently_string
-
-    return currently_string
-
-
-def get_current_location(view):
-    return view.sel()[0].begin()
 
 
 def related_names(view):
@@ -54,16 +19,9 @@ def related_names(view):
 class BaseLookUpJediCommand(JediEnvMixin):
     def is_enabled(self):
         """ check if we can run the command """
-
-        # nothing to do with non-python code
-        if 'python' not in self.view.settings().get('syntax').lower():
-            return False
-
-        # check if this is python string, then avoid goto event
         location = get_current_location(self.view)
-        if 'python string' in self.view.scope_name(location):
-            return False
-        return True
+        return self.view.match_selector(location,
+                                        "source.python - string - comment")
 
     def _jump_to_in_window(self, filename, line_number=None, column_number=None):
         """ Opens a new window and jumps to declaration if possible
