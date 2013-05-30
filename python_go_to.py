@@ -12,7 +12,7 @@ from jedi.api import NotFoundError
 
 def related_names(view):
     script = get_script(view, get_current_location(view))
-    related_names = script.related_names()
+    related_names = script.usages()
     return filter(lambda x: not x.in_builtin_module(), related_names)
 
 
@@ -73,7 +73,7 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             script = get_script(self.view, get_current_location(self.view))
 
             try:
-                defns = script.goto()
+                defns = script.goto_assignments()
             except NotFoundError:
                 return
             else:

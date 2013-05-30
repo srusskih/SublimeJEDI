@@ -3,14 +3,14 @@ The :mod:`api_classes` module contains the return classes of the API. These
 classes are the much bigger part of the whole API, because they contain the
 interesting information about completion and goto operations.
 """
+from __future__ import with_statement
 
-import re
-import os
 import warnings
 import functools
 
 from jedi._compatibility import unicode, next
 from jedi import settings
+from jedi import common
 from jedi import parsing_representation as pr
 from jedi import cache
 import keywords
@@ -48,19 +48,20 @@ def _clear_caches_after_call(func):
 
 
 class BaseDefinition(object):
-    _mapping = {'posixpath': 'os.path',
-               'riscospath': 'os.path',
-               'ntpath': 'os.path',
-               'os2emxpath': 'os.path',
-               'macpath': 'os.path',
-               'genericpath': 'os.path',
-               'posix': 'os',
-               '_io': 'io',
-               '_functools': 'functools',
-               '_sqlite3': 'sqlite3',
-               '__builtin__': '',
-               'builtins': '',
-               }
+    _mapping = {
+        'posixpath': 'os.path',
+        'riscospath': 'os.path',
+        'ntpath': 'os.path',
+        'os2emxpath': 'os.path',
+        'macpath': 'os.path',
+        'genericpath': 'os.path',
+        'posix': 'os',
+        '_io': 'io',
+        '_functools': 'functools',
+        '_sqlite3': 'sqlite3',
+        '__builtin__': '',
+        'builtins': '',
+    }
 
     _tuple_mapping = dict((tuple(k.split('.')), v) for (k, v) in {
         'argparse._ActionsContainer': 'argparse.ArgumentParser',
@@ -70,15 +71,15 @@ class BaseDefinition(object):
 
     def __init__(self, definition, start_pos):
         self.start_pos = start_pos
-        self.definition = definition
+        self._definition = definition
         """
         An instance of :class:`jedi.parsing_representation.Base` subclass.
         """
         self.is_keyword = isinstance(definition, keywords.Keyword)
 
         # generate a path to the definition
-        p = definition.get_parent_until().path
-        self.module_path = p if p is None else unicode(p)
+        self._module = definition.get_parent_until()
+        self.module_path = self._module.path
 
     @property
     def type(self):
@@ -130,9 +131,9 @@ class BaseDefinition(object):
 
         """
         # generate the type
-        stripped = self.definition
-        if isinstance(self.definition, er.InstanceElement):
-            stripped = self.definition.var
+        stripped = self._definition
+        if isinstance(self._definition, er.InstanceElement):
+            stripped = self._definition.var
         if isinstance(stripped, pr.Name):
             stripped = stripped.parent
         return type(stripped).__name__.lower()
@@ -141,13 +142,11 @@ class BaseDefinition(object):
     def path(self):
         """The module path."""
         path = []
-        if not isinstance(self.definition, keywords.Keyword):
-            par = self.definition
+        if not isinstance(self._definition, keywords.Keyword):
+            par = self._definition
             while par is not None:
-                try:
+                with common.ignored(AttributeError):
                     path.insert(0, par.name)
-                except AttributeError:
-                    pass
                 par = par.parent
         return path
 
@@ -162,12 +161,8 @@ class BaseDefinition(object):
         >>> d = script.definition()[0]
         >>> print(d.module_name)                       # doctest: +ELLIPSIS
         datetime
-
         """
-        path = self.module_path
-        sep = os.path.sep
-        p = re.sub(r'^.*?([\w\d]+)(%s__init__)?.(py|so)$' % sep, r'\1', path)
-        return p
+        return str(self._module.name)
 
     def in_builtin_module(self):
         """Whether this is a builtin module."""
@@ -222,7 +217,7 @@ class BaseDefinition(object):
 
         """
         try:
-            return self.definition.doc
+            return self._definition.doc
         except AttributeError:
             return self.raw_doc
 
@@ -234,7 +229,7 @@ class BaseDefinition(object):
         See :attr:`doc` for example.
         """
         try:
-            return unicode(self.definition.docstr)
+            return unicode(self._definition.docstr)
         except AttributeError:
             return ''
 
@@ -265,7 +260,7 @@ class BaseDefinition(object):
         'class C'
 
         """
-        return unicode(self.definition)
+        return unicode(self._definition)
 
     @property
     def full_name(self):
@@ -295,10 +290,8 @@ class BaseDefinition(object):
         if not path:
             return None  # for keywords the path is empty
 
-        try:
+        with common.ignored(KeyError):
             path[0] = self._mapping[path[0]]
-        except KeyError:
-            pass
         for key, repl in self._tuple_mapping.items():
             if tuple(path[:len(key)]) == key:
                 path = [repl] + path[len(key):]
@@ -311,16 +304,16 @@ class BaseDefinition(object):
 
 class Completion(BaseDefinition):
     """
-    `Completion` objects are returned from :meth:`api.Script.complete`. They
+    `Completion` objects are returned from :meth:`api.Script.completions`. They
     provide additional information about a completion.
     """
     def __init__(self, name, needs_dot, like_name_length, base):
         super(Completion, self).__init__(name.parent, name.start_pos)
 
-        self.name = name
-        self.needs_dot = needs_dot
-        self.like_name_length = like_name_length
-        self.base = base
+        self._name = name
+        self._needs_dot = needs_dot
+        self._like_name_length = like_name_length
+        self._base = base
 
         # Completion objects with the same Completion name (which means
         # duplicate items in the completion)
@@ -338,21 +331,21 @@ class Completion(BaseDefinition):
         would return the string 'ce'. It also adds additional stuff, depending
         on your `settings.py`.
         """
-        dot = '.' if self.needs_dot else ''
+        dot = '.' if self._needs_dot else ''
         append = ''
         if settings.add_bracket_after_function \
                     and self.type == 'Function':
             append = '('
 
         if settings.add_dot_after_module:
-            if isinstance(self.base, pr.Module):
+            if isinstance(self._base, pr.Module):
                 append += '.'
-        if isinstance(self.base, pr.Param):
+        if isinstance(self._base, pr.Param):
             append += '='
-        return dot + self.name.names[-1][self.like_name_length:] + append
+        return dot + self._name.names[-1][self._like_name_length:] + append
 
     @property
-    def word(self):
+    def name(self):
         """
         Similar to :meth:`Completion.complete`, but return the whole word, for
         example::
@@ -361,7 +354,18 @@ class Completion(BaseDefinition):
 
         would return 'isinstance'.
         """
-        return unicode(self.name.names[-1])
+        return unicode(self._name.names[-1])
+
+    @property
+    def word(self):
+        """
+        .. deprecated:: 0.6.0
+           Use :attr:`.name` instead.
+        .. todo:: Remove!
+        """
+        warnings.warn("Use name instead.", DeprecationWarning)
+        return self.name
+
 
     @property
     def description(self):
@@ -370,12 +374,12 @@ class Completion(BaseDefinition):
 
         .. todo:: return value is just __repr__ of some objects, improve!
         """
-        parent = self.name.parent
+        parent = self._name.parent
         if parent is None:
             return ''
         t = self.type
         if t == 'Statement' or t == 'Import':
-            desc = self.definition.get_code(False)
+            desc = self._definition.get_code(False)
         else:
             desc = '.'.join(unicode(p) for p in self.path)
 
@@ -392,10 +396,10 @@ class Completion(BaseDefinition):
         it's just PITA-slow.
         """
         if self._followed_definitions is None:
-            if self.definition.isinstance(pr.Statement):
-                defs = evaluate.follow_statement(self.definition)
-            elif self.definition.isinstance(pr.Import):
-                defs = imports.strip_imports([self.definition])
+            if self._definition.isinstance(pr.Statement):
+                defs = evaluate.follow_statement(self._definition)
+            elif self._definition.isinstance(pr.Import):
+                defs = imports.strip_imports([self._definition])
             else:
                 return [self]
 
@@ -406,13 +410,13 @@ class Completion(BaseDefinition):
         return self._followed_definitions
 
     def __repr__(self):
-        return '<%s: %s>' % (type(self).__name__, self.name)
+        return '<%s: %s>' % (type(self).__name__, self._name)
 
 
 class Definition(BaseDefinition):
     """
-    *Definition* objects are returned from :meth:`api.Script.goto` or
-    :meth:`api.Script.definition`.
+    *Definition* objects are returned from :meth:`api.Script.goto_assignments`
+    or :meth:`api.Script.goto_definitions`.
     """
     def __init__(self, definition):
         super(Definition, self).__init__(definition, definition.start_pos)
@@ -426,7 +430,7 @@ class Definition(BaseDefinition):
 
         :rtype: str or None
         """
-        d = self.definition
+        d = self._definition
         if isinstance(d, er.InstanceElement):
             d = d.var
 
@@ -457,7 +461,7 @@ class Definition(BaseDefinition):
         A description of the :class:`.Definition` object, which is heavily used
         in testing. e.g. for ``isinstance`` it returns ``def isinstance``.
         """
-        d = self.definition
+        d = self._definition
         if isinstance(d, er.InstanceElement):
             d = d.var
         if isinstance(d, pr.Name):
@@ -490,7 +494,7 @@ class Definition(BaseDefinition):
             `module.class.function` path.
         """
         if self.module_path.endswith('.py') \
-                    and not isinstance(self.definition, pr.Module):
+                    and not isinstance(self._definition, pr.Module):
             position = '@%s' % (self.line)
         else:
             # is a builtin or module
@@ -503,7 +507,7 @@ class Definition(BaseDefinition):
 
         :rtype: list of Definition
         """
-        d = self.definition
+        d = self._definition
         if isinstance(d, er.InstanceElement):
             d = d.var
         if isinstance(d, pr.Name):
@@ -524,11 +528,10 @@ def _defined_names(scope):
     return [Definition(d) for d in sorted(names, key=lambda s: s.start_pos)]
 
 
-class RelatedName(BaseDefinition):
+class Usage(BaseDefinition):
     """TODO: document this"""
     def __init__(self, name_part, scope):
-        super(RelatedName, self).__init__(scope, name_part.start_pos)
-        self.name_part = name_part
+        super(Usage, self).__init__(scope, name_part.start_pos)
         self.text = unicode(name_part)
         self.end_pos = name_part.end_pos
 
@@ -551,19 +554,19 @@ class CallDef(object):
     return the `isinstance` function. without `(` it would return nothing.
     """
     def __init__(self, executable, index, call):
-        self.executable = executable
+        self._executable = executable
         self.index = index
-        self.call = call
+        self._call = call
 
     @property
     def params(self):
-        if self.executable.isinstance(er.Function):
-            if isinstance(self.executable, er.InstanceElement):
-                return self.executable.params[1:]
-            return self.executable.params
+        if self._executable.isinstance(er.Function):
+            if isinstance(self._executable, er.InstanceElement):
+                return self._executable.params[1:]
+            return self._executable.params
         else:
             try:
-                sub = self.executable.get_subscope_by_name('__init__')
+                sub = self._executable.get_subscope_by_name('__init__')
                 return sub.params[1:]  # ignore self
             except KeyError:
                 return []
@@ -572,7 +575,7 @@ class CallDef(object):
     def bracket_start(self):
         """ The indent of the bracket that is responsible for the last function
         call. """
-        c = self.call
+        c = self._call
         while c.next is not None:
             c = c.next
         return c.name.end_pos
@@ -580,12 +583,12 @@ class CallDef(object):
     @property
     def call_name(self):
         """ The name (e.g. 'isinstance') as a string. """
-        return unicode(self.executable.name)
+        return unicode(self._executable.name)
 
     @property
     def module(self):
-        return self.executable.get_parent_until()
+        return self._executable.get_parent_until()
 
     def __repr__(self):
-        return '<%s: %s index %s>' % (type(self).__name__, self.executable,
+        return '<%s: %s index %s>' % (type(self).__name__, self._executable,
                                     self.index)

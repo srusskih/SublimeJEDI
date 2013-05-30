@@ -22,17 +22,19 @@ example for the autocompletion feature:
 >>> script = jedi.Script(source, 3, len('datetime.da'), 'example.py')
 >>> script
 <Script: 'example.py'>
->>> completions = script.complete()
+>>> completions = script.completions()
 >>> completions                                         #doctest: +ELLIPSIS
 [<Completion: date>, <Completion: datetime>, ...]
 >>> print(completions[0].complete)
 te
->>> print(completions[0].word)
+>>> print(completions[0].name)
 date
 
 As you see Jedi is pretty simple and allows you to concentrate on writing a
 good text editor, while still having very good IDE features for Python.
 """
+
+__version__ = 0, 6, 0
 
 import sys
 
@@ -40,7 +42,8 @@ import sys
 # imports and circular imports... Just avoid it:
 sys.path.insert(0, __path__[0])
 
-from .api import Script, NotFoundError, set_debug_function, _quick_complete
+from .api import Script, NotFoundError, set_debug_function, _quick_complete, \
+                 preload_module
 from . import settings
 
 sys.path.pop(0)

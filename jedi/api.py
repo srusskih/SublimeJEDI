@@ -37,7 +37,7 @@ class NotFoundError(Exception):
 
 class Script(object):
     """
-    A Script is the base for a completion, goto or whatever you want to do with
+    A Script is the base for completions, goto or whatever you want to do with
     |jedi|.
 
     :param source: The source code of the current file, separated by newlines.
@@ -75,7 +75,7 @@ class Script(object):
         return self._module.parser
 
     @api_classes._clear_caches_after_call
-    def complete(self):
+    def completions(self):
         """
         Return :class:`api_classes.Completion` objects. Those objects contain
         information about the completions, more than just names.
@@ -83,7 +83,7 @@ class Script(object):
         :return: Completion objects, sorted by name and __ comes last.
         :rtype: list of :class:`api_classes.Completion`
         """
-        debug.speed('complete start')
+        debug.speed('completions start')
         path = self._module.get_path_until_cursor()
         if re.search('^\.|\.\.$', path):
             return []
@@ -122,8 +122,7 @@ class Script(object):
                     completions.append((c, s))
 
         if not dot:  # named params have no dots
-            call_def = self.function_definition()
-            if call_def:
+            for call_def in self.call_signatures():
                 if not call_def.module.is_builtin():
                     for p in call_def.params:
                         completions.append((p.get_name(), p))
@@ -133,7 +132,7 @@ class Script(object):
             bs = builtin.Builtin.scope
             if isinstance(u, pr.Import):
                 if (u.relative_count > 0 or u.from_ns) and not re.search(
-                               r'(,|from)\s*$|import\s+$', completion_line):
+                            r'(,|from)\s*$|import\s+$', completion_line):
                     completions += ((k, bs) for k
                                             in keywords.get_keywords('import'))
 
@@ -155,22 +154,24 @@ class Script(object):
                                                     self._parser.user_stmt, n):
                     new = api_classes.Completion(c, needs_dot,
                                                     len(like), s)
-                    k = (new.word, new.complete)  # key
+                    k = (new.name, new.complete)  # key
                     if k in comp_dct and settings.no_completion_duplicates:
                         comp_dct[k]._same_name_completions.append(new)
                     else:
                         comp_dct[k] = new
                         comps.append(new)
 
-        debug.speed('complete end')
+        debug.speed('completions end')
 
-        return sorted(comps, key=lambda x: (x.word.startswith('__'),
-                                            x.word.startswith('_'),
-                                            x.word.lower()))
+        return sorted(comps, key=lambda x: (x.name.startswith('__'),
+                                            x.name.startswith('_'),
+                                            x.name.lower()))
 
     def _prepare_goto(self, goto_path, is_like_search=False):
-        """ Base for complete, goto and definition. Basically it returns
-        the resolved scopes under cursor. """
+        """
+        Base for completions/goto. Basically it returns the resolved scopes
+        under cursor.
+        """
         debug.dbg('start: %s in %s' % (goto_path, self._parser.user_scope))
 
         user_stmt = self._parser.user_stmt
@@ -199,25 +200,79 @@ class Script(object):
         stmt.parent = self._parser.user_scope
         return stmt
 
+    def complete(self):
+        """
+        .. deprecated:: 0.6.0
+           Use :attr:`.completions` instead.
+        .. todo:: Remove!
+        """
+        warnings.warn("Use completions instead.", DeprecationWarning)
+        return self.completions()
+
+    def goto(self):
+        """
+        .. deprecated:: 0.6.0
+           Use :attr:`.goto_assignments` instead.
+        .. todo:: Remove!
+        """
+        warnings.warn("Use goto_assignments instead.", DeprecationWarning)
+        return self.goto_assignments()
+
+    def definition(self):
+        """
+        .. deprecated:: 0.6.0
+           Use :attr:`.goto_definitions` instead.
+        .. todo:: Remove!
+        """
+        warnings.warn("Use goto_definitions instead.", DeprecationWarning)
+        return self.goto_definitions()
+
     def get_definition(self):
         """
         .. deprecated:: 0.5.0
-           Use :attr:`.function_definition` instead.
+           Use :attr:`.goto_definitions` instead.
+        .. todo:: Remove!
+        """
+        warnings.warn("Use goto_definitions instead.", DeprecationWarning)
+        return self.goto_definitions()
+
+    def related_names(self):
+        """
+        .. deprecated:: 0.6.0
+           Use :attr:`.usages` instead.
+        .. todo:: Remove!
+        """
+        warnings.warn("Use usages instead.", DeprecationWarning)
+        return self.usages()
+
+    def get_in_function_call(self):
+        """
+        .. deprecated:: 0.6.0
+           Use :attr:`.call_signatures` instead.
+        .. todo:: Remove!
+        """
+        return self.function_definition()
+
+    def function_definition(self):
+        """
+        .. deprecated:: 0.6.0
+           Use :attr:`.call_signatures` instead.
         .. todo:: Remove!
         """
         warnings.warn("Use line instead.", DeprecationWarning)
-        return self.definition()
+        sig = self.call_signatures()
+        return sig[0] if sig else None
 
     @api_classes._clear_caches_after_call
-    def definition(self):
+    def goto_definitions(self):
         """
-        Return the definitions of a the path under the cursor. This is not a
-        goto function! This follows complicated paths and returns the end, not
-        the first definition. The big difference between :meth:`goto` and
-        :meth:`definition` is that :meth:`goto` doesn't follow imports and
-        statements. Multiple objects may be returned, because Python itself is
-        a dynamic language, which means depending on an option you can have two
-        different versions of a function.
+        Return the definitions of a the path under the cursor.  goto function!
+        This follows complicated paths and returns the end, not the first
+        definition. The big difference between :meth:`goto_assignments` and
+        :meth:`goto_definitions` is that :meth:`goto_assignments` doesn't
+        follow imports and statements. Multiple objects may be returned,
+        because Python itself is a dynamic language, which means depending on
+        an option you can have two different versions of a function.
 
         :rtype: list of :class:`api_classes.Definition`
         """
@@ -273,12 +328,12 @@ class Script(object):
         return self._sorted_defs(d)
 
     @api_classes._clear_caches_after_call
-    def goto(self):
+    def goto_assignments(self):
         """
-        Return the first definition found by goto. Imports and statements
-        aren't followed.  Multiple objects may be returned, because Python
-        itself is a dynamic language, which means depending on an option you
-        can have two different versions of a function.
+        Return the first definition found. Imports and statements aren't
+        followed. Multiple objects may be returned, because Python itself is a
+        dynamic language, which means depending on an option you can have two
+        different versions of a function.
 
         :rtype: list of :class:`api_classes.Definition`
         """
@@ -287,7 +342,8 @@ class Script(object):
 
     def _goto(self, add_import_name=False):
         """
-        Used for goto and related_names.
+        Used for goto_assignments and usages.
+
         :param add_import_name: TODO add description
         """
         def follow_inexistent_imports(defs):
@@ -336,16 +392,16 @@ class Script(object):
         return definitions, search_name
 
     @api_classes._clear_caches_after_call
-    def related_names(self, additional_module_paths=()):
+    def usages(self, additional_module_paths=()):
         """
-        Return :class:`api_classes.RelatedName` objects, which contain all
+        Return :class:`api_classes.Usage` objects, which contain all
         names that point to the definition of the name under the cursor. This
         is very useful for refactoring (renaming), or to show all usages of a
         variable.
 
         .. todo:: Implement additional_module_paths
 
-        :rtype: list of :class:`api_classes.RelatedName`
+        :rtype: list of :class:`api_classes.Usage`
         """
         user_stmt = self._parser.user_stmt
         definitions, search_name = self._goto(add_import_name=True)
@@ -356,32 +412,23 @@ class Script(object):
                                 if unicode(v.names[-1]) == search_name]
         if not isinstance(user_stmt, pr.Import):
             # import case is looked at with add_import_name option
-            definitions = dynamic.related_name_add_import_modules(definitions,
+            definitions = dynamic.usages_add_import_modules(definitions,
                                                                 search_name)
 
         module = set([d.get_parent_until() for d in definitions])
         module.add(self._parser.module)
-        names = dynamic.related_names(definitions, search_name, module)
+        names = dynamic.usages(definitions, search_name, module)
 
         for d in set(definitions):
             if isinstance(d, pr.Module):
-                names.append(api_classes.RelatedName(d, d))
+                names.append(api_classes.Usage(d, d))
             else:
-                names.append(api_classes.RelatedName(d.names[-1], d))
+                names.append(api_classes.Usage(d.names[-1], d))
 
         return self._sorted_defs(set(names))
 
-    def get_in_function_call(self):
-        """
-        .. deprecated:: 0.5.0
-           Use :attr:`.function_definition` instead.
-        .. todo:: Remove!
-        """
-        warnings.warn("Use line instead.", DeprecationWarning)
-        return self.function_definition()
-
     @api_classes._clear_caches_after_call
-    def function_definition(self):
+    def call_signatures(self):
         """
         Return the function object of the call you're currently in.
 
@@ -398,9 +445,9 @@ class Script(object):
         :rtype: :class:`api_classes.CallDef`
         """
 
-        (call, index) = self._func_call_and_param_index()
+        call, index = self._func_call_and_param_index()
         if call is None:
-            return None
+            return []
 
         user_stmt = self._parser.user_stmt
         with common.scale_speed_settings(settings.scale_function_definition):
@@ -408,57 +455,16 @@ class Script(object):
             origins = cache.cache_function_definition(_callable, user_stmt)
         debug.speed('func_call followed')
 
-        if len(origins) == 0:
-            return None
-        # just take entry zero, because we need just one.
-        executable = origins[0]
-
-        return api_classes.CallDef(executable, index, call)
+        return [api_classes.CallDef(o, index, call) for o in origins]
 
     def _func_call_and_param_index(self):
-        def check_user_stmt(user_stmt):
-            if user_stmt is None \
-                        or not isinstance(user_stmt, pr.Statement):
-                return None, 0
-
-            call, index, stop = helpers.search_function_definition(user_stmt, self.pos)
-            return call, index
-
-        def check_cache():
-            """ Do the parsing with a part parser, therefore reduce ressource
-            costs.
-            TODO this is not working with multi-line docstrings, improve.
-            """
-            if self.source_path is None:
-                return None, 0
-
-            try:
-                parser = cache.parser_cache[self.source_path].parser
-            except KeyError:
-                return None, 0
-            part_parser = self._module.get_part_parser()
-            user_stmt = part_parser.user_stmt
-            call, index = check_user_stmt(user_stmt)
-            if call:
-                old_stmt = parser.module.get_statement_for_position(self.pos)
-                if old_stmt is None:
-                    return None, 0
-                old_call, old_index = check_user_stmt(old_stmt)
-                if old_call:
-                    # compare repr because that should definitely be the same.
-                    # Otherwise the whole thing is out of sync.
-                    if repr(old_call) == repr(call):
-                        # return the index of the part_parser
-                        return old_call, index
-            return None, 0
-
         debug.speed('func_call start')
-        call = None
-        index = 0
-        if settings.use_function_definition_cache:
-            call, index = check_cache()
+        call, index = None, 0
         if call is None:
-            call, index = check_user_stmt(self._parser.user_stmt)
+            user_stmt = self._parser.user_stmt
+            if user_stmt is not None and isinstance(user_stmt, pr.Statement):
+                call, index, _ = helpers.search_function_definition(
+                                                        user_stmt, self.pos)
         debug.speed('func_call parsed')
         return call, index
 
@@ -516,6 +522,18 @@ def defined_names(source, source_path=None, source_encoding='utf-8'):
     return api_classes._defined_names(parser.scope)
 
 
+def preload_module(*modules):
+    """
+    Preloading modules tells Jedi to load a module now, instead of lazy parsing
+    of modules. Usful for IDEs, to control which modules to load on startup.
+
+    :param modules: different module names, list of string.
+    """
+    for m in modules:
+        s = "import %s as x; x." % m
+        Script(s, 1, len(s), None).complete()
+
+
 def set_debug_function(func_cb=debug.print_to_stdout, warnings=True,
                                             notices=True, speed=True):
     """
@@ -548,4 +566,4 @@ def _quick_complete(source):
     lines = re.sub(r'[\n\r\s]*$', '', source).splitlines()
     pos = len(lines), len(lines[-1])
     script = Script(source, pos[0], pos[1], '')
-    return script.complete()
+    return script.completions()

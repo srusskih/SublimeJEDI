@@ -198,12 +198,12 @@ class SublimeMixin(object):
         :type script: jedi.Script
         """
         completions = []
-        in_call = script.function_definition()
+        in_call = script.call_signatures()
 
         params = get_function_parameters(in_call)
         for code in params:
             if len(code) == 1:
-                completions.append((code[0], '%s=${1}' % code[0]))
+                completions.append((code[0], '%s${1}' % code[0]))
             else:
                 completions.append((code[0] + '\t' + code[1],
                                    '%s=${1:%s}' % (code[0], code[1])))
@@ -211,7 +211,7 @@ class SublimeMixin(object):
 
     def completions_from_script(self, script, view):
         """ regular completions """
-        completions = script.complete()
+        completions = script.completions()
         completions = [self.format(complete) for complete in completions]
         return completions
 

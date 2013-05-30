@@ -59,6 +59,7 @@ from jedi import cache
 from jedi import parsing_representation as pr
 from jedi import modules
 from jedi import settings
+from jedi import common
 from jedi import debug
 from jedi import fast_parser
 import api_classes
@@ -247,7 +248,7 @@ def _scan_statement(stmt, search_name, assignment_details=False):
     check = list(stmt.get_commands())
     if assignment_details:
         for commands, op in stmt.assignment_details:
-            check +=  commands
+            check += commands
 
     result = []
     for c in check:
@@ -406,7 +407,8 @@ class ArrayInstance(pr.Base):
                         continue
                 items += evaluate.get_iterator_types([typ])
 
-        if self.var_args.parent is None:
+        # TODO check if exclusion of tuple is a problem here.
+        if isinstance(self.var_args, tuple) or self.var_args.parent is None:
             return []  # generated var_args should not be checked for arrays
 
         module = self.var_args.get_parent_until()
@@ -415,7 +417,7 @@ class ArrayInstance(pr.Base):
         return items
 
 
-def related_names(definitions, search_name, mods):
+def usages(definitions, search_name, mods):
     def compare_array(definitions):
         """ `definitions` are being compared by module/start_pos, because
         sometimes the id's of the objects change (e.g. executions).
@@ -437,13 +439,13 @@ def related_names(definitions, search_name, mods):
 
         for f in follow:
             follow_res, search = evaluate.goto(call.parent, f)
-            follow_res = related_name_add_import_modules(follow_res, search)
+            follow_res = usages_add_import_modules(follow_res, search)
 
             compare_follow_res = compare_array(follow_res)
             # compare to see if they match
             if any(r in compare_definitions for r in compare_follow_res):
                 scope = call.parent
-                result.append(api_classes.RelatedName(search, scope))
+                result.append(api_classes.Usage(search, scope))
 
         return result
 
@@ -473,7 +475,7 @@ def related_names(definitions, search_name, mods):
                                                         direct_resolve=True)
                     f = i.follow(is_goto=True)
                     if set(f) & set(definitions):
-                        names.append(api_classes.RelatedName(name_part, stmt))
+                        names.append(api_classes.Usage(name_part, stmt))
             else:
                 for call in _scan_statement(stmt, search_name,
                                             assignment_details=True):
@@ -481,16 +483,14 @@ def related_names(definitions, search_name, mods):
     return names
 
 
-def related_name_add_import_modules(definitions, search_name):
+def usages_add_import_modules(definitions, search_name):
     """ Adds the modules of the imports """
     new = set()
     for d in definitions:
         if isinstance(d.parent, pr.Import):
             s = imports.ImportPath(d.parent, direct_resolve=True)
-            try:
+            with common.ignored(IndexError):
                 new.add(s.follow(is_goto=True)[0])
-            except IndexError:
-                pass
     return set(definitions) | new
 
 
@@ -530,7 +530,7 @@ def check_statement_information(stmt, search_name):
         # isinstance check
         isinst = call.execution.values
         assert len(isinst) == 2  # has two params
-        obj, classes = [stmt.get_commands() for stmt in isinst]
+        obj, classes = [statement.get_commands() for statement in isinst]
         assert len(obj) == 1
         assert len(classes) == 1
         assert isinstance(obj[0], pr.Call)

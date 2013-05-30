@@ -33,8 +33,6 @@ Parser
 ~~~~~~
 
 .. autodata:: fast_parser
-.. autodata:: fast_parser_always_reparse
-.. autodata:: use_function_definition_cache
 
 
 Dynamic stuff
@@ -74,12 +72,6 @@ Caching
 
 .. autodata:: star_import_cache_validity
 .. autodata:: function_definition_validity
-
-
-Various
-~~~~~~~
-
-.. autodata:: part_line_length
 
 
 """
@@ -148,19 +140,6 @@ fast_parser = True
 Use the fast parser. This means that reparsing is only being done if
 something has been changed e.g. to a function. If this happens, only the
 function is being reparsed.
-"""
-
-fast_parser_always_reparse = False
-"""
-This is just a debugging option. Always reparsing means that the fast parser
-is basically useless. So don't use it.
-"""
-
-use_function_definition_cache = True
-"""
-Use the cache (full cache) to generate function_definition's. This may fail
-with multiline docstrings (likely) and other complicated changes (unlikely).
-The goal is to move away from it by making the rest faster.
 """
 
 # ----------------
@@ -233,18 +212,8 @@ scale `max_executions` and `max_until_execution_unique`:
 """
 
 # ----------------
-# various
-# ----------------
-
-part_line_length = 20
-"""
-Size of the current code part, which is used to speed up parsing.
-"""
-
-# ----------------
 # caching validity (time)
 # ----------------
-
 
 star_import_cache_validity = 60.0
 """

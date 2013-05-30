@@ -68,6 +68,7 @@ backtracking algorithm.
 
 .. todo:: nonlocal statement, needed or can be ignored? (py3k)
 """
+from __future__ import with_statement
 
 import sys
 import itertools
@@ -130,22 +131,22 @@ def get_names_of_scope(scope, position=None, star_search=True,
     ... def func():
     ...     y = None
     ... ''')
-    >>> scope = parser.scope.subscopes[0]
+    >>> scope = parser.module.subscopes[0]
     >>> scope
-    <Function: func@3-6>
+    <Function: func@3-5>
 
     `get_names_of_scope` is a generator.  First it yields names from
     most inner scope.
 
     >>> pairs = list(get_names_of_scope(scope))
     >>> pairs[0]
-    (<Function: func@3-6>, [<Name: y@4,4>])
+    (<Function: func@3-5>, [<Name: y@4,4>])
 
     Then it yield the names from one level outer scope.  For this
     example, this is the most outer scope.
 
     >>> pairs[1]
-    (<SubModule: None@1-6>, [<Name: x@2,0>, <Name: func@3,4>])
+    (<SubModule: None@1-5>, [<Name: x@2,0>, <Name: func@3,4>])
 
     Finally, it yields names from builtin, if `include_builtin` is
     true (default).
@@ -159,6 +160,10 @@ def get_names_of_scope(scope, position=None, star_search=True,
     in_func_scope = scope
     non_flow = scope.get_parent_until(pr.Flow, reverse=True)
     while scope:
+        if isinstance(scope, pr.SubModule) and scope.parent:
+            # we don't want submodules to report if we have modules.
+            scope = scope.parent
+            continue
         # `pr.Class` is used, because the parent is never `Class`.
         # Ignore the Flows, because the classes and functions care for that.
         # InstanceElement of Class is ignored, if it is not the start scope.
@@ -310,6 +315,8 @@ def find_name(scope, name_str, position=None, search_global=False,
             result = []
             no_break_scope = False
             par = name.parent
+            exc = pr.Class, pr.Function
+            until = lambda: par.parent.parent.get_parent_until(exc)
 
             if par.isinstance(pr.Flow):
                 if par.command == 'for':
@@ -318,7 +325,7 @@ def find_name(scope, name_str, position=None, search_global=False,
                     debug.warning('Flow: Why are you here? %s' % par.command)
             elif par.isinstance(pr.Param) \
                     and par.parent is not None \
-                    and par.parent.parent.isinstance(pr.Class) \
+                    and isinstance(until(), pr.Class) \
                     and par.position_nr == 0:
                 # This is where self gets added - this happens at another
                 # place, if the var_args are clear. But sometimes the class is
@@ -327,7 +334,7 @@ def find_name(scope, name_str, position=None, search_global=False,
                 if isinstance(scope, er.InstanceElement):
                     inst = scope.instance
                 else:
-                    inst = er.Instance(er.Class(par.parent.parent))
+                    inst = er.Instance(er.Class(until()))
                     inst.is_generated = True
                 result.append(inst)
             elif par.isinstance(pr.Statement):
@@ -429,11 +436,9 @@ def find_name(scope, name_str, position=None, search_global=False,
             if isinstance(scope, (er.Instance, er.Class)) \
                                 and hasattr(r, 'get_descriptor_return'):
                 # handle descriptors
-                try:
+                with common.ignored(KeyError):
                     res_new += r.get_descriptor_return(scope)
                     continue
-                except KeyError:
-                    pass
             res_new.append(r)
         return res_new
 
@@ -462,19 +467,15 @@ def check_getattr(inst, name_str):
     # str is important to lose the NamePart!
     module = builtin.Builtin.scope
     name = pr.Call(module, str(name_str), pr.Call.STRING, (0, 0), inst)
-    try:
+    with common.ignored(KeyError):
         result = inst.execute_subscope_by_name('__getattr__', [name])
-    except KeyError:
-        pass
     if not result:
         # this is a little bit special. `__getattribute__` is executed
         # before anything else. But: I know no use case, where this
         # could be practical and the jedi would return wrong types. If
         # you ever have something, let me know!
-        try:
+        with common.ignored(KeyError):
             result = inst.execute_subscope_by_name('__getattribute__', [name])
-        except KeyError:
-            pass
     return result
 
 
@@ -536,10 +537,8 @@ def assign_tuples(tup, results, seek_name):
                 debug.warning("invalid tuple lookup %s of result %s in %s"
                                     % (tup, results, seek_name))
             else:
-                try:
+                with common.ignored(IndexError):
                     types += func(index)
-                except IndexError:
-                    pass
         return types
 
     result = []
@@ -648,11 +647,9 @@ def follow_call_list(call_list, follow_array=False):
                             call = next(calls_iterator)
                         except StopIteration:
                             break
-                        try:
+                        with common.ignored(AttributeError):
                             if str(call.name) == 'else':
                                 break
-                        except AttributeError:
-                            pass
                     continue
                 result += follow_call(call)
             elif call == '*':

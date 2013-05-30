@@ -1,5 +1,8 @@
+from __future__ import with_statement
+
 import copy
 
+from jedi import common
 from jedi import parsing_representation as pr
 
 
@@ -21,13 +24,11 @@ def fast_parent_copy(obj):
 
         before = ()
         for cls in new_obj.__class__.__mro__:
-            try:
+            with common.ignored(AttributeError):
                 if before == cls.__slots__:
                     continue
                 before = cls.__slots__
                 items += [(n, getattr(new_obj, n)) for n in before]
-            except AttributeError:
-                pass
 
         for key, value in items:
             # replace parent (first try _parent and then parent)
@@ -35,10 +36,8 @@ def fast_parent_copy(obj):
                 if key == 'parent' and '_parent' in items:
                     # parent can be a property
                     continue
-                try:
+                with common.ignored(KeyError):
                     setattr(new_obj, key, new_elements[value])
-                except KeyError:
-                    pass
             elif key in ['parent_function', 'use_as_parent', '_sub_module']:
                 continue
             elif isinstance(value, list):
@@ -69,13 +68,19 @@ def check_arr_index(arr, pos):
 def array_for_pos(stmt, pos, array_types=None):
     """Searches for the array and position of a tuple"""
     def search_array(arr, pos):
-        for i, stmt in enumerate(arr):
-            new_arr, index = array_for_pos(stmt, pos, array_types)
-            if new_arr is not None:
-                return new_arr, index
-            if arr.start_pos < pos <= stmt.end_pos:
-                if not array_types or arr.type in array_types:
-                    return arr, i
+        if arr.type == 'dict':
+            for stmt in arr.values + arr.keys:
+                new_arr, index = array_for_pos(stmt, pos, array_types)
+                if new_arr is not None:
+                    return new_arr, index
+        else:
+            for i, stmt in enumerate(arr):
+                new_arr, index = array_for_pos(stmt, pos, array_types)
+                if new_arr is not None:
+                    return new_arr, index
+                if arr.start_pos < pos <= stmt.end_pos:
+                    if not array_types or arr.type in array_types:
+                        return arr, i
         if len(arr) == 0 and arr.start_pos < pos < arr.end_pos:
             if not array_types or arr.type in array_types:
                 return arr, 0

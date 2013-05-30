@@ -12,11 +12,11 @@ following functions (sometimes bug-prone):
 - extract variable
 - inline variable
 """
-
 from __future__ import with_statement
 
 import difflib
 
+from jedi import common
 from jedi import modules
 from jedi import helpers
 from jedi import parsing_representation as pr
@@ -59,7 +59,7 @@ def rename(script, new_name):
     :type source: str
     :return: list of changed lines/changed files
     """
-    return Refactoring(_rename(script.related_names(), new_name))
+    return Refactoring(_rename(script.usages(), new_name))
 
 
 def _rename(names, replace_str):
@@ -92,7 +92,7 @@ def _rename(names, replace_str):
         nr, indent = name.start_pos
         line = new_lines[nr - 1]
         new_lines[nr - 1] = line[:indent] + replace_str + \
-                            line[indent + len(name.name_part):]
+                            line[indent + len(name.text):]
     process(current_path, old_lines, new_lines)
     return dct
 
@@ -168,11 +168,11 @@ def inline(script):
     dct = {}
 
     definitions = script.goto()
-    try:
+    with common.ignored(AssertionError):
         assert len(definitions) == 1
-        stmt = definitions[0].definition
-        related_names = script.related_names()
-        inlines = [r for r in related_names
+        stmt = definitions[0]._definition
+        usages = script.usages()
+        inlines = [r for r in usages
                         if not stmt.start_pos <= r.start_pos <= stmt.end_pos]
         inlines = sorted(inlines, key=lambda x: (x.module_path, x.start_pos),
                                                 reverse=True)
@@ -201,8 +201,5 @@ def inline(script):
             new_lines[index] = line
         else:
             new_lines.pop(index)
-
-    except AssertionError:
-        pass
 
     return Refactoring(dct)
