@@ -12,7 +12,10 @@ from jedi.api import NotFoundError
 
 def related_names(view):
     script = get_script(view, get_current_location(view))
-    related_names = script.usages()
+    try:
+        related_names = script.usages()
+    except NotFoundError:
+        return []
     return filter(lambda x: not x.in_builtin_module(), related_names)
 
 
@@ -101,7 +104,8 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
     """ find object usages """
     def run(self, edit):
         usages = self.find_usages()
-        self._window_quick_panel_open_window(usages)
+        if usages:
+            self._window_quick_panel_open_window(usages)
 
     def find_usages(self):
         with self.env:
