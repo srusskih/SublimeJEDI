@@ -1,0 +1,13 @@
+New Features
+------------
+
+ - Jedi updated to 0.6.0
+   https://github.com/davidhalter/jedi/blob/master/CHANGELOG.rst#060-2013-05-14
+ - Update functions arguments completion behavior
+
+
+Fixes
+-----
+
+ - Incorrect Go To behavioir
+ - Allow delaying param completion to when parenthesis is opened
