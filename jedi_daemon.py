@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 import os
 import sys
 import json
@@ -11,23 +10,39 @@ import jedi
 from jedi.api import NotFoundError
 
 
-log = logging.getLogger('')
-log.setLevel(logging.DEBUG)
+is_funcargs_complete_enabled = True
+auto_complete_function_params = 'required'
+
+
+def getLogger(path):
+    """ Build file logger """
+    log = logging.getLogger('')
+    log.setLevel(logging.DEBUG)
+    hdlr = handlers.RotatingFileHandler(
+        filename=os.path.join(path, 'daemon.log'),
+        maxBytes=10000000,
+        backupCount=5,
+        encoding='utf-8'
+    )
+    formatter = logging.Formatter('%(asctime)s: %(levelname)-8s: %(message)s')
+    hdlr.setFormatter(formatter)
+    log.addHandler(hdlr)
 
 
 def write(data):
+    """  Write data to STDOUT """
     if not isinstance(data, str):
         data = json.dumps(data)
+
     sys.stdout.write(data)
+
     if not data.endswith('\n'):
         sys.stdout.write('\n')
+
     try:
         sys.stdout.flush()
     except IOError:
         sys.exit()
-
-is_funcargs_complete_enabled = True
-auto_complete_function_params = 'required'
 
 
 def format_completion(complete):
@@ -62,127 +77,171 @@ def get_function_parameters(callDef):
     return params
 
 
-def funcargs_from_script(script):
-    """ Get function / class' constructor parameters completions list
-
-    :type script: jedi.api.Script
-    :rtype: list of str
+class JediFacade:
     """
-    completions = []
-    in_call = script.call_signatures()
+    Facade to call Jedi API
 
-    parameters = get_function_parameters(in_call)
-    for parameter in parameters:
+
+     Action      | Method
+    ===============================
+     autocomplet | get_autocomplete
+    -------------------------------
+     goto        | get_goto
+    -------------------------------
+     usages      | get_usages
+    -------------------------------
+     funcargs    | get_funcargs
+    --------------------------------
+
+
+    """
+    def __init__(self, source, line, offset, filename='', encoding='utf-8'):
+        self.script = jedi.Script(
+            source, int(line), int(offset), filename, encoding
+        )
+
+    def get(self, action):
+        """ Action dispatcher """
+        return getattr(self, 'get_' + action)
+
+    def get_goto(self):
+        """ Jedi "Go To Definition" """
+        return self._goto()
+
+    def get_usages(self):
+        """ Jedi "Find Usage" """
+        return self._usages()
+
+    def get_funcargs(self):
+        """ complete callable object parameters with Jedi """
+        return self._complete_call_assigments()
+
+    def get_autocomplete(self):
+        """ Jedi "completion" """
+        data = self._parameters_for_completion() or []
+        data.extend(self._completion() or [])
+        return data
+
+    def _parameters_for_completion(self):
+        """ Get function / class' constructor parameters completions list
+
+        :rtype: list of str
+        """
+        completions = []
+        in_call = self.script.call_signatures()
+
+        parameters = get_function_parameters(in_call)
+        for parameter in parameters:
+            try:
+                name, value = parameter
+            except IndexError:
+                name = parameter[0]
+                value = None
+
+            if value is None:
+                completions.append((name, '${1:%s}' % name))
+            else:
+                completions.append((name + '\t' + value,
+                                   '%s=${1:%s}' % (name, value)))
+        return completions
+
+    def _completion(self):
+        """ regular completions
+
+        :rtype: list of (str, str)
+        """
+        completions = self.script.completions()
+        return [format_completion(complete) for complete in completions]
+
+    def _goto(self):
+        """ Jedi "go to Definitions" functionality
+
+        :rtype: list of (str, int, int) or None
+        """
         try:
-            name, value = parameter
-        except IndexError:
-            name = parameter[0]
-            value = None
-
-        if value is None:
-            completions.append((name, '${1:%s}' % name))
+            definitions = self.script.goto_assignments()
+        except NotFoundError:
+            return
         else:
-            completions.append((name + '\t' + value,
-                               '%s=${1:%s}' % (name, value)))
-    return completions
+            return [(i.module_path, i.line, i.column)
+                    for i in definitions if not i.in_builtin_module()]
 
+    def _usages(self):
+        """ Jedi "find usages" functionality
 
-def completions_from_script(script):
-    """ regular completions
-
-    :type script: jedi.api.Script
-    :rtype: list of (str, str)
-    """
-    completions = script.completions()
-    return [format_completion(complete) for complete in completions]
-
-
-def goto_from_script(script):
-    """ Jedi "go to Definitions" functionality
-
-    :param script: jedi.api.Script
-    :rtype: list of (str, int, int) or None
-    """
-    try:
-        definitions = script.goto_assignments()
-    except NotFoundError:
-        return
-    else:
+        :rtype: list of (str, int, int)
+        """
+        usages = self.script.usages()
         return [(i.module_path, i.line, i.column)
-                for i in definitions if not i.in_builtin_module()]
+                for i in usages if not i.in_builtin_module()]
 
+    def _complete_call_assigments(self):
+        """ Get function or class parameters and build Sublime Snippet string
+        for completion
 
-def usages_from_script(script):
-    """ Jedi "find usages" functionality
+        :rtype: str
+        """
+        complete_all = auto_complete_function_params == 'all'
+        parameters = get_function_parameters(self.script.call_signatures())
 
-    :type script: jedi.api.Script
-    :rtype: list of (str, int, int)
-    """
-    usages = script.usages()
-    return [(i.module_path, i.line, i.column)
-            for i in usages if not i.in_builtin_module()]
+        completions = []
+        for index, parameter in enumerate(parameters):
+            try:
+                name, value = parameter
+            except IndexError:
+                name = parameter[0]
+                value = None
 
+            if value is None:
+                completions.append('${%d:%s}' % (index + 1, name))
+            elif complete_all:
+                completions.append('%s=${%d:%s}' % (name, index + 1, value))
 
-def funcrargs_from_script(script):
-    """ Get function or class parameters and build Sublime Snippet string
-    for completion
-
-    :type script: jedi.api.Script
-    :rtype: str
-    """
-    complete_all = auto_complete_function_params == 'all'
-    parameters = get_function_parameters(script.call_signatures())
-
-    completions = []
-    for index, parameter in enumerate(parameters):
-        try:
-            name, value = parameter
-        except IndexError:
-            name = parameter[0]
-            value = None
-
-        if value is None:
-            completions.append('${%d:%s}' % (index + 1, name))
-        elif complete_all:
-            completions.append('%s=${%d:%s}' % (name, index + 1, value))
-
-    return ", ".join(completions)
+        return ", ".join(completions)
 
 
 def process_line(line):
     data = json.loads(line.strip())
-    req_type = data.get('type', None)
-    script = jedi.Script(data['source'], int(data['line']), int(data['offset']),
-                         data['filename'] or '', 'utf-8')
+    action_type = data.get('type', None)
+    assert action_type, 'Action type require'
 
-    out_data = {'uuid': data['uuid'], 'type': data['type']}
-
-    if req_type == 'autocomplete':
-        out_data[req_type] = funcargs_from_script(script) or []
-        out_data[req_type].extend(completions_from_script(script) or [])
-    elif req_type == 'goto':
-        out_data[req_type] = goto_from_script(script)
-    elif req_type == 'usages':
-        out_data[req_type] = usages_from_script(script)
-    elif req_type == 'funcargs':
-        out_data[req_type] = funcrargs_from_script(script)
+    out_data = {
+        'uuid': data['uuid'],
+        'type': action_type,
+        action_type: JediFacade(**data).get(action_type)
+    }
 
     write(out_data)
 
+
 if __name__ == '__main__':
     parser = OptionParser()
-    parser.add_option("-p", "--project", dest="project_name", default='',
-                      help="project name to store jedi's cache")
-    parser.add_option("-e", "--extra_folder", dest="extra_folders", default=[],
-                      action="append", help="extra folders to add to sys.path")
-    parser.add_option("-f", "--complete_function_params", dest="function_params",
-                      default='all')
+    parser.add_option(
+        "-p", "--project",
+        dest="project_name",
+        default='',
+        help="project name to store jedi's cache"
+    )
+    parser.add_option(
+        "-e", "--extra_folder",
+        dest="extra_folders",
+        default=[],
+        action="append",
+        help="extra folders to add to sys.path"
+    )
+    parser.add_option(
+        "-f", "--complete_function_params",
+        dest="function_params",
+        default='all',
+        help='function parameters completion type: "all", "required", or ""'
+    )
 
     options, args = parser.parse_args()
 
     is_funcargs_complete_enabled = bool(options.function_params)
     auto_complete_function_params = options.function_params
 
+    # prepare Jedi cache
     if options.project_name:
         jedi.settings.cache_directory = os.path.join(
             jedi.settings.cache_directory,
@@ -190,25 +249,23 @@ if __name__ == '__main__':
         )
     if not os.path.exists(jedi.settings.cache_directory):
         os.makedirs(jedi.settings.cache_directory)
-    hdlr = handlers.RotatingFileHandler(
-        filename=os.path.join(jedi.settings.cache_directory, 'daemon.log'),
-        maxBytes=10000000,
-        backupCount=5,
-        encoding='utf-8'
-    )
-    hdlr.setFormatter(logging.Formatter('%(asctime)s: %(levelname)-8s: %(message)s'))
-    log.addHandler(hdlr)
+
+    log = getLogger(jedi.settings.cache_directory)
     log.info(
-        "started. cache directory - %s, extra folders - %s, complete_function_params - %s",
+        'started. cache directory - %s, '
+        'extra folders - %s, '
+        'complete_function_params - %s',
         jedi.settings.cache_directory,
         options.extra_folders,
         options.function_params,
     )
 
+    # append extra paths to sys.path
     for extra_folder in options.extra_folders:
         if extra_folder not in sys.path:
             sys.path.insert(0, extra_folder)
 
+    # call the Jedi
     for line in iter(sys.stdin.readline, ''):
         if line:
             try:
