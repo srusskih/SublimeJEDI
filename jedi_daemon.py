@@ -27,6 +27,7 @@ def getLogger(path):
     formatter = logging.Formatter('%(asctime)s: %(levelname)-8s: %(message)s')
     hdlr.setFormatter(formatter)
     log.addHandler(hdlr)
+    return log
 
 
 def write(data):
