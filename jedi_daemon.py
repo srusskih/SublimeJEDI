@@ -92,7 +92,7 @@ def completions_from_script(script):
 
 
 def goto_from_script(script):
-    """ Jedi go to Definitions
+    """ Jedi "go to Definitions" functionality
 
     :param script: jedi.api.Script
     :rtype: list of (str, in, int) or None
@@ -107,9 +107,14 @@ def goto_from_script(script):
 
 
 def usages_from_script(script):
+    """ Jedi "find usages" functionality
+
+    :type script: jedi.api.Script
+    :rtype: list of (str, in, int)
+    """
+    defns = script.usages()
     return [(i.module_path, i.line, i.column)
-            for i in script.related_names() if not i.in_builtin_module()
-            ]
+            for i in defns if not i.in_builtin_module()]
 
 
 def funcrargs_from_script(script):
