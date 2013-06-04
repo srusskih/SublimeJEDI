@@ -9,8 +9,6 @@ from optparse import OptionParser
 import jedi
 from jedi.api import NotFoundError
 
-#logger = None
-
 is_funcargs_complete_enabled = True
 auto_complete_function_params = 'required'
 
@@ -137,8 +135,6 @@ class JediFacade:
 
         parameters = get_function_parameters(in_call)
 
-        logging.info(repr(parameters))
-
         for parameter in parameters:
             try:
                 name, value = parameter
@@ -198,8 +194,6 @@ class JediFacade:
             call_definition = None
 
         parameters = get_function_parameters(call_definition)
-
-        logging.info(repr(parameters))
 
         for index, parameter in enumerate(parameters):
             try:

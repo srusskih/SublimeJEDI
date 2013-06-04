@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 import os
 import functools
 from uuid import uuid1
@@ -98,7 +100,7 @@ def check_sublime_queue():
                         callback_request['callback'](window.active_view(), data[data['type']])
                         break
             else:
-                print data
+                print(data)
 
     sublime.set_timeout(check_sublime_queue, 50)
 
