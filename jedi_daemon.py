@@ -37,17 +37,18 @@ def format_completion(complete):
     :type complete: jedi.api_classes.Completion
     :rtype: (str, str)
     """
-    display, insert = complete.word + '\t' + complete.type, complete.word
+    display, insert = complete.name + '\t' + complete.type, complete.name
     return display, insert
 
 
 def get_function_parameters(callDef):
-    """ (jedi.api_classes.CallDef) -> list of tuple(str, str)
-
-    Return list function paramets, prepared for sublime completion.
+    """  Return list function parameters, prepared for sublime completion.
     Tuple contains parameter name and default value
 
     Parameters list excludes: self, *args and **kwargs parameters
+
+    :type callDef: jedi.api_classes.CallDef
+    :rtype: list of (str, str)
     """
     if not callDef:
         return []
