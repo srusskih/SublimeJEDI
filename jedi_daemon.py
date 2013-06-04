@@ -92,15 +92,18 @@ def completions_from_script(script):
 
 
 def goto_from_script(script):
-    for method in ['get_definition', 'goto']:
-        try:
-            defns = getattr(script, method)()
-        except NotFoundError:
-            pass
-        else:
-            return [(i.module_path, i.line, i.column)
-                    for i in defns if not i.in_builtin_module()
-                    ]
+    """ Jedi go to Definitions
+
+    :param script: jedi.api.Script
+    :rtype: list of (str, in, int) or None
+    """
+    try:
+        defns = script.goto_assignments()
+    except NotFoundError:
+        return
+    else:
+        return [(i.module_path, i.line, i.column)
+                for i in defns if not i.in_builtin_module()]
 
 
 def usages_from_script(script):
