@@ -30,13 +30,13 @@ is_funcargs_complete_enabled = True
 auto_complete_function_params = 'required'
 
 
-def format(complete):
+def format_completion(complete):
     """ Returns a tuple of the string that would be visible in
-            the completion dialogue and the completion word
+    the completion dialogue and the completion word
 
-            :param complete: `jedi.api.Complete` object
-            :return: tuple(string, string)
-        """
+    :type complete: jedi.api_classes.Completion
+    :rtype: (str, str)
+    """
     display, insert = complete.word + '\t' + complete.type, complete.word
     return display, insert
 
@@ -79,7 +79,7 @@ def funcargs_from_script(script):
 def completions_from_script(script):
     """ regular completions """
     completions = script.complete()
-    return [format(complete) for complete in completions]
+    return [format_completion(complete) for complete in completions]
 
 
 def goto_from_script(script):
