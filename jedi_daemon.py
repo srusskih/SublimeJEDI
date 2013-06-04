@@ -82,8 +82,12 @@ def funcargs_from_script(script):
 
 
 def completions_from_script(script):
-    """ regular completions """
-    completions = script.complete()
+    """ regular completions
+
+    :type script: jedi.api.Script
+    :rtype: list of (str, str)
+    """
+    completions = script.completions()
     return [format_completion(complete) for complete in completions]
 
 
