@@ -95,26 +95,26 @@ def goto_from_script(script):
     """ Jedi "go to Definitions" functionality
 
     :param script: jedi.api.Script
-    :rtype: list of (str, in, int) or None
+    :rtype: list of (str, int, int) or None
     """
     try:
-        defns = script.goto_assignments()
+        definitions = script.goto_assignments()
     except NotFoundError:
         return
     else:
         return [(i.module_path, i.line, i.column)
-                for i in defns if not i.in_builtin_module()]
+                for i in definitions if not i.in_builtin_module()]
 
 
 def usages_from_script(script):
     """ Jedi "find usages" functionality
 
     :type script: jedi.api.Script
-    :rtype: list of (str, in, int)
+    :rtype: list of (str, int, int)
     """
-    defns = script.usages()
+    usages = script.usages()
     return [(i.module_path, i.line, i.column)
-            for i in defns if not i.in_builtin_module()]
+            for i in usages if not i.in_builtin_module()]
 
 
 def funcrargs_from_script(script):
