@@ -4,8 +4,10 @@ import sublime_plugin
 
 try:
     from SublimeJEDI.sublime_jedi import ask_daemon
+    from SublimeJEDI.utils import is_python_scope
 except ImportError:
     from sublime_jedi import ask_daemon
+    from utils import is_python_scope
 
 
 def check_if_string(view):
@@ -41,6 +43,11 @@ def check_if_string(view):
 
 
 class BaseLookUpJediCommand(object):
+    def is_enable(self):
+        """ command enable only for python source code """
+        if not is_python_scope(self.view, self.view.sel()[0].begin()):
+            return False
+        return True
 
     def _jump_to_in_window(self, filename, line_number=None, column_number=None):
         """ Opens a new window and jumps to declaration if possible

@@ -8,9 +8,9 @@ import sublime
 import sublime_plugin
 
 try:
-    from SublimeJEDI.utils import Empty, start_daemon
+    from SublimeJEDI.utils import Empty, start_daemon, is_python_scope
 except ImportError:
-    from utils import Empty, start_daemon
+    from utils import Empty, start_daemon, is_python_scope
 
 #import pprint
 #jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
@@ -117,6 +117,10 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         """
         self._insert_characters(edit, characters)
 
+        # nothing to do with non-python code
+        if not is_python_scope(self.view, self.view.sel()[0].begin()):
+            return
+
         ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
 
     def _insert_characters(self, edit, characters):
@@ -161,18 +165,15 @@ class Autocomplete(sublime_plugin.EventListener):
 
             :return: list
         """
-        # nothing to do with non-python code
-        scope = view.scope_name(locations[0])
-        if 'source.python' not in scope \
-                or 'string.quoted' in scope \
-                or 'comment.line' in scope:
-            return
-
         if self.cplns_ready:
             self.cplns_ready = None
             if self.completions:
                 cplns, self.completions = self.completions, []
                 return [tuple(i) for i in cplns]
+            return
+
+        # nothing to do with non-python code
+        if not is_python_scope(view, locations[0]):
             return
 
         # get completions list

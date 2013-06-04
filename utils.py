@@ -78,3 +78,11 @@ def start_daemon(interp, extra_packages, project_name, complete_funcargs):
         ThreadReader(process.stdout),
         ThreadReader(process.stderr),
     )
+
+
+def is_python_scope(view, location):
+    """ (View, Point) -> bool
+
+    Get if this is a python source scope (not a string and not a comment)
+    """
+    return view.match_selector(location, "source.python - string - comment")
