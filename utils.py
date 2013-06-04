@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 import os
 import sys
 import subprocess
@@ -13,8 +12,6 @@ except ImportError:
     from queue import Queue, Empty
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-
-import sublime
 
 
 class BaseThread(threading.Thread, Queue):
@@ -53,21 +50,6 @@ class ThreadWriter(BaseThread):
                 if not data.endswith('\n'):
                     self.fd.write('\n')
                 self.fd.flush()
-
-
-def get_settings_param(view, param_name, default=None):
-    plugin_settings = get_plugin_settings()
-    project_settings = view.settings()
-    return project_settings.get(
-        param_name,
-        plugin_settings.get(param_name, default)
-    )
-
-
-def get_plugin_settings():
-    setting_name = 'sublime_jedi.sublime-settings'
-    plugin_settings = sublime.load_settings(setting_name)
-    return plugin_settings
 
 
 Daemon = namedtuple("Daemon", "process stdin stdout stderr")

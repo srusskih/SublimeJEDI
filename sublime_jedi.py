@@ -8,15 +8,30 @@ import sublime
 import sublime_plugin
 
 try:
-    from SublimeJEDI.utils import Empty, get_settings_param, start_daemon
+    from SublimeJEDI.utils import Empty, start_daemon
 except ImportError:
-    from utils import Empty, get_settings_param, start_daemon
+    from utils import Empty, start_daemon
 
 #import pprint
 #jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
 
 DAEMONS = defaultdict(dict)  # per window
 WAITING = defaultdict(dict)  # per window callback
+
+
+def get_settings_param(view, param_name, default=None):
+    plugin_settings = get_plugin_settings()
+    project_settings = view.settings()
+    return project_settings.get(
+        param_name,
+        plugin_settings.get(param_name, default)
+    )
+
+
+def get_plugin_settings():
+    setting_name = 'sublime_jedi.sublime-settings'
+    plugin_settings = sublime.load_settings(setting_name)
+    return plugin_settings
 
 
 def ask_daemon(view, callback, ask_type, location=None):
