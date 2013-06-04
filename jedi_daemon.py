@@ -48,7 +48,7 @@ def get_function_parameters(callDef):
     Parameters list excludes: self, *args and **kwargs parameters
 
     :type callDef: jedi.api_classes.CallDef
-    :rtype: list of (str, str)
+    :rtype: list of (str, str or None)
     """
     if not callDef:
         return []
@@ -63,7 +63,7 @@ def get_function_parameters(callDef):
 
 
 def funcargs_from_script(script):
-    """ Get completion in case we are in a function call
+    """ Get function / class' constructor parameters completions list
 
     :type script: jedi.api.Script
     :rtype: list of str
@@ -71,13 +71,19 @@ def funcargs_from_script(script):
     completions = []
     in_call = script.call_signatures()
 
-    params = get_function_parameters(in_call)
-    for code in params:
-        if len(code) == 1:
-            completions.append((code[0], '${1:%s}' % code[0]))
+    parameters = get_function_parameters(in_call)
+    for parameter in parameters:
+        try:
+            name, value = parameter
+        except IndexError:
+            name = parameter[0]
+            value = None
+
+        if value is None:
+            completions.append((name, '${1:%s}' % name))
         else:
-            completions.append((code[0] + '\t' + code[1],
-                               '%s=${1:%s}' % (code[0], code[1])))
+            completions.append((name + '\t' + value,
+                               '%s=${1:%s}' % (name, value)))
     return completions
 
 
