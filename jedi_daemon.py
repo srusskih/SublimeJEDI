@@ -111,7 +111,7 @@ def funcrargs_from_script(script):
             value = parameter[1]
             completions.append('%s=${%d:%s}' % (name, index + 1, value))
         elif len(parameter) == 1:
-            completions.append('%s=${%d}' % (name, index + 1))
+            completions.append('${%d:%s}' % (index + 1, name))
 
     return ", ".join(completions)
 
@@ -155,7 +155,8 @@ if __name__ == '__main__':
             jedi.settings.cache_directory,
             options.project_name,
         )
-
+    if not os.path.exists(jedi.settings.cache_directory):
+        os.makedirs(jedi.settings.cache_directory)
     hdlr = handlers.RotatingFileHandler(
         filename=os.path.join(jedi.settings.cache_directory, 'daemon.log'),
         maxBytes=10000000,
