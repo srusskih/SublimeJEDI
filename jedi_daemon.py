@@ -63,14 +63,18 @@ def get_function_parameters(callDef):
 
 
 def funcargs_from_script(script):
-    """ get completion in case we are in a function call """
+    """ Get completion in case we are in a function call
+
+    :type script: jedi.api.Script
+    :rtype: list of str
+    """
     completions = []
-    in_call = script.function_definition()
+    in_call = script.call_signatures()
 
     params = get_function_parameters(in_call)
     for code in params:
         if len(code) == 1:
-            completions.append((code[0], '%s=${1}' % code[0]))
+            completions.append((code[0], '${1:%s}' % code[0]))
         else:
             completions.append((code[0] + '\t' + code[1],
                                '%s=${1:%s}' % (code[0], code[1])))
@@ -102,17 +106,27 @@ def usages_from_script(script):
 
 
 def funcrargs_from_script(script):
+    """ Get function or class parameters and build Sublime Snippet string
+    for completion
+
+    :type script: jedi.api.Script
+    :rtype: str
+    """
     complete_all = auto_complete_function_params == 'all'
-    parameters = get_function_parameters(script.function_definition())
+    parameters = get_function_parameters(script.call_signatures())
 
     completions = []
     for index, parameter in enumerate(parameters):
-        name = parameter[0]
-        if len(parameter) > 1 and complete_all:
-            value = parameter[1]
-            completions.append('%s=${%d:%s}' % (name, index + 1, value))
-        elif len(parameter) == 1:
+        try:
+            name, value = parameter
+        except IndexError:
+            name = parameter[0]
+            value = None
+
+        if value is None:
             completions.append('${%d:%s}' % (index + 1, name))
+        elif complete_all:
+            completions.append('%s=${%d:%s}' % (name, index + 1, value))
 
     return ", ".join(completions)
 
