@@ -9,6 +9,7 @@ from optparse import OptionParser
 import jedi
 from jedi.api import NotFoundError
 
+#logger = None
 
 is_funcargs_complete_enabled = True
 auto_complete_function_params = 'required'
@@ -83,15 +84,15 @@ class JediFacade:
     Facade to call Jedi API
 
 
-     Action      | Method
+     Action       | Method
     ===============================
-     autocomplet | get_autocomplete
+     autocomplete | get_autocomplete
     -------------------------------
-     goto        | get_goto
+     goto         | get_goto
     -------------------------------
-     usages      | get_usages
+     usages       | get_usages
     -------------------------------
-     funcargs    | get_funcargs
+     funcargs     | get_funcargs
     --------------------------------
 
 
@@ -103,7 +104,7 @@ class JediFacade:
 
     def get(self, action):
         """ Action dispatcher """
-        return getattr(self, 'get_' + action)
+        return getattr(self, 'get_' + action)()
 
     def get_goto(self):
         """ Jedi "Go To Definition" """
@@ -129,13 +130,19 @@ class JediFacade:
         :rtype: list of str
         """
         completions = []
-        in_call = self.script.call_signatures()
+        try:
+            in_call = self.script.call_signatures()[0]
+        except IndexError:
+            in_call = None
 
         parameters = get_function_parameters(in_call)
+
+        logging.info(repr(parameters))
+
         for parameter in parameters:
             try:
                 name, value = parameter
-            except IndexError:
+            except ValueError:
                 name = parameter[0]
                 value = None
 
@@ -182,14 +189,22 @@ class JediFacade:
 
         :rtype: str
         """
-        complete_all = auto_complete_function_params == 'all'
-        parameters = get_function_parameters(self.script.call_signatures())
-
         completions = []
+        complete_all = auto_complete_function_params == 'all'
+
+        try:
+            call_definition = self.script.call_signatures()[0]
+        except IndexError:
+            call_definition = None
+
+        parameters = get_function_parameters(call_definition)
+
+        logging.info(repr(parameters))
+
         for index, parameter in enumerate(parameters):
             try:
                 name, value = parameter
-            except IndexError:
+            except ValueError:
                 name = parameter[0]
                 value = None
 
@@ -203,11 +218,12 @@ class JediFacade:
 
 def process_line(line):
     data = json.loads(line.strip())
-    action_type = data.get('type', None)
-    assert action_type, 'Action type require'
+
+    uuid = data.pop('uuid')
+    action_type = data.pop('type')
 
     out_data = {
-        'uuid': data['uuid'],
+        'uuid': uuid,
         'type': action_type,
         action_type: JediFacade(**data).get(action_type)
     }
@@ -251,8 +267,8 @@ if __name__ == '__main__':
     if not os.path.exists(jedi.settings.cache_directory):
         os.makedirs(jedi.settings.cache_directory)
 
-    log = getLogger(jedi.settings.cache_directory)
-    log.info(
+    logger = getLogger(jedi.settings.cache_directory)
+    logger.info(
         'started. cache directory - %s, '
         'extra folders - %s, '
         'complete_function_params - %s',
@@ -272,4 +288,4 @@ if __name__ == '__main__':
             try:
                 process_line(line)
             except Exception:
-                log.exception('failed to process line')
+                logger.exception('failed to process line')
