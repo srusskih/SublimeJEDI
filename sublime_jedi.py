@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-import os
+import os, sys
 import functools
 from uuid import uuid1
 from collections import defaultdict
@@ -9,11 +9,13 @@ from collections import defaultdict
 import sublime
 import sublime_plugin
 
-try:
-    from SublimeJEDI.utils import Empty, start_daemon, is_python_scope
-except ImportError:
-    from utils import Empty, start_daemon, is_python_scope
+BASE = os.path.abspath(os.path.dirname(__file__))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
 
+from utils import Empty, start_daemon, is_python_scope
+
+PY3 = sys.version_info[0] == 3
 #import pprint
 #jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
 
@@ -67,7 +69,10 @@ def ask_daemon(view, callback, ask_type, location=None):
     current_line, current_column = view.rowcol(location)
     source = view.substr(sublime.Region(0, view.size()))
 
-    uuid = uuid1().get_hex()
+    if PY3:
+    	uuid = uuid1().hex
+    else:
+    	uuid = uuid1().get_hex()
     data = {
         'source': source,
         'line': current_line + 1,
