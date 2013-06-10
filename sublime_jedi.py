@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-import os, sys
+import os
+import sys
 import functools
 from uuid import uuid1
 from collections import defaultdict
@@ -13,14 +14,13 @@ BASE = os.path.abspath(os.path.dirname(__file__))
 if BASE not in sys.path:
     sys.path.insert(0, BASE)
 
-from utils import Empty, start_daemon, is_python_scope
+from utils import start_daemon, is_python_scope
 
 PY3 = sys.version_info[0] == 3
 #import pprint
 #jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
 
 DAEMONS = defaultdict(dict)  # per window
-WAITING = defaultdict(dict)  # per window callback
 
 
 def get_settings_param(view, param_name, default=None):
@@ -53,15 +53,13 @@ def ask_daemon(view, callback, ask_type, location=None):
         )
 
         daemon = start_daemon(
+            window_id=window_id,
             interp=get_settings_param(view, 'python_interpreter_path', 'python'),
             extra_packages=get_settings_param(view, 'python_package_paths', []),
             project_name=project_name,
             complete_funcargs=get_settings_param(view, 'auto_complete_function_params', 'all'),
         )
 
-        if not DAEMONS:
-            # first time so start loop which will check for gui updates
-            sublime.set_timeout(check_sublime_queue, 100)
         DAEMONS[window_id] = daemon
 
     if location is None:
@@ -70,9 +68,9 @@ def ask_daemon(view, callback, ask_type, location=None):
     source = view.substr(sublime.Region(0, view.size()))
 
     if PY3:
-    	uuid = uuid1().hex
+        uuid = uuid1().hex
     else:
-    	uuid = uuid1().get_hex()
+        uuid = uuid1().get_hex()
     data = {
         'source': source,
         'line': current_line + 1,
@@ -81,33 +79,7 @@ def ask_daemon(view, callback, ask_type, location=None):
         'type': ask_type,
         'uuid': uuid,
     }
-    WAITING[window_id][uuid] = {
-        'callback': callback,
-        'view_id': view.id(),
-    }  # XXX track position
-    DAEMONS[window_id].stdin.put_nowait(data)
-
-
-def check_sublime_queue():
-    # check for incoming first
-    for window_id, daemon in DAEMONS.items():
-        for thread in [daemon.stdout, daemon.stderr]:
-            try:
-                data = thread.get_nowait()
-            except Empty:
-                continue
-            if isinstance(data, dict):
-                callback_request = WAITING[window_id].pop(data['uuid'], None)
-                if callback_request is None:
-                    continue
-                for window in sublime.windows():
-                    if window.id() == window_id:
-                        callback_request['callback'](window.active_view(), data[data['type']])
-                        break
-            else:
-                print(data)
-
-    sublime.set_timeout(check_sublime_queue, 50)
+    DAEMONS[window_id].stdin.put_nowait((callback, data))
 
 
 class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
