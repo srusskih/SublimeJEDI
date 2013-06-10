@@ -5,7 +5,7 @@ import subprocess
 import json
 import threading
 from functools import partial
-from collections import namedtuple, defaultdict
+from collections import namedtuple
 
 try:
     from Queue import Queue, Empty
@@ -48,17 +48,18 @@ class ThreadReader(BaseThread):
             return  # should be a logging call
 
         with self.wait_lock:
-            callback = self.waiting[self.window_id].pop(data['uuid'], None)
+            callback = self.waiting.pop(data['uuid'], None)
+
         if callback is None:
             return
+
         for window in sublime.windows():
             # iterating over windows in a thread is a little bit scary
             # maybe just pass window id to a callback
             if window.id() == self.window_id:
-                sublime.set_timeout(
-                    partial(callback, window.active_view(), data[data['type']]),
-                    0
-                )
+                response = data[data['type']]
+                _callback = partial(callback, window.active_view(), response)
+                sublime.set_timeout(_callback, 0)
                 break
 
 
@@ -71,13 +72,18 @@ class ThreadWriter(BaseThread, Queue):
     def run(self):
         while not self.done:
             request_data = self.get()
+
             if not request_data:
                 continue
+
             callback, data = request_data
+
             with self.wait_lock:
-                self.waiting[self.window_id][data['uuid']] = callback
+                self.waiting[data['uuid']] = callback
+
             if not isinstance(data, str):
                 data = json.dumps(data)
+
             self.fd.write(data)
             if not data.endswith('\n'):
                 self.fd.write('\n')
@@ -88,23 +94,27 @@ Daemon = namedtuple("Daemon", "process stdin stdout stderr")
 
 
 def start_daemon(window_id, interp, extra_packages, project_name, complete_funcargs):
-    sub_kwargs = {'stdin': subprocess.PIPE,
-                  'stdout': subprocess.PIPE,
-                  'stderr': subprocess.PIPE,
-                  'universal_newlines': True,
-                  'cwd': CUR_DIR,
-                  'bufsize': -1,
-                  }
+    sub_kwargs = {
+        'stdin': subprocess.PIPE,
+        'stdout': subprocess.PIPE,
+        'stderr': subprocess.PIPE,
+        'universal_newlines': True,
+        'cwd': CUR_DIR,
+        'bufsize': -1,
+    }
+
+    # hide "cmd" window in Windows
     if sys.platform == "win32":
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         sub_kwargs['startupinfo'] = startupinfo
+
     sub_args = [interp, '-B', 'jedi_daemon.py', '-p', project_name]
     for folder in extra_packages:
         sub_args.extend(['-e', folder])
     sub_args.extend(['-f', complete_funcargs])
     process = subprocess.Popen(sub_args, **sub_kwargs)
-    waiting = defaultdict(dict)
+    waiting = dict()
     wlock = threading.RLock()
     return Daemon(
         process,
