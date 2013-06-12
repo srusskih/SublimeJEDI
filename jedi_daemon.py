@@ -164,10 +164,14 @@ class JediFacade:
         """
         try:
             definitions = self.script.goto_assignments()
+            if all(d.type == 'import' for d in definitions):
+                # check if it an import string and if it is get definition
+                if definitions[0].type == 'import':
+                    definitions = self.script.get_definition()
         except NotFoundError:
             return
         else:
-            return [(i.module_path, i.line, i.column)
+            return [(i.module_path, i.line, i.column + 1)
                     for i in definitions if not i.in_builtin_module()]
 
     def _usages(self):
