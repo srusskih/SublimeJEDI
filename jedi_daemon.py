@@ -6,6 +6,12 @@ import logging
 from logging import handlers
 from optparse import OptionParser
 
+try:
+    from SublimeJEDI import sublime_jedi  # fix imports on ST3
+    del sublime_jedi
+except ImportError:
+    pass
+
 import jedi
 from jedi.api import NotFoundError
 
