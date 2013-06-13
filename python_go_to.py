@@ -3,11 +3,11 @@ import sublime
 import sublime_plugin
 
 try:
-    from SublimeJEDI.sublime_jedi import ask_daemon
-    from SublimeJEDI.utils import is_python_scope
-except ImportError:
     from sublime_jedi import ask_daemon
     from utils import is_python_scope
+except ImportError:
+    from .sublime_jedi import ask_daemon
+    from .utils import is_python_scope
 
 
 def check_if_string(view):

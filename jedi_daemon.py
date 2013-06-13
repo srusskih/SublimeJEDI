@@ -6,14 +6,14 @@ import logging
 from logging import handlers
 from optparse import OptionParser
 
-try:
-    from SublimeJEDI import sublime_jedi  # fix imports on ST3
-    del sublime_jedi
-except ImportError:
-    pass
+# fix absolute imports on ST3
+BASE = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, BASE)
 
 import jedi
 from jedi.api import NotFoundError
+
+sys.path.pop(0)
 
 is_funcargs_complete_enabled = True
 auto_complete_function_params = 'required'

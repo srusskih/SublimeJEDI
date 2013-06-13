@@ -8,9 +8,9 @@ from functools import partial
 from collections import namedtuple
 
 try:
-    from Queue import Queue, Empty
+    from Queue import Queue
 except ImportError:
-    from queue import Queue, Empty
+    from queue import Queue
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
