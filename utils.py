@@ -17,6 +17,13 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 import sublime
 
 
+def run_in_active_view(window_id, callback, response):
+    for window in sublime.windows():
+        if window.id() == window_id:
+            callback(window.active_view(), response)
+            break
+
+
 class BaseThread(threading.Thread):
 
     def __init__(self, fd, window_id, waiting, lock):
@@ -50,17 +57,14 @@ class ThreadReader(BaseThread):
         with self.wait_lock:
             callback = self.waiting.pop(data['uuid'], None)
 
-        if callback is None:
-            return
-
-        for window in sublime.windows():
-            # iterating over windows in a thread is a little bit scary
-            # maybe just pass window id to a callback
-            if window.id() == self.window_id:
-                response = data[data['type']]
-                _callback = partial(callback, window.active_view(), response)
-                sublime.set_timeout(_callback, 0)
-                break
+        if callback is not None:
+            delayed_callback = partial(
+                run_in_active_view,
+                self.window_id,
+                callback,
+                data[data['type']]
+            )
+            sublime.set_timeout(delayed_callback, 0)
 
 
 class ThreadWriter(BaseThread, Queue):
