@@ -172,8 +172,7 @@ class JediFacade:
             definitions = self.script.goto_assignments()
             if all(d.type == 'import' for d in definitions):
                 # check if it an import string and if it is get definition
-                if definitions[0].type == 'import':
-                    definitions = self.script.get_definition()
+                definitions = self.script.get_definition()
         except NotFoundError:
             return
         else:
