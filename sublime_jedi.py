@@ -10,11 +10,10 @@ from collections import defaultdict
 import sublime
 import sublime_plugin
 
-BASE = os.path.abspath(os.path.dirname(__file__))
-if BASE not in sys.path:
-    sys.path.insert(0, BASE)
-
-from utils import start_daemon, is_python_scope
+try:
+    from utils import start_daemon, is_python_scope
+except ImportError:
+    from .utils import start_daemon, is_python_scope
 
 PY3 = sys.version_info[0] == 3
 #import pprint
