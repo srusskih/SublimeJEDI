@@ -39,7 +39,16 @@ def get_plugin_settings():
 
 def ask_daemon(view, callback, ask_type, location=None):
     window_id = view.window().id()
-    if window_id not in DAEMONS:
+
+    # check if thread needs a restart
+    daemon = DAEMONS.get(window_id)
+    if daemon is not None and daemon.stdin.restart_needed is not False:
+        print('daemon process has died with "%s"' % daemon.stdin.restart_needed)
+        DAEMONS.pop(window_id)
+        daemon.process.terminate()
+        daemon = None
+
+    if daemon is None:
         # there is no api to get current project's name
         # so force user to enter it in settings or use first folder in project
         first_folder = ''
@@ -78,7 +87,7 @@ def ask_daemon(view, callback, ask_type, location=None):
         'type': ask_type,
         'uuid': uuid,
     }
-    DAEMONS[window_id].stdin.put_nowait((callback, data))
+    daemon.stdin.put_nowait((callback, data))
 
 
 class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):

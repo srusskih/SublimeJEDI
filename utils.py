@@ -71,6 +71,7 @@ class ThreadWriter(BaseThread, Queue):
 
     def __init__(self, *args, **kwargs):
         Queue.__init__(self)
+        self.restart_needed = False
         super(ThreadWriter, self).__init__(*args, **kwargs)
 
     def run(self):
@@ -91,7 +92,10 @@ class ThreadWriter(BaseThread, Queue):
             self.fd.write(data)
             if not data.endswith('\n'):
                 self.fd.write('\n')
-            self.fd.flush()
+            try:
+                self.fd.flush()
+            except IOError as e:
+                self.restart_needed = str(e)
 
 
 Daemon = namedtuple("Daemon", "process stdin stdout stderr")
