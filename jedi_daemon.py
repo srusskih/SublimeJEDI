@@ -6,8 +6,14 @@ import logging
 from logging import handlers
 from optparse import OptionParser
 
+# fix absolute imports on ST3
+BASE = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, BASE)
+
 import jedi
 from jedi.api import NotFoundError
+
+sys.path.pop(0)
 
 is_funcargs_complete_enabled = True
 auto_complete_function_params = 'required'
