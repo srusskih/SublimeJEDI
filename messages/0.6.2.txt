@@ -1,0 +1,7 @@
+Changes in 0.6.2
+================
+
+Jedi uses python iterpreter that was specified in settings,
+instead of using Sublime Python 2.6. This allow completion works with
+libs like numpy.
+
