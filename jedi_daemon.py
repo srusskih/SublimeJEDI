@@ -108,7 +108,10 @@ class JediFacade:
 
     def get(self, action):
         """ Action dispatcher """
-        return getattr(self, 'get_' + action)()
+        try:
+            return getattr(self, 'get_' + action)()
+        except:
+            logging.exception('`JediFacade.get_{0}` failed'.format(action))
 
     def get_goto(self):
         """ Jedi "Go To Definition" """
@@ -292,3 +295,5 @@ if __name__ == '__main__':
                 process_line(line)
             except Exception:
                 logger.exception('failed to process line')
+                write('Process failed with exception, see log file at {}'.
+                      format(jedi.settings.cache_directory))

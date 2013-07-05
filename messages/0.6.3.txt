@@ -1,0 +1,4 @@
+Changes in 0.6.3
+================
+
+Fix plugin installation with Sublime Package Control on ST3

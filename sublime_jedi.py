@@ -1,24 +1,22 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-
 import os
 import sys
 import functools
 from uuid import uuid1
 from collections import defaultdict
 
-import sublime
-import sublime_plugin
-
 try:
+    from console_logging import getLogger
     from utils import start_daemon, is_python_scope
 except ImportError:
     from .utils import start_daemon, is_python_scope
+    from .console_logging import getLogger
 
+import sublime
+import sublime_plugin
+
+logger = getLogger(__name__)
 PY3 = sys.version_info[0] == 3
-#import pprint
-#jedi.set_debug_function(lambda level, *x: pprint.pprint((repr(level), x)))
-
 DAEMONS = defaultdict(dict)  # per window
 
 
@@ -38,6 +36,8 @@ def get_plugin_settings():
 
 
 def ask_daemon(view, callback, ask_type, location=None):
+    logger.info('JEDI ask daemon for "{0}"'.format(ask_type))
+
     window_id = view.window().id()
     if window_id not in DAEMONS:
         # there is no api to get current project's name
@@ -143,7 +143,15 @@ class Autocomplete(sublime_plugin.EventListener):
 
             :return: list
         """
+        logger.info('JEDI completion triggered')
+
         if self.cplns_ready:
+            logger.debug(
+                'JEDI has completion in daemon response {0}'.format(
+                    self.completions
+                )
+            )
+
             self.cplns_ready = None
             if self.completions:
                 cplns, self.completions = self.completions, []
@@ -152,6 +160,7 @@ class Autocomplete(sublime_plugin.EventListener):
 
         # nothing to do with non-python code
         if not is_python_scope(view, locations[0]):
+            logger.debug('JEDI does not complete in strings')
             return
 
         # get completions list

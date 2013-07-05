@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import os
 import sys
 import subprocess
@@ -9,9 +10,12 @@ from collections import namedtuple
 
 try:
     from Queue import Queue
+    from console_logging import getLogger
 except ImportError:
     from queue import Queue
+    from .console_logging import getLogger
 
+logger = getLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 import sublime
@@ -52,7 +56,10 @@ class ThreadReader(BaseThread):
 
     def call_callback(self, data):
         if not isinstance(data, dict):
-            return  # should be a logging call
+            logger.exception(
+                "JEDI: Non JSON data from daemon: {}"
+                .format(data)
+            )
 
         with self.wait_lock:
             callback = self.waiting.pop(data['uuid'], None)
