@@ -101,6 +101,11 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 
         ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
 
+    @property
+    def auth_match_enabled(self):
+        """ check if sublime closes parenthesis automaticly """
+        return self.view.settings().get('auto_match_enabled', True)
+
     def _insert_characters(self, edit, characters):
         """
         Insert autocomplete character with closed pair
@@ -111,8 +116,15 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         """
         regions = [a for a in self.view.sel()]
         self.view.sel().clear()
+
+        # set close parenthesis if sublime setting enabled
+        if self.auth_match_enabled:
+            pair = characters + ')'
+        else:
+            pair = characters
+
         for region in reversed(regions):
-            self.view.insert(edit, region.end(), characters + ')')
+            self.view.insert(edit, region.end(), pair)
             position = region.end() + len(characters)
             self.view.sel().add(sublime.Region(position, position))
 
