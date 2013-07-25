@@ -4,14 +4,14 @@
         {
             "name": "SublimeJEDI",
             "description": "Awesome Python autocompletion based on Jedi library",
-            "author": "svaiter",
-            "homepage": "https://github.com/svaiter/SublimeJEDI",
+            "author": "srusskih",
+            "homepage": "https://github.com/srusskih/SublimeJEDI",
             "last_modified": "2013-07-02 23:01",
             "platforms": {
                 "*": [
                     {
                         "version": "0.6.3",
-                        "url": "https://github.com/svaiter/SublimeJEDI/archive/0.6.3.zip"
+                        "url": "https://github.com/srusskih/SublimeJEDI/archive/0.6.3.zip"
                     }
                 ]
             }

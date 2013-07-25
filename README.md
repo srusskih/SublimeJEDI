@@ -1,7 +1,7 @@
 SublimeJEDI
 ============
 
-[SublimeJEDI](https://github.com/svaiter/SublimeJEDI) is a [Sublime Text 2](http://www.sublimetext.com/) and Sublime Text 3 plugin
+[SublimeJEDI](https://github.com/srusskih/SublimeJEDI) is a [Sublime Text 2](http://www.sublimetext.com/) and Sublime Text 3 plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
 
 
@@ -11,7 +11,7 @@ Installation
 #### with Git
 
     cd ~/.config/sublime-text-2/Packages/
-    git clone https://github.com/svaiter/SublimeJEDI.git
+    git clone https://github.com/srusskih/SublimeJEDI.git
 
 
 #### with [Sublime Package Control](http://wbond.net/sublime_packages/package_control)
