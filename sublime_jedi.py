@@ -192,7 +192,7 @@ class Autocomplete(sublime_plugin.EventListener):
     def show(self, view):
         view.run_command("auto_complete", {
             'disable_auto_insert': True,
-            'api_completions_only': True,
+            'api_completions_only': False,
             'next_completion_if_showing': False,
             'auto_complete_commit_on_tab': True,
         })
