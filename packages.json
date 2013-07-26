@@ -6,12 +6,12 @@
             "description": "Awesome Python autocompletion based on Jedi library",
             "author": "srusskih",
             "homepage": "https://github.com/srusskih/SublimeJEDI",
-            "last_modified": "2013-07-02 23:01",
+            "last_modified": "2013-07-27 00:55",
             "platforms": {
                 "*": [
                     {
-                        "version": "0.6.3",
-                        "url": "https://github.com/srusskih/SublimeJEDI/archive/0.6.3.zip"
+                        "version": "0.6.4",
+                        "url": "https://github.com/srusskih/SublimeJEDI/archive/0.6.4.zip"
                     }
                 ]
             }
