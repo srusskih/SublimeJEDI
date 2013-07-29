@@ -170,6 +170,10 @@ class Autocomplete(sublime_plugin.EventListener):
                 return [tuple(i) for i in cplns]
             return
 
+        if view.settings().get("repl", False):
+            logger.debug("JEDI does not complete in SublimeREPL views")
+            return
+
         # nothing to do with non-python code
         if not is_python_scope(view, locations[0]):
             logger.debug('JEDI does not complete in strings')
