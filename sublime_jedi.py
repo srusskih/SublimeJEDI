@@ -102,7 +102,7 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
 
     @property
-    def auth_match_enabled(self):
+    def auto_match_enabled(self):
         """ check if sublime closes parenthesis automaticly """
         return self.view.settings().get('auto_match_enabled', True)
 
@@ -118,7 +118,7 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         self.view.sel().clear()
 
         # set close parenthesis if sublime setting enabled
-        if self.auth_match_enabled:
+        if self.auto_match_enabled:
             pair = characters + ')'
         else:
             pair = characters
