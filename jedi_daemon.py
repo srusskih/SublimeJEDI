@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import functools
 import os
 import sys
 import json
@@ -12,6 +13,8 @@ sys.path.insert(0, BASE)
 
 import jedi
 from jedi.api import NotFoundError
+
+from typhoon import ioloop, tcpserver
 
 sys.path.pop(0)
 
@@ -33,22 +36,6 @@ def getLogger(path):
     hdlr.setFormatter(formatter)
     log.addHandler(hdlr)
     return log
-
-
-def write(data):
-    """  Write data to STDOUT """
-    if not isinstance(data, str):
-        data = json.dumps(data)
-
-    sys.stdout.write(data)
-
-    if not data.endswith('\n'):
-        sys.stdout.write('\n')
-
-    try:
-        sys.stdout.flush()
-    except IOError:
-        sys.exit()
 
 
 def format_completion(complete):
@@ -222,19 +209,36 @@ class JediFacade:
         return ", ".join(completions)
 
 
-def process_line(line):
-    data = json.loads(line.strip())
+class JediProtocol(object):
+    def __init__(self, stream):
+        self.stream = stream
+        self.stream.read_until('\n', self.process_line)
 
-    uuid = data.pop('uuid')
-    action_type = data.pop('type')
+    def process_line(self, line):
+        data = json.loads(line.decode('utf-8').strip())
+        uuid = data.pop('uuid')
+        action_type = data.pop('type')
+        out_data = {
+            'uuid': uuid,
+            'type': action_type,
+            action_type: JediFacade(**data).get(action_type)
+        }
+        out_data = json.dumps(out_data)
 
-    out_data = {
-        'uuid': uuid,
-        'type': action_type,
-        action_type: JediFacade(**data).get(action_type)
-    }
+        self.stream.write(out_data.encode('utf-8'))
+        self.stream.write(b'\n')
+        self.stream.read_until(b'\n', self.process_line)
 
-    write(out_data)
+
+class JediTCPServer(tcpserver.TCPServer):
+
+    connections = list()
+
+    def handle_stream(self, stream, addr):
+        print ('Connection accepted from:', addr)
+        self.connections.append(JediProtocol(stream))
+        close_cb = functools.partial(self.connections.remove, stream)
+        stream.set_close_callback(close_cb)
 
 
 if __name__ == '__main__':
@@ -244,6 +248,12 @@ if __name__ == '__main__':
         dest="project_name",
         default='',
         help="project name to store jedi's cache"
+    )
+    parser.add_option(
+        "--port",
+        dest="port",
+        default=8888,
+        help="port for TCP server"
     )
     parser.add_option(
         "-e", "--extra_folder",
@@ -288,12 +298,7 @@ if __name__ == '__main__':
         if extra_folder not in sys.path:
             sys.path.insert(0, extra_folder)
 
-    # call the Jedi
-    for line in iter(sys.stdin.readline, ''):
-        if line:
-            try:
-                process_line(line)
-            except Exception:
-                logger.exception('failed to process line')
-                write('Process failed with exception, see log file at {}'.
-                      format(jedi.settings.cache_directory))
+    print ('Start Jedi server.')
+    server = JediTCPServer()
+    server.listen(options.port)
+    ioloop.IOLoop.instance().start()
