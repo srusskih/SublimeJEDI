@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-import os
+
 import sys
 import functools
-from uuid import uuid1
 from collections import defaultdict
 
 try:
     from console_logging import getLogger
-    from utils import start_daemon, is_python_scope
+    from utils import send_request, is_python_scope
 except ImportError:
-    from .utils import start_daemon, is_python_scope
+    from .utils import send_request, is_python_scope
     from .console_logging import getLogger
 
 import sublime
@@ -38,47 +37,19 @@ def get_plugin_settings():
 def ask_daemon(view, callback, ask_type, location=None):
     logger.info('JEDI ask daemon for "{0}"'.format(ask_type))
 
-    window_id = view.window().id()
-    if window_id not in DAEMONS:
-        # there is no api to get current project's name
-        # so force user to enter it in settings or use first folder in project
-        first_folder = ''
-        if view.window().folders():
-            first_folder = os.path.split(view.window().folders()[0])[-1]
-        project_name = get_settings_param(
-            view,
-            'project_name',
-            first_folder,
-        )
-
-        daemon = start_daemon(
-            window_id=window_id,
-            interp=get_settings_param(view, 'python_interpreter_path', 'python'),
-            extra_packages=get_settings_param(view, 'python_package_paths', []),
-            project_name=project_name,
-            complete_funcargs=get_settings_param(view, 'auto_complete_function_params', 'all'),
-        )
-
-        DAEMONS[window_id] = daemon
-
     if location is None:
         location = view.sel()[0].begin()
     current_line, current_column = view.rowcol(location)
     source = view.substr(sublime.Region(0, view.size()))
 
-    if PY3:
-        uuid = uuid1().hex
-    else:
-        uuid = uuid1().get_hex()
     data = {
         'source': source,
         'line': current_line + 1,
         'offset': current_column,
         'filename': view.file_name() or '',
         'type': ask_type,
-        'uuid': uuid,
     }
-    DAEMONS[window_id].stdin.put_nowait((callback, data))
+    send_request(callback, data)
 
 
 class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
