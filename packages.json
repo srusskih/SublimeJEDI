@@ -1,20 +1,17 @@
 {
-    "schema_version": "1.2",
+    "schema_version": "2.0",
     "packages": [
         {
-            "name": "SublimeJEDI",
-            "description": "Awesome Python autocompletion based on Jedi library",
-            "author": "srusskih",
-            "homepage": "https://github.com/srusskih/SublimeJEDI",
-            "last_modified": "2013-07-27 00:55",
-            "platforms": {
-                "*": [
-                    {
-                        "version": "0.6.4",
-                        "url": "https://codeload.github.com/srusskih/SublimeJEDI/zip/0.6.4"
-                    }
-                ]
-            }
+            "name": "Jedi - Python autocompetion",
+            "previous_names": ["SublimeJEDI"],
+            "details": "https://github.com/srusskih/SublimeJEDI",
+            "labels": ["auto-complete", "code navigation"],
+            "releases": [
+                {
+                    "details": "https://github.com/srusskih/SublimeJEDI/tags",
+                    "sublime_text": "*"
+                }
+            ]
         }
     ]
 }
