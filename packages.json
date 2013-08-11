@@ -2,7 +2,7 @@
     "schema_version": "2.0",
     "packages": [
         {
-            "name": "Jedi - Python autocompetion",
+            "name": "Jedi - Python autocompletion",
             "previous_names": ["SublimeJEDI"],
             "details": "https://github.com/srusskih/SublimeJEDI",
             "labels": ["auto-complete", "code navigation"],
