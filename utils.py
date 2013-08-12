@@ -124,7 +124,16 @@ def start_daemon(window_id, interp, extra_packages, project_name, complete_funca
     for folder in extra_packages:
         sub_args.extend(['-e', folder])
     sub_args.extend(['-f', complete_funcargs])
-    process = subprocess.Popen(sub_args, **sub_kwargs)
+
+    try:
+        process = subprocess.Popen(sub_args, **sub_kwargs)
+    except OSError:
+        logger.error(
+            'Daemon process failed with next parameters: {0} {1}'
+            .format(sub_args, sub_kwargs)
+        )
+        raise
+
     waiting = dict()
     wlock = threading.RLock()
     return Daemon(
