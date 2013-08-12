@@ -112,7 +112,17 @@ Function parameters completion has 3 different behavior:
 
 Find function / variable / class definition
 
-Shortcuts: `CTRL+SHIFT+G` or `CTRL + LeftMouseButton`
+Shortcuts: `CTRL+SHIFT+G` 
+
+Mouse binding, was disabled, becase it's hard to keep ST default behavior.
+Now you can bind `CTRL + LeftMouseButton` by themself in this way:
+
+    # User/Default.sublime-mousemap
+    [{
+        "modifiers": ["ctrl"], "button": "button1", 
+        "command": "sublime_jedi_goto",
+        "press_command": "drag_select"
+    }]
 
 
 #### Jedi Find Related Names ("Find Usages")
