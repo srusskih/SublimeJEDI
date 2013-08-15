@@ -224,14 +224,19 @@ class JediFacade:
 
 def process_line(line):
     data = json.loads(line.strip())
+    action_type = data['type']
 
-    uuid = data.pop('uuid')
-    action_type = data.pop('type')
+    script = JediFacade(
+        source=data['source'],
+        line=data['line'],
+        offset=data['offset'],
+        filename=data.get('filename', '')
+    )
 
     out_data = {
-        'uuid': uuid,
+        'uuid': data.get('uuid'),
         'type': action_type,
-        action_type: JediFacade(**data).get(action_type)
+        action_type: script.get(action_type)
     }
 
     write(out_data)
