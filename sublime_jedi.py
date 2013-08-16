@@ -93,7 +93,6 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         :param edit: sublime.Edit
         :param characters: (str
         """
-        print(1)
         self._insert_characters(edit, characters, ')')
 
         # nothing to do with non-python code
