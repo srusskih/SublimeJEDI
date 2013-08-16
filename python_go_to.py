@@ -10,40 +10,8 @@ except ImportError:
     from .utils import is_python_scope
 
 
-def check_if_string(view):
-    """ Checks if the current selection is a string
-
-        :param view: `sublime.View` object
-
-        :return: bool
-    """
-    sels = view.sel()
-    region = view.word(sels[0])
-
-    line = view.line(region)
-    currently_string = False
-    current_string_quotes = []
-
-    for x in range(line.a, line.b):
-        char = view.substr(x)
-        if char in ('\'', '"'):
-
-            if len(current_string_quotes) == 1 and current_string_quotes[-1] == char:
-                currently_string = False
-                current_string_quotes.pop()
-
-            else:
-                currently_string = True
-                current_string_quotes.append(char)
-
-        if x >= region.a:
-            return currently_string
-
-    return currently_string
-
-
 class BaseLookUpJediCommand(object):
-    def is_enable(self):
+    def is_enabled(self):
         """ command enable only for python source code """
         if not is_python_scope(self.view, self.view.sel()[0].begin()):
             return False
@@ -89,13 +57,13 @@ class BaseLookUpJediCommand(object):
             "{} require `prepare_option` definition".format(self.__class__)
         )
 
-    def run(self, edit):
-        if check_if_string(self.view):
-            return
-        return super(BaseLookUpJediCommand, self).run(edit)
-
 
 class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
+    """ Go to object definition
+
+    TODO:
+     - make relative pathes shorter
+    """
 
     def run(self, edit):
         ask_daemon(self.view, self.handle_definitions, 'goto')
@@ -114,7 +82,11 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
 
 
 class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
-    """ find object usages """
+    """ find object usages
+
+    TODO:
+     - make relative pathes shorter
+    """
     def run(self, edit):
         ask_daemon(self.view, self._window_quick_panel_open_window, 'usages')
 

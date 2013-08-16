@@ -91,9 +91,10 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         if possible
 
         :param edit: sublime.Edit
-        :param characters: str
+        :param characters: (str
         """
-        self._insert_characters(edit, characters)
+        print(1)
+        self._insert_characters(edit, characters, ')')
 
         # nothing to do with non-python code
         if not is_python_scope(self.view, self.view.sel()[0].begin()):
@@ -106,10 +107,31 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         """ check if sublime closes parenthesis automaticly """
         return self.view.settings().get('auto_match_enabled', True)
 
-    def _insert_characters(self, edit, characters):
+    def _insert_characters(self, edit, open_pair, close_pair):
         """
         Insert autocomplete character with closed pair
         and update selection regions
+
+        If sublime option `auto_match_enabled` turned on, next behavior have to be:
+
+            when none selection 
+
+            `( => (<caret>)`
+
+            when text selected
+
+            `text => (text<caret>)`
+
+        In other case:
+
+            when none selection 
+
+            `( => (<caret>`
+
+            when text selected
+
+            `text => (<caret>`
+
 
         :param edit: sublime.Edit
         :param characters: str
@@ -117,15 +139,16 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         regions = [a for a in self.view.sel()]
         self.view.sel().clear()
 
-        # set close parenthesis if sublime setting enabled
-        if self.auto_match_enabled:
-            pair = characters + ')'
-        else:
-            pair = characters
-
         for region in reversed(regions):
-            self.view.insert(edit, region.end(), pair)
-            position = region.end() + len(characters)
+
+            if self.auto_match_enabled:
+                self.view.insert(edit, region.begin(), open_pair)
+                self.view.insert(edit, region.end() + 1, close_pair)
+                position = region.end() + len(open_pair)
+            else:
+                self.view.replace(edit, region, open_pair) 
+                position = region.begin() + len(open_pair)
+
             self.view.sel().add(sublime.Region(position, position))
 
     def show_template(self, view, template):
@@ -143,17 +166,17 @@ class Autocomplete(sublime_plugin.EventListener):
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
 
-            Get completions depends on current cursor position and return
-            them as list of ('possible completion', 'completion type')
+        Get completions depends on current cursor position and return
+        them as list of ('possible completion', 'completion type')
 
-            :param view: `sublime.View` object
-            :type view: sublime.View
-            :param prefix: string for completions
-            :type prefix: basestring
-            :param locations: offset from beginning
-            :type locations: int
+        :param view: `sublime.View` object
+        :type view: sublime.View
+        :param prefix: string for completions
+        :type prefix: basestring
+        :param locations: offset from beginning
+        :type locations: int
 
-            :return: list
+        :return: list of tuple(str, str)
         """
         logger.info('JEDI completion triggered')
 
