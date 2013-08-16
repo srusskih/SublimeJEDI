@@ -1,0 +1,7 @@
+Changes in 0.6.5
+================
+
+ - fixed behavior of adding parentheses around highlighted text when "auto_match_enabled" enabled.
+ - turned off autocomplete in SublimeREPL views
+ - removed `Ctrl+Click` behavior, user have to override it by them self now. See https://github.com/srusskih/SublimeJEDI#jedi-goto--go-definition
+ - fixed Python 2.6 capibility
