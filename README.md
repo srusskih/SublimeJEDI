@@ -135,5 +135,4 @@ Shortcut: `Alt+Shift+f`
 License
 -------
 
-GNU LGPL v3
-[full text](http://www.gnu.org/licenses/lgpl.txt)
+[MIT](/LICENSE.txt)
