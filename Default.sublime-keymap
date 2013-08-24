@@ -1,5 +1,17 @@
 [
-    {"command": "sublime_jedi_goto", "keys": ["ctrl+shift+g"]},
-    {"command": "sublime_jedi_find_usages", "keys": ["alt+shift+f"]},
-	{"command": "sublime_jedi_params_autocomplete", "keys": ["("]}
+    {"command": "sublime_jedi_goto", "keys": ["ctrl+shift+g"],
+        "context": [
+            {"key": "selector", "operator": "equal", "operand":  "source.python"}
+        ]
+    },
+    {"command": "sublime_jedi_find_usages", "keys": ["alt+shift+f"],
+        "context": [
+            {"key": "selector", "operator": "equal", "operand":  "source.python"}
+        ]
+    },
+    {"command": "sublime_jedi_params_autocomplete", "keys": ["("]
+        "context": [
+            {"key": "selector", "operator": "equal", "operand":  "source.python"}
+        ]
+    }
 ]
