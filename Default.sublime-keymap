@@ -4,7 +4,7 @@
             {"key": "selector", "operator": "equal", "operand":  "source.python"}
         ]
     },
-    {"command": "sublime_jedi_find_usages", "keys": ["alt+shift+f"],
+    {"command": "sublime_jedi_find_usages", "keys": ["ctrl+shift+f"],
         "context": [
             {"key": "selector", "operator": "equal", "operand":  "source.python"}
         ]
