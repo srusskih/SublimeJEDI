@@ -2,12 +2,7 @@
 import sublime
 import sublime_plugin
 
-try:
-    from sublime_jedi import ask_daemon
-    from utils import is_python_scope, to_relative_path
-except ImportError:
-    from .sublime_jedi import ask_daemon
-    from .utils import is_python_scope, to_relative_path
+from .utils import is_python_scope, to_relative_path, ask_daemon
 
 
 class BaseLookUpJediCommand(object):
