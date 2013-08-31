@@ -11,7 +11,7 @@ Installation
 #### with Git
 
     cd ~/.config/sublime-text-2/Packages/
-    git clone https://github.com/srusskih/SublimeJEDI.git
+    git clone https://github.com/srusskih/SublimeJEDI.git "Jedi - Python autocompletion"
 
 
 #### with [Sublime Package Control](http://wbond.net/sublime_packages/package_control)

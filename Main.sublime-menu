@@ -12,12 +12,12 @@
                 "children":
                 [
                     {
-                        "caption": "SublimeJEDI",
+                        "caption": "Jedi",
                         "children":
                         [
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/SublimeJEDI/sublime_jedi.sublime-settings"},
+                                "args": {"file": "${packages}/Jedi - Python autocompletion/sublime_jedi.sublime-settings"},
                                 "caption": "Settings – Default"
                             },
                             {
@@ -28,7 +28,7 @@
                             { "caption": "-" },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/SublimeJEDI/Default.sublime-keymap"},
+                                "args": {"file": "${packages}/Jedi - Python autocompletion/Default.sublime-keymap"},
                                 "caption": "Keymap – Default"
                             },
                             {
@@ -39,7 +39,7 @@
                             { "caption": "-" },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/SublimeJEDI/Default.sublime-mousemap"},
+                                "args": {"file": "${packages}/Jedi - Python autocompletion/Default.sublime-mousemap"},
                                 "caption": "Mousemap – Default"
                             },
                             {
