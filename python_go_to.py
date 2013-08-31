@@ -4,10 +4,10 @@ import sublime_plugin
 
 try:
     from sublime_jedi import ask_daemon
-    from utils import is_python_scope
+    from utils import is_python_scope, to_relative_path
 except ImportError:
     from .sublime_jedi import ask_daemon
-    from .utils import is_python_scope
+    from .utils import is_python_scope, to_relative_path
 
 
 class BaseLookUpJediCommand(object):
@@ -78,7 +78,7 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             self._window_quick_panel_open_window(view, defns)
 
     def prepare_option(self, option):
-        return option[0]
+        return to_relative_path(option[0])
 
 
 class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
@@ -91,5 +91,5 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
         ask_daemon(self.view, self._window_quick_panel_open_window, 'usages')
 
     def prepare_option(self, option):
-        return [option[0],
+        return [to_relative_path(option[0]),
                 "line: %d column: %d" % (option[1], option[2])]

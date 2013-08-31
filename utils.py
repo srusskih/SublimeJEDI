@@ -150,3 +150,21 @@ def is_python_scope(view, location):
     Get if this is a python source scope (not a string and not a comment)
     """
     return view.match_selector(location, "source.python - string - comment")
+
+
+def to_relative_path(path):
+    """
+    Trim project root pathes from **path** passed as argument
+
+    If no any folders opened, path will be retuned unchanged
+    """
+    folders = sublime.active_window().folders()
+    for folder in folders:
+        # close path with separator
+        if folder[-1] != os.path.sep:
+            folder += os.path.sep
+
+        if path.startswith(folder):
+            return path.replace(folder, '')
+
+    return path
