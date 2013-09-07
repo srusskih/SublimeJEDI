@@ -1,0 +1,7 @@
+Changes in 0.6.6
+================
+
+ - License changed on MIT (issue #78)
+ - Fixed paths to configuration files in Sublime menu (issue #80)
+ - Paths in "Find Usages" and "Go to Definitions" are (issue #81)
+ project root relative
