@@ -6,13 +6,13 @@ import logging
 from logging import handlers
 from optparse import OptionParser
 
-# fix absolute imports on ST3
-BASE = os.path.abspath(os.path.dirname(__file__))
-sys.path.insert(0, BASE)
+# add jedi too sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import jedi
 from jedi.api import NotFoundError
 
+# remove it. WHY?
 sys.path.pop(0)
 
 is_funcargs_complete_enabled = True
