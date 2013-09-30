@@ -6,19 +6,21 @@ import subprocess
 import json
 import threading
 from functools import partial
-from collections import namedtuple
-
+from collections import namedtuple, defaultdict
+from uuid import uuid1
 try:
     from Queue import Queue
-    from console_logging import getLogger
 except ImportError:
     from queue import Queue
-    from .console_logging import getLogger
+
+import sublime
+
+from .console_logging import getLogger
 
 logger = getLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-
-import sublime
+PY3 = sys.version_info[0] == 3
+DAEMONS = defaultdict(dict)  # per window
 
 
 def run_in_active_view(window_id, callback, response):
@@ -57,7 +59,7 @@ class ThreadReader(BaseThread):
     def call_callback(self, data):
         if not isinstance(data, dict):
             logger.exception(
-                "JEDI: Non JSON data from daemon: {}"
+                "JEDI: Non JSON data from daemon: {0}"
                 .format(data)
             )
 
@@ -120,11 +122,15 @@ def start_daemon(window_id, interp, extra_packages, project_name, complete_funca
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         sub_kwargs['startupinfo'] = startupinfo
 
-    sub_args = [interp, '-B', 'jedi_daemon.py', '-p', project_name]
+    sub_args = [interp, '-B', 'daemon.py', '-p', project_name]
     for folder in extra_packages:
         sub_args.extend(['-e', folder])
     sub_args.extend(['-f', complete_funcargs])
 
+    logger.debug(
+        'Daemon called with next parameters: {0} {1}'
+        .format(sub_args, sub_kwargs)
+    )
     try:
         process = subprocess.Popen(sub_args, **sub_kwargs)
     except OSError:
@@ -142,6 +148,52 @@ def start_daemon(window_id, interp, extra_packages, project_name, complete_funca
         ThreadReader(process.stdout, window_id, waiting, wlock),
         ThreadReader(process.stderr, window_id, waiting, wlock),
     )
+
+
+def ask_daemon(view, callback, ask_type, location=None):
+    logger.info('JEDI ask daemon for "{0}"'.format(ask_type))
+
+    window_id = view.window().id()
+    if window_id not in DAEMONS:
+        # there is no api to get current project's name
+        # so force user to enter it in settings or use first folder in project
+        first_folder = ''
+        if view.window().folders():
+            first_folder = os.path.split(view.window().folders()[0])[-1]
+        project_name = get_settings_param(
+            view,
+            'project_name',
+            first_folder,
+            )
+
+        daemon = start_daemon(
+            window_id=window_id,
+            interp=get_settings_param(view, 'python_interpreter_path', 'python'),
+            extra_packages=get_settings_param(view, 'python_package_paths', []),
+            project_name=project_name,
+            complete_funcargs=get_settings_param(view, 'auto_complete_function_params', 'all'),
+            )
+
+        DAEMONS[window_id] = daemon
+
+    if location is None:
+        location = view.sel()[0].begin()
+    current_line, current_column = view.rowcol(location)
+    source = view.substr(sublime.Region(0, view.size()))
+
+    if PY3:
+        uuid = uuid1().hex
+    else:
+        uuid = uuid1().get_hex()
+    data = {
+        'source': source,
+        'line': current_line + 1,
+        'offset': current_column,
+        'filename': view.file_name() or '',
+        'type': ask_type,
+        'uuid': uuid,
+        }
+    DAEMONS[window_id].stdin.put_nowait((callback, data))
 
 
 def is_python_scope(view, location):
@@ -168,3 +220,18 @@ def to_relative_path(path):
             return path.replace(folder, '')
 
     return path
+
+
+def get_plugin_settings():
+    setting_name = 'sublime_jedi.sublime-settings'
+    plugin_settings = sublime.load_settings(setting_name)
+    return plugin_settings
+
+
+def get_settings_param(view, param_name, default=None):
+    plugin_settings = get_plugin_settings()
+    project_settings = view.settings()
+    return project_settings.get(
+        param_name,
+        plugin_settings.get(param_name, default)
+    )
