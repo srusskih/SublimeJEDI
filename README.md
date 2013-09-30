@@ -132,6 +132,19 @@ Find function / method / variable / class usage, definition
 Shortcut: `Alt+Shift+f`
 
 
+#### Logging
+
+To change logging level of the plugin - change `logging_level` value in settings.
+
+Possible values: "debug", "info", "error"
+
+
+    # User/sublime_jedi.sublime-settings
+    {
+        // ...
+		"logging_level": "error"
+    }
+
 License
 -------
 
