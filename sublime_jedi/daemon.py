@@ -3,7 +3,6 @@ import os
 import sys
 import json
 import logging
-from logging import handlers
 from optparse import OptionParser
 
 # add jedi too sys.path
@@ -19,17 +18,23 @@ is_funcargs_complete_enabled = True
 auto_complete_function_params = 'required'
 
 
-def getLogger(path):
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        output = super(JsonFormatter, self).format(record)
+        data = {
+            'logging': record.levelname.lower(),
+            'content': output
+        }
+        record = json.dumps(data)
+        return record
+
+
+def getLogger():
     """ Build file logger """
-    log = logging.getLogger('')
+    log = logging.getLogger('Sublime Jedi Daemon')
     log.setLevel(logging.DEBUG)
-    hdlr = handlers.RotatingFileHandler(
-        filename=os.path.join(path, 'daemon.log'),
-        maxBytes=10000000,
-        backupCount=5,
-        encoding='utf-8'
-    )
-    formatter = logging.Formatter('%(asctime)s: %(levelname)-8s: %(message)s')
+    formatter = JsonFormatter('%(asctime)s: %(levelname)-8s: %(message)s')
+    hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setFormatter(formatter)
     log.addHandler(hdlr)
     return log
@@ -269,21 +274,11 @@ if __name__ == '__main__':
     is_funcargs_complete_enabled = bool(options.function_params)
     auto_complete_function_params = options.function_params
 
-    # prepare Jedi cache
-    if options.project_name:
-        jedi.settings.cache_directory = os.path.join(
-            jedi.settings.cache_directory,
-            options.project_name,
-        )
-    if not os.path.exists(jedi.settings.cache_directory):
-        os.makedirs(jedi.settings.cache_directory)
-
-    logger = getLogger(jedi.settings.cache_directory)
+    logger = getLogger()
     logger.info(
-        'started. cache directory - %s, '
+        'Daemon started. '
         'extra folders - %s, '
         'complete_function_params - %s',
-        jedi.settings.cache_directory,
         options.extra_folders,
         options.function_params,
     )
@@ -300,5 +295,3 @@ if __name__ == '__main__':
                 process_line(line)
             except Exception:
                 logger.exception('failed to process line')
-                write('Process failed with exception, see log file at {}'.
-                      format(jedi.settings.cache_directory))

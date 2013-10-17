@@ -16,6 +16,7 @@ except ImportError:
 import sublime
 
 from .console_logging import getLogger
+from .settings import get_settings_param
 
 logger = getLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -52,16 +53,22 @@ class ThreadReader(BaseThread):
                 try:
                     data = json.loads(line.strip())
                 except ValueError:
-                    self.call_callback(line)
+                    if not isinstance(data, dict):
+                        logger.exception(
+                            "Non JSON data from daemon: {0}".format(line)
+                        )
                 else:
                     self.call_callback(data)
 
     def call_callback(self, data):
-        if not isinstance(data, dict):
-            logger.exception(
-                "JEDI: Non JSON data from daemon: {0}"
-                .format(data)
-            )
+        """
+        Call callback for response data
+
+        :type data: dict
+        """
+        if 'logging' in data:
+            getattr(logger, data['logging'])(data['content'])
+            return
 
         with self.wait_lock:
             callback = self.waiting.pop(data['uuid'], None)
@@ -151,7 +158,7 @@ def start_daemon(window_id, interp, extra_packages, project_name, complete_funca
 
 
 def ask_daemon(view, callback, ask_type, location=None):
-    logger.info('JEDI ask daemon for "{0}"'.format(ask_type))
+    logger.info('ask daemon for "{0}"'.format(ask_type))
 
     window_id = view.window().id()
     if window_id not in DAEMONS:
@@ -220,18 +227,3 @@ def to_relative_path(path):
             return path.replace(folder, '')
 
     return path
-
-
-def get_plugin_settings():
-    setting_name = 'sublime_jedi.sublime-settings'
-    plugin_settings = sublime.load_settings(setting_name)
-    return plugin_settings
-
-
-def get_settings_param(view, param_name, default=None):
-    plugin_settings = get_plugin_settings()
-    project_settings = view.settings()
-    return project_settings.get(
-        param_name,
-        plugin_settings.get(param_name, default)
-    )
