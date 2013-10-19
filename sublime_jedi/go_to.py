@@ -2,10 +2,11 @@
 import sublime
 import sublime_plugin
 
-from .utils import is_python_scope, to_relative_path, ask_daemon
+from .utils import to_relative_path, ask_daemon, is_python_scope
 
 
 class BaseLookUpJediCommand(object):
+
     def is_enabled(self):
         """ command enable only for python source code """
         if not is_python_scope(self.view, self.view.sel()[0].begin()):
@@ -54,12 +55,9 @@ class BaseLookUpJediCommand(object):
 
 
 class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
-    """ Go to object definition
-
-    TODO:
-     - make relative pathes shorter
     """
-
+    Go to object definition
+    """
     def run(self, edit):
         ask_daemon(self.view, self.handle_definitions, 'goto')
 
@@ -77,10 +75,8 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
 
 
 class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
-    """ find object usages
-
-    TODO:
-     - make relative pathes shorter
+    """
+    Find object usages
     """
     def run(self, edit):
         ask_daemon(self.view, self._window_quick_panel_open_window, 'usages')

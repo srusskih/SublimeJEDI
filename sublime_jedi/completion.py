@@ -21,13 +21,16 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         if possible
 
         :param edit: sublime.Edit
-        :param characters: (str
+        :param characters: str
         """
         self._insert_characters(edit, characters, ')')
 
+        # Deprecated: scope should be tested in key bindings
+        #
         # nothing to do with non-python code
-        if not is_python_scope(self.view, self.view.sel()[0].begin()):
-            return
+        # if not is_python_scope(self.view, self.view.sel()[0].begin()):
+        #     logger.info('no function args completion in strings')
+        #     return
 
         ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
 
