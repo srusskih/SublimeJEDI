@@ -7,8 +7,8 @@ import sublime_plugin
 from .utils import is_python_scope, ask_daemon
 from .console_logging import getLogger
 
-
 logger = getLogger(__name__)
+FOLLOWING_CHARS = set(["\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"])
 
 
 class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
@@ -46,6 +46,7 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
             when none selection 
 
             `( => (<caret>)`
+            `<caret>1 => ( => (<caret>1`
 
             when text selected
 
@@ -70,12 +71,26 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 
         for region in reversed(regions):
 
+            next_char = self.view.substr(region.begin())
+            # replace null byte to prevent error
+            next_char = next_char.replace('\x00', '\n')
+            logger.debug("Next characters: {0}".format(next_char))
+
+            following_text = next_char not in FOLLOWING_CHARS
+            logger.debug("Following text: {0}".format(following_text))
+
             if self.auto_match_enabled:
                 self.view.insert(edit, region.begin(), open_pair)
-                self.view.insert(edit, region.end() + 1, close_pair)
-                position = region.end() + len(open_pair)
+                position = region.end() + 1
+
+                # IF selection is non-zero
+                # OR after cursor no any text and selection size is zero
+                # THEN insert closing pair
+                if region.size() > 0 or not following_text and region.size() == 0:
+                    self.view.insert(edit, region.end() + 1, close_pair)
+                    position += (len(open_pair) - 1)
             else:
-                self.view.replace(edit, region, open_pair) 
+                self.view.replace(edit, region, open_pair)
                 position = region.begin() + len(open_pair)
 
             self.view.sel().add(sublime.Region(position, position))
