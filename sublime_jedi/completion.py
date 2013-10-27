@@ -164,6 +164,18 @@ class Autocomplete(sublime_plugin.EventListener):
             sublime.set_timeout(functools.partial(self.show, view), 0)
 
     def show(self, view):
+        logger.debug("command history: " + str([
+            view.command_history(-1),
+            view.command_history(0),
+            view.command_history(1),
+        ]))
+        command = view.command_history(0)
+
+        # if completion was triggerd by tab, then hide "tab" or "snippet"
+        if command[0] == 'insert_best_completion' or\
+                (command == (u'insert', {'characters': u'\t'}, 1)):
+            view.run_command('undo')
+
         view.run_command("auto_complete", {
             'disable_auto_insert': True,
             'api_completions_only': False,
