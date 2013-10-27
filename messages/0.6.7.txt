@@ -1,0 +1,5 @@
+Changes in 0.6.7
+================
+
+ - fix parenthesis behavior (issue #91)
+ - run Jedi commands only in python scope
