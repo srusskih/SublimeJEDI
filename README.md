@@ -41,7 +41,7 @@ You can set Python interpreter, and additional python package directories, using
 
         "settings": {
             // ...
-            "python_interpreter_path": "/home/sr/.virtualenvs/django1.5/bin/python"
+            "python_interpreter_path": "/home/sr/.virtualenvs/django1.5/bin/python",
 
             "python_package_paths": [
                 "/home/sr/python_packages1",
