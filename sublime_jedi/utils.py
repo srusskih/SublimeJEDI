@@ -50,6 +50,7 @@ class ThreadReader(BaseThread):
         while not self.done:
             line = self.fd.readline()
             if line:
+                data = None
                 try:
                     data = json.loads(line.strip())
                 except ValueError:
