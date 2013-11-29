@@ -1,6 +1,8 @@
 from __future__ import print_function
+import functools
 import logging
 import traceback
+import sublime
 from .settings import get_plugin_settings
 
 
@@ -26,19 +28,30 @@ class Logger:
     def _print(self, msg):
         print(': '.join([self.name, str(msg)]))
 
-    def debug(self, msg):
-        if self.level <= logging.DEBUG:
+    def log(self, level, msg, **kwargs):
+        """ thread-safe logging """
+        log = functools.partial(self._log, level, msg, **kwargs)
+        sublime.set_timeout(log, 0)
+
+    def _log(self, level, msg, **kwargs):
+        """
+        :param level: logging level value
+        :param msg: message that logger should prints out
+        :param kwargs: dictionary of additional parameters
+        """
+        if self.level <= level:
             self._print(msg)
+            if level == logging.ERROR and kwargs.get('exc_info'):
+                traceback.print_exc()
+
+    def debug(self, msg):
+        self.log(logging.DEBUG, msg)
 
     def info(self, msg):
-        if self.level <= logging.INFO:
-            self._print(msg)
+        self.log(logging.INFO, msg)
 
     def error(self, msg, exc_info=False):
-        if self.level <= logging.ERROR:
-            self._print(msg)
-            if exc_info:
-                traceback.print_exc()
+        self.log(logging.ERROR, msg, exc_info=exc_info)
 
     def exception(self, msg):
         self.error(msg, exc_info=True)
