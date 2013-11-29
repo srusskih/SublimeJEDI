@@ -1,7 +1,8 @@
 {
     // we will use it to get PYTHONPATH for interpreter
-    // You cat set a path to your virtualenv
-    "python_interpreter_path": "python",
+    // You cat set a path to your virtualenv python interpreter 
+	// (ex. /home/user/.virtualenvs/myenv/bin/python)
+    "python_interpreter": "python",
 
     // additional python package path list
      "python_package_paths": [],
@@ -10,7 +11,7 @@
     // "required" - insert arguments that dont have default value (e.g. required)
     // "" - dont insert any arguments
     "auto_complete_function_params": "required",
-	
-	// "debug", "error", "info"
-	"logging_level": "debug"
+
+	// "debug", "error", "info", "warn"
+	"logging_level": "warn"
 }
