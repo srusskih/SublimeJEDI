@@ -1,0 +1,8 @@
+Changes in 0.6.8
+================
+
+ - fixed logger (#95)
+ - fixed adding "self" after calling completion after "dot" (#87)
+ - fixed settings example (#94)
+ - fixed messages.json (#96)
+
