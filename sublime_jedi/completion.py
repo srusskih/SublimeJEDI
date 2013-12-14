@@ -6,6 +6,7 @@ import sublime_plugin
 
 from .utils import is_python_scope, ask_daemon
 from .console_logging import getLogger
+from .settings import get_settings_param
 
 logger = getLogger(__name__)
 FOLLOWING_CHARS = set(["\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"])
@@ -46,7 +47,7 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 
         If sublime option `auto_match_enabled` turned on, next behavior have to be:
 
-            when none selection 
+            when none selection
 
             `( => (<caret>)`
             `<caret>1 => ( => (<caret>1`
@@ -57,7 +58,7 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 
         In other case:
 
-            when none selection 
+            when none selection
 
             `( => (<caret>`
 
@@ -109,6 +110,14 @@ class Autocomplete(sublime_plugin.EventListener):
 
     completions = []
     cplns_ready = None
+    cplns_mode = None
+
+    def on_load(self, view):
+        self.cplns_mode = get_settings_param(
+            view,
+            'sublime_completions_visibility',
+            default='default'
+        )
 
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
@@ -137,6 +146,11 @@ class Autocomplete(sublime_plugin.EventListener):
             self.cplns_ready = None
             if self.completions:
                 cplns, self.completions = self.completions, []
+                if self.cplns_mode in ('default', 'jedi'):
+                    return (
+                        [tuple(i) for i in cplns],
+                        sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS
+                    )
                 return [tuple(i) for i in cplns]
             return
 
@@ -153,6 +167,8 @@ class Autocomplete(sublime_plugin.EventListener):
         if self.cplns_ready is None:
             ask_daemon(view, self.show_completions, 'autocomplete', locations[0])
             self.cplns_ready = False
+        if self.cplns_mode == 'jedi':
+            view.run_command("hide_auto_complete")
         return
 
     def show_completions(self, view, completions):
