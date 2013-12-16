@@ -56,5 +56,8 @@ class Logger:
     def exception(self, msg):
         self.error(msg, exc_info=True)
 
+    def warning(self, msg):
+        self.log(logging.WARN, msg)
+
 
 getLogger = Logger

@@ -20,7 +20,7 @@ auto_complete_function_params = 'required'
 
 class JsonFormatter(logging.Formatter):
     def format(self, record):
-        output = super(JsonFormatter, self).format(record)
+        output = logging.Formatter.format(self, record)
         data = {
             'logging': record.levelname.lower(),
             'content': output

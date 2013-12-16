@@ -5,8 +5,9 @@ import sys
 import subprocess
 import json
 import threading
+import warnings
 from functools import partial
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 from uuid import uuid1
 try:
     from Queue import Queue
@@ -111,97 +112,140 @@ class ThreadWriter(BaseThread, Queue):
             self.fd.flush()
 
 
-Daemon = namedtuple("Daemon", "process stdin stdout stderr")
+class Daemon(object):
 
+    def __init__(self, view):
+        window_id = view.window().id()
+        self.waiting = dict()
+        self.wlock = threading.RLock()
+        self.process = self._start_process(get_settings(view))
+        self.stdin = ThreadWriter(self.process.stdin, window_id,
+                                  self.waiting, self.wlock)
+        self.stdout = ThreadReader(self.process.stdout, window_id,
+                                   self.waiting, self.wlock)
+        self.stderr = ThreadReader(self.process.stderr, window_id,
+                                   self.waiting, self.wlock)
 
-def start_daemon(window_id, interp, extra_packages, project_name, complete_funcargs):
-    sub_kwargs = {
-        'stdin': subprocess.PIPE,
-        'stdout': subprocess.PIPE,
-        'stderr': subprocess.PIPE,
-        'universal_newlines': True,
-        'cwd': CUR_DIR,
-        'bufsize': -1,
-    }
+    def _start_process(self, settings):
+        options = {
+            'stdin': subprocess.PIPE,
+            'stdout': subprocess.PIPE,
+            'stderr': subprocess.PIPE,
+            'universal_newlines': True,
+            'cwd': CUR_DIR,
+            'bufsize': -1,
+        }
 
-    # hide "cmd" window in Windows
-    if sys.platform == "win32":
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        sub_kwargs['startupinfo'] = startupinfo
+        # hide "cmd" window in Windows
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            options['startupinfo'] = startupinfo
 
-    sub_args = [interp, '-B', 'daemon.py', '-p', project_name]
-    for folder in extra_packages:
-        sub_args.extend(['-e', folder])
-    sub_args.extend(['-f', complete_funcargs])
+        command = [
+            settings['python_interpreter'],
+            '-B', 'daemon.py',
+            '-p', settings['project_name']
+        ]
+        for folder in settings['extra_packages']:
+            command.extend(['-e', folder])
+        command.extend(['-f', settings['complete_funcargs']])
 
-    logger.debug(
-        'Daemon called with next parameters: {0} {1}'
-        .format(sub_args, sub_kwargs)
-    )
-    try:
-        process = subprocess.Popen(sub_args, **sub_kwargs)
-    except OSError:
-        logger.error(
-            'Daemon process failed with next parameters: {0} {1}'
-            .format(sub_args, sub_kwargs)
+        logger.debug(
+            'Daemon process starting with parameters: {0} {1}'
+            .format(command, options)
         )
-        raise
+        try:
+            return subprocess.Popen(command, **options)
+        except OSError:
+            logger.error(
+                'Daemon process failed with next parameters: {0} {1}'
+                .format(command, options)
+            )
+            raise
 
-    waiting = dict()
-    wlock = threading.RLock()
-    return Daemon(
-        process,
-        ThreadWriter(process.stdin, window_id, waiting, wlock),
-        ThreadReader(process.stdout, window_id, waiting, wlock),
-        ThreadReader(process.stderr, window_id, waiting, wlock),
-    )
+    def request(self, view, request_type, callback, location=None):
+        """
+        Send request to daemon process
+
+        :type view: sublime.View
+        :type request_type: str
+        :type callback: callabel
+        :type location: type of (int, int) or None
+        """
+        logger.info('Sending request to daemon for "{0}"'.format(request_type))
+
+        if location is None:
+            location = view.sel()[0].begin()
+        current_line, current_column = view.rowcol(location)
+        source = view.substr(sublime.Region(0, view.size()))
+
+        if PY3:
+            uuid = uuid1().hex
+        else:
+            uuid = uuid1().get_hex()
+
+        data = {
+            'source': source,
+            'line': current_line + 1,
+            'offset': current_column,
+            'filename': view.file_name() or '',
+            'type': request_type,
+            'uuid': uuid,
+        }
+        self.stdin.put_nowait((callback, data))
 
 
 def ask_daemon(view, callback, ask_type, location=None):
-    logger.info('ask daemon for "{0}"'.format(ask_type))
+    """
+    Daemon request shortcut
 
+    :type view: sublime.View
+    :type callback: callabel
+    :type ask_type: str
+    :type location: type of (int, int) or None
+    """
     window_id = view.window().id()
+
     if window_id not in DAEMONS:
-        # there is no api to get current project's name
-        # so force user to enter it in settings or use first folder in project
-        first_folder = ''
-        if view.window().folders():
-            first_folder = os.path.split(view.window().folders()[0])[-1]
-        project_name = get_settings_param(
-            view,
-            'project_name',
-            first_folder,
-            )
+        DAEMONS[window_id] = Daemon(view)
 
-        daemon = start_daemon(
-            window_id=window_id,
-            interp=get_settings_param(view, 'python_interpreter_path', 'python'),
-            extra_packages=get_settings_param(view, 'python_package_paths', []),
-            project_name=project_name,
-            complete_funcargs=get_settings_param(view, 'auto_complete_function_params', 'all'),
-            )
+    DAEMONS[window_id].request(view, ask_type, callback, location)
 
-        DAEMONS[window_id] = daemon
 
-    if location is None:
-        location = view.sel()[0].begin()
-    current_line, current_column = view.rowcol(location)
-    source = view.substr(sublime.Region(0, view.size()))
+def get_settings(view):
+    """
+    get settings for daemon
 
-    if PY3:
-        uuid = uuid1().hex
+    :type view: sublime.View
+    :rtype: dict
+    """
+    python_interpreter = get_settings_param(view, 'python_interpreter_path')
+
+    if not python_interpreter:
+        python_interpreter = get_settings_param(view, 'python_interpreter',
+                                                'python')
     else:
-        uuid = uuid1().get_hex()
-    data = {
-        'source': source,
-        'line': current_line + 1,
-        'offset': current_column,
-        'filename': view.file_name() or '',
-        'type': ask_type,
-        'uuid': uuid,
-        }
-    DAEMONS[window_id].stdin.put_nowait((callback, data))
+        warnings.warn('`python_interpreter_path` parameter is deprecated.'
+                      'Please, use `python_interpreter` instead.',
+                      DeprecationWarning)
+
+    extra_packages = get_settings_param(view, 'python_package_paths', [])
+    complete_funcargs = get_settings_param(view,
+                                           'auto_complete_function_params',
+                                           'all')
+
+    first_folder = ''
+    if view.window().folders():
+        first_folder = os.path.split(view.window().folders()[0])[-1]
+    project_name = get_settings_param(view, 'project_name', first_folder)
+
+    return {
+        'python_interpreter': python_interpreter,
+        'extra_packages': extra_packages,
+        'project_name': project_name,
+        'complete_funcargs': complete_funcargs
+    }
 
 
 def is_python_scope(view, location):
