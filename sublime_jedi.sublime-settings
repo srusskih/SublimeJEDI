@@ -12,6 +12,12 @@
     // "" - dont insert any arguments
     "auto_complete_function_params": "required",
 
-	// "debug", "error", "info", "warn"
-	"logging_level": "warn"
+    // "debug", "error", "info", "warn"
+    "logging_level": "warn",
+
+    // what to show in completion list
+    // all - show all completions ( both jedi's and sublime's )
+    // jedi - only jedi's
+    // default - only jedi's in case it has something to show else sublime's
+    "sublime_completions_visibility": "default"
 }
