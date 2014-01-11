@@ -4,7 +4,7 @@ import functools
 import sublime
 import sublime_plugin
 
-from .utils import is_python_scope, ask_daemon
+from .utils import is_python_scope, ask_daemon, get_settings
 from .console_logging import getLogger
 
 logger = getLogger(__name__)
@@ -32,7 +32,8 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         #     logger.info('no function args completion in strings')
         #     return
 
-        ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
+        if get_settings(self.view)['complete_funcargs']:
+            ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
 
     @property
     def auto_match_enabled(self):
@@ -46,7 +47,7 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 
         If sublime option `auto_match_enabled` turned on, next behavior have to be:
 
-            when none selection 
+            when none selection
 
             `( => (<caret>)`
             `<caret>1 => ( => (<caret>1`
@@ -57,7 +58,7 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 
         In other case:
 
-            when none selection 
+            when none selection
 
             `( => (<caret>`
 
