@@ -1,4 +1,5 @@
 from __future__ import print_function
+import sys
 import functools
 import logging
 import traceback
@@ -30,6 +31,8 @@ class Logger:
 
     def log(self, level, msg, **kwargs):
         """ thread-safe logging """
+        if kwargs.pop('exc_info', False):
+            kwargs['exc_info'] = sys.exc_info()
         log = functools.partial(self._log, level, msg, **kwargs)
         sublime.set_timeout(log, 0)
 
@@ -41,8 +44,10 @@ class Logger:
         """
         if self.level <= level:
             self._print(msg)
-            if level == logging.ERROR and kwargs.get('exc_info'):
-                traceback.print_exc()
+            if level == logging.ERROR:
+                exc_info = kwargs.get('exc_info')
+                if exc_info:
+                    traceback.print_exception(*exc_info)
 
     def debug(self, msg):
         self.log(logging.DEBUG, msg)
