@@ -17,6 +17,7 @@ import os
 import pkgutil
 import sys
 import itertools
+import locale
 
 from jedi._compatibility import find_module
 from jedi import modules
@@ -29,6 +30,13 @@ import evaluate
 
 # for debugging purposes only
 imports_processed = 0
+
+
+def get_fs_encoding():
+    encoding = sys.getfilesystemencoding()
+    if encoding is None:
+        encoding = locale.getpreferredencoding()
+    return encoding
 
 
 class ModuleNotFound(Exception):
@@ -174,6 +182,9 @@ class ImportPath(pr.Base):
 
         if search_path is None:
             search_path = self._sys_path_with_modifications()
+        encoding = get_fs_encoding()
+        search_path = [path.encode(encoding) for path in search_path]
+
         for module_loader, name, is_pkg in pkgutil.iter_modules(search_path):
             names.append(generate_name(name))
         return names
