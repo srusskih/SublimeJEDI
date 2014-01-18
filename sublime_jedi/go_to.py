@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
+import collections
 import sublime
 import sublime_plugin
 
 from .utils import to_relative_path, ask_daemon, is_python_scope
+
+HISTORY_SIZE = 64
+jump_history_by_window = {}
 
 
 class BaseLookUpJediCommand(object):
@@ -27,6 +31,22 @@ class BaseLookUpJediCommand(object):
             if filename == -1:  # cancelled
                 return
             filename, line_number, column_number = self.options[filename]
+
+        if active_window.id() not in jump_history_by_window:
+            jump_history_by_window[active_window.id()] = collections.deque(
+                [],
+                HISTORY_SIZE
+            )
+        jump_history = jump_history_by_window[active_window.id()]
+
+        # Save current position so we can return to it
+        view = active_window.active_view()
+        row, col = view.rowcol(view.sel()[0].begin())
+        current_location = "{0}:{1}:{2}".format(view.file_name(),
+                                                row + 1,
+                                                col + 1)
+        jump_history.append(current_location)
+
         active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
                                 column_number or 0), sublime.ENCODED_POSITION)
 
@@ -72,6 +92,18 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
 
     def prepare_option(self, option):
         return to_relative_path(option[0])
+
+
+class SublimeJediBackto(sublime_plugin.TextCommand):
+    def run(self, edit, block=False):
+        window = sublime.active_window()
+        if window.id() in jump_history_by_window:
+            jump_history = jump_history_by_window[window.id()]
+
+            if len(jump_history) > 0:
+                previous_location = jump_history.pop()
+                window = sublime.active_window()
+                window.open_file(previous_location, sublime.ENCODED_POSITION)
 
 
 class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
