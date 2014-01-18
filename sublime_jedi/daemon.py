@@ -40,6 +40,9 @@ def getLogger():
     return log
 
 
+logger = getLogger()
+
+
 def write(data):
     """  Write data to STDOUT """
     if not isinstance(data, str):
@@ -116,7 +119,7 @@ class JediFacade:
         try:
             return getattr(self, 'get_' + action)()
         except:
-            logging.exception('`JediFacade.get_{0}` failed'.format(action))
+            logger.exception('`JediFacade.get_{0}` failed'.format(action))
 
     def get_goto(self):
         """ Jedi "Go To Definition" """
@@ -274,7 +277,6 @@ if __name__ == '__main__':
     is_funcargs_complete_enabled = bool(options.function_params)
     auto_complete_function_params = options.function_params
 
-    logger = getLogger()
     logger.info(
         'Daemon started. '
         'extra folders - %s, '
