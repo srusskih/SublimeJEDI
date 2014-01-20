@@ -196,7 +196,7 @@ class JediFacade:
         :rtype: list of (str, int, int)
         """
         usages = self.script.usages()
-        return [(i.module_path, i.line, i.column)
+        return [(i.module_path, i.line, i.column + 1)
                 for i in usages if not i.in_builtin_module()]
 
     def _complete_call_assigments(self):
