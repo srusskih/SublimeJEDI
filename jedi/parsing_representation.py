@@ -296,7 +296,7 @@ class Scope(Simple, IsScope):
 
     def __repr__(self):
         try:
-            name = self.path
+            name = self.path.encode("unicode_escape").decode("ascii")
         except AttributeError:
             try:
                 name = self.name

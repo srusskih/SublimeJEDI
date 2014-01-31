@@ -310,7 +310,7 @@ class _ModulePickling(object):
         shutil.rmtree(self._cache_directory())
 
     def _get_hashed_path(self, path):
-        return self._get_path('%s.pkl' % hashlib.md5(path.encode("utf-8")).hexdigest())
+        return self._get_path('%s.pkl' % hashlib.md5(path).hexdigest())
 
     def _get_path(self, file):
         dir = self._cache_directory()
