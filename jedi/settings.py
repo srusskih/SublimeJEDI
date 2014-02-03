@@ -1,7 +1,6 @@
 """
-This module contains variables with global |jedi| setting. To change the
-behavior of |jedi|, change the variables defined in
-:mod:`jedi.settings`.
+This module contains variables with global |jedi| settings. To change the
+behavior of |jedi|, change the variables defined in :mod:`jedi.settings`.
 
 Plugins should expose an interface so that the user can adjust the
 configuration.
@@ -64,14 +63,14 @@ definitely worse in some cases. But a completion should also be fast.
 .. autodata:: max_function_recursion_level
 .. autodata:: max_executions_without_builtins
 .. autodata:: max_executions
-.. autodata:: scale_function_definition
+.. autodata:: scale_call_signatures
 
 
 Caching
 ~~~~~~~
 
 .. autodata:: star_import_cache_validity
-.. autodata:: function_definition_validity
+.. autodata:: call_signatures_validity
 
 
 """
@@ -211,9 +210,9 @@ max_executions = 250
 A maximum amount of time, the completion may use.
 """
 
-scale_function_definition = 0.1
+scale_call_signatures = 0.1
 """
-Because function_definition is normally used on every single key hit, it has
+Because call_signatures is normally used on every single key hit, it has
 to be faster than a normal completion. This is the factor that is used to
 scale `max_executions` and `max_until_execution_unique`:
 """
@@ -229,7 +228,7 @@ might be slow, therefore we do a star import caching, that lasts a certain
 time span (in seconds).
 """
 
-function_definition_validity = 3.0
+call_signatures_validity = 3.0
 """
 Finding function calls might be slow (0.1-0.5s). This is not acceptible for
 normal writing. Therefore cache it for a short time.

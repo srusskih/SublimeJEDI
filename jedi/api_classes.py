@@ -11,7 +11,7 @@ import functools
 from jedi._compatibility import unicode, next
 from jedi import settings
 from jedi import common
-from jedi import parsing_representation as pr
+from jedi.parser import representation as pr
 from jedi import cache
 import keywords
 import recursion
@@ -80,6 +80,7 @@ class BaseDefinition(object):
         # generate a path to the definition
         self._module = definition.get_parent_until()
         self.module_path = self._module.path
+        """Shows the file path of a module. e.g. ``/usr/lib/python2.7/os.py``"""
 
     @property
     def start_pos(self):
@@ -148,8 +149,7 @@ class BaseDefinition(object):
             stripped = stripped.parent
         return type(stripped).__name__.lower()
 
-    @property
-    def path(self):
+    def _path(self):
         """The module path."""
         path = []
 
@@ -285,7 +285,7 @@ class BaseDefinition(object):
         (for example) ``'posixpath.join'``.
 
         """
-        path = [unicode(p) for p in self.path]
+        path = [unicode(p) for p in self._path()]
         # TODO add further checks, the mapping should only occur on stdlib.
         if not path:
             return None  # for keywords the path is empty
@@ -395,7 +395,7 @@ class Completion(BaseDefinition):
         if t == 'statement' or t == 'import':
             desc = self._definition.get_code(False)
         else:
-            desc = '.'.join(unicode(p) for p in self.path)
+            desc = '.'.join(unicode(p) for p in self._path())
 
         line = '' if self.in_builtin_module else '@%s' % self.line
         return '%s: %s%s' % (t, desc, line)

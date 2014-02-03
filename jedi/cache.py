@@ -25,7 +25,7 @@ import json
 import hashlib
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 import shutil
 
@@ -141,8 +141,8 @@ def time_cache(time_add_setting):
     return _temp
 
 
-@time_cache("function_definition_validity")
-def cache_function_definition(stmt):
+@time_cache("call_signatures_validity")
+def cache_call_signatures(stmt):
     module_path = stmt.get_parent_until().path
     return None if module_path is None else (module_path, stmt.start_pos)
 
@@ -219,7 +219,7 @@ def save_module(path, name, parser, pickling=True):
 
 class _ModulePickling(object):
 
-    version = 3
+    version = 4
     """
     Version number (integer) for file system cache.
 
