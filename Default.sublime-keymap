@@ -10,8 +10,10 @@
         ]
     },
 	{"command": "sublime_jedi_params_autocomplete", "keys": ["("],
-        "context": [ 
-           {"key": "selector", "operator": "equal", "operand":  "source.python - string - comment"} 
+        "context": [
+           {"key": "selector", "operator": "equal", "operand":  "source.python - string - comment"},
+           {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
+           {"key": "following_text", "operator": "regex_match", "operand": "^($| )", "match_all": true}
         ]
     }
 ]
