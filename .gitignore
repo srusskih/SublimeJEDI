@@ -4,3 +4,4 @@ jedic
 *.ropeproject
 package-metadata.json
 .DS_Store
+Completion Rules.tmPreferences.cache
