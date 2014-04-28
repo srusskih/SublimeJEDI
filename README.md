@@ -51,6 +51,9 @@ You can set Python interpreter, and additional python package directories, using
         }
     }
 
+Note that the `python_interpreter_path` should be absolute path.
+If necessary you can use `$project_path` to present project's folder path.
+
 #### Autocomplete on DOT
 
 If you want auto-completion on dot, you can define a trigger in the
