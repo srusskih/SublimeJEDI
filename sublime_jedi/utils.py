@@ -231,8 +231,8 @@ def get_settings(view):
                       DeprecationWarning)
 
     if python_interpreter.startswith('$project_path'):
-        proejct_dir = os.path.dirname(view.window().project_file_name())
-        python_interpreter = python_interpreter.replace('$project_path', proejct_dir, 1)
+        project_dir = os.path.dirname(view.window().project_file_name())
+        python_interpreter = python_interpreter.replace('$project_path', project_dir, 1)
 
     extra_packages = get_settings_param(view, 'python_package_paths', [])
     complete_funcargs = get_settings_param(view,
