@@ -51,7 +51,7 @@ You can set Python interpreter, and additional python package directories, using
         }
     }
 
-Note that the `python_interpreter_path` should be absolute path.
+Note that the `python_interpreter_path` and `python_package_paths` should be absolute path.
 If necessary you can use `$project_path` to present project's folder path.
 
 #### Autocomplete on DOT
