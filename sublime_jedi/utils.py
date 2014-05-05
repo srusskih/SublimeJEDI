@@ -230,7 +230,11 @@ def get_settings(view):
                       'Please, use `python_interpreter` instead.',
                       DeprecationWarning)
 
+    python_interpreter = expand_project_path(view, python_interpreter)
+
     extra_packages = get_settings_param(view, 'python_package_paths', [])
+    extra_packages = [expand_project_path(view, p) for p in extra_packages]
+
     complete_funcargs = get_settings_param(view,
                                            'auto_complete_function_params',
                                            'all')
@@ -272,3 +276,18 @@ def to_relative_path(path):
             return path.replace(folder, '')
 
     return path
+
+
+def expand_project_path(view, path):
+    """
+    expand variable `$project_path` in **path** to project's path
+
+    :type view: sublime.View
+    :type path: str
+    :rtype: str
+    """
+    if path.startswith('$project_path'):
+        project_dir = os.path.dirname(view.window().project_file_name())
+        return path.replace('$project_path', project_dir, 1)
+    else:
+        return path
