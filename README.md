@@ -83,13 +83,13 @@ Function parameters completion has 3 different behavior:
   - insert all function arguments on autocomplete (default behavior)
 
         # complete result
-        func(a, b, c, d=True, e=1, f=None)        
+        func(a, b, c, d=True, e=1, f=None)
 
         # sublime_jedi.sublime-settins
         {
             "auto_complete_function_params": "all"
-        }	
-    
+        }
+
 
   - insert arguments that don't have default value (e.g. required)
 
@@ -102,7 +102,7 @@ Function parameters completion has 3 different behavior:
         }
 
   - do not insert any arguments
-        
+
         # complete result
         func()
 
@@ -115,14 +115,14 @@ Function parameters completion has 3 different behavior:
 
 Find function / variable / class definition
 
-Shortcuts: `CTRL+SHIFT+G` 
+Shortcuts: `CTRL+SHIFT+G`
 
 Mouse binding, was disabled, becase it's hard to keep ST default behavior.
 Now you can bind `CTRL + LeftMouseButton` by themself in this way:
 
     # User/Default.sublime-mousemap
     [{
-        "modifiers": ["ctrl"], "button": "button1", 
+        "modifiers": ["ctrl"], "button": "button1",
         "command": "sublime_jedi_goto",
         "press_command": "drag_select"
     }]
@@ -133,6 +133,20 @@ Now you can bind `CTRL + LeftMouseButton` by themself in this way:
 Find function / method / variable / class usage, definition
 
 Shortcut: `Alt+Shift+f`
+
+
+#### Jedi Show Docstring
+
+Show docstring in output panel
+
+Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`)
+
+
+#### Jedi show calltip
+
+Show calltip in status bar
+
+Exposed command is `sublime_jedi_signature`
 
 
 #### Logging
