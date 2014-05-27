@@ -142,7 +142,7 @@ Show docstring in output panel
 Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`)
 
 
-#### Jedi show calltip
+#### Jedi Show Calltip
 
 Show calltip in status bar
 

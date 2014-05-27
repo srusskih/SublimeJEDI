@@ -7,14 +7,14 @@ from .utils import ask_daemon
 
 class HelpMessageCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit, string):
+    def run(self, edit, docstring):
         self.view.close()
-        self.view.insert(edit, self.view.size(), string)
+        self.view.insert(edit, self.view.size(), docstring)
 
 
 class SublimeJediDocstring(sublime_plugin.TextCommand):
     """
-    Show doctring
+    Show doctring in output panel
     """
     def run(self, edit):
         ask_daemon(self.view, self.show_docstring, 'docstring')
@@ -23,7 +23,9 @@ class SublimeJediDocstring(sublime_plugin.TextCommand):
         window = sublime.active_window()
         if docstring:
             output = window.get_output_panel('help_panel')
-            output.run_command('help_message', {'string': docstring})
+            output.set_read_only(False)
+            output.run_command('help_message', {'docstring': docstring})
+            output.set_read_only(True)
             window.run_command("show_panel", {"panel": "output.help_panel"})
         else:
             window.run_command("hide_panel", {"panel": "output.help_panel"})

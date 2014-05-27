@@ -155,7 +155,8 @@ class JediFacade:
 
         if len(defs) > 0:
             if signature:
-                return defs[0].docstring().split('\n')[0]
+                calltip_signature = defs[0].docstring().split('\n\n')[0]
+                return calltip_signature.replace('\n', ' ').replace(' = ', '=')
             else:
                 return defs[0].docstring()
 
