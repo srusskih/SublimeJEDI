@@ -176,7 +176,12 @@ class Autocomplete(sublime_plugin.EventListener):
         # XXX check position
         self.cplns_ready = True
         if completions:
-            self.completions = completions
+            # completions is a list of (text to show in the dropdown, 
+            #   contents to enter) - eg. [(u'class\tkeyword', u'class')]
+            # If however the first entry in the tumple is the empty string,
+            # ST2 build 2221 segfaults. Filter out the faulty tuples.
+            self.completions = [compl for compl in completions if compl[0]]
+
             view.run_command("hide_auto_complete")
             sublime.set_timeout(functools.partial(self.show, view), 0)
 
