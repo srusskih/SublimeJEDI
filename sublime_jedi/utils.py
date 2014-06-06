@@ -260,6 +260,13 @@ def is_python_scope(view, location):
     return view.match_selector(location, "source.python - string - comment")
 
 
+def is_repl(view):
+    """
+    Is SublimeREPL ?
+    """
+    return view.settings().get("repl", False)
+
+
 def to_relative_path(path):
     """
     Trim project root pathes from **path** passed as argument

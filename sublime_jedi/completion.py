@@ -4,12 +4,13 @@ import functools
 import sublime
 import sublime_plugin
 
-from .utils import is_python_scope, ask_daemon, get_settings
+from .utils import is_python_scope, ask_daemon, get_settings, is_repl
 from .console_logging import getLogger
 from .settings import get_settings_param
 
 logger = getLogger(__name__)
 FOLLOWING_CHARS = set(["\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"])
+PLUGIN_ONLY_COMPLETION = sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS
 
 
 class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
@@ -75,7 +76,6 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         self.view.sel().clear()
 
         for region in reversed(regions):
-
             next_char = self.view.substr(region.begin())
             # replace null byte to prevent error
             next_char = next_char.replace('\x00', '\n')
@@ -110,15 +110,7 @@ class Autocomplete(sublime_plugin.EventListener):
     """
 
     completions = []
-    cplns_ready = None
-    cplns_mode = None
-
-    def on_load(self, view):
-        self.cplns_mode = get_settings_param(
-            view,
-            'sublime_completions_visibility',
-            default='default'
-        )
+    is_complation_ready = None
 
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
@@ -135,52 +127,75 @@ class Autocomplete(sublime_plugin.EventListener):
 
         :return: list of tuple(str, str)
         """
+        completion_mode = self._get_completion_mode(view)
+
         logger.info('JEDI completion triggered')
 
-        if self.cplns_ready:
+        if self.is_complation_ready:
             logger.debug(
                 'JEDI has completion in daemon response {0}'.format(
                     self.completions
                 )
             )
 
-            self.cplns_ready = None
+            self.is_complation_ready = None
+
             if self.completions:
-                cplns, self.completions = self.completions, []
-                if self.cplns_mode in ('default', 'jedi'):
-                    return (
-                        [tuple(i) for i in cplns],
-                        sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS
-                    )
-                return [tuple(i) for i in cplns]
+                cplns = [i for i in self.completions]
+                self.completions = []
+
+                if completion_mode in ('default', 'jedi'):
+                    return cplns, PLUGIN_ONLY_COMPLETION
+                return cplns
             return
 
-        if view.settings().get("repl", False):
+        if is_repl(view):
             logger.debug("JEDI does not complete in SublimeREPL views")
             return
 
-        # nothing to do with non-python code
         if not is_python_scope(view, locations[0]):
             logger.debug('JEDI does not complete in strings')
             return
 
-        # get completions list
-        if self.cplns_ready is None:
-            ask_daemon(view, self.show_completions, 'autocomplete', locations[0])
-            self.cplns_ready = False
-        if self.cplns_mode == 'jedi':
-            view.run_command("hide_auto_complete")
+        if self.is_complation_ready is None:
+            if completion_mode == 'all':
+                self.completions = self._get_default_completions(view, prefix, locations[0])
+
+            ask_daemon(view, self._show_completions, 'autocomplete', locations[0])
+            self.is_complation_ready = False
+
+        view.run_command("hide_auto_complete")
         return
 
-    def show_completions(self, view, completions):
-        # XXX check position
-        self.cplns_ready = True
-        if completions:
-            self.completions = completions
-            view.run_command("hide_auto_complete")
-            sublime.set_timeout(functools.partial(self.show, view), 0)
+    def _get_default_completions(self, view, prefix, location):
+        """
+        Returns default sublime completion for current prefix
+        """
+        default_completions = list(set([
+            (completion + "\tDefault", completion)
+            for completion in list(view.extract_completions(prefix, location))
+            if len(completion) > 3
+        ]))
 
-    def show(self, view):
+        return default_completions
+
+    def _show_completions(self, view, completions):
+        """
+        TODO: check position
+        """
+        self.is_complation_ready = True
+
+        if completions:
+            self.completions = completions + self.completions
+
+        view.run_command("hide_auto_complete")
+
+        sublime.set_timeout(functools.partial(self._show_popup, view), 0)
+
+    def _show_popup(self, view):
+        """
+        Show completion Pop-Up
+        """
         logger.debug("command history: " + str([
             view.command_history(-1),
             view.command_history(0),
@@ -199,3 +214,7 @@ class Autocomplete(sublime_plugin.EventListener):
             'next_completion_if_showing': False,
             'auto_complete_commit_on_tab': True,
         })
+
+    def _get_completion_mode(self, view):
+        return get_settings_param(view, 'sublime_completions_visibility',
+                                  'default')
