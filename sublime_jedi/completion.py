@@ -110,7 +110,7 @@ class Autocomplete(sublime_plugin.EventListener):
     """
 
     completions = []
-    is_complation_ready = None
+    is_completion_ready = None
 
     def on_query_completions(self, view, prefix, locations):
         """ Sublime autocomplete event handler
@@ -131,14 +131,14 @@ class Autocomplete(sublime_plugin.EventListener):
 
         logger.info('JEDI completion triggered')
 
-        if self.is_complation_ready:
+        if self.is_completion_ready:
             logger.debug(
                 'JEDI has completion in daemon response {0}'.format(
                     self.completions
                 )
             )
 
-            self.is_complation_ready = None
+            self.is_completion_ready = None
 
             if self.completions:
                 cplns = [i for i in self.completions]
@@ -157,12 +157,12 @@ class Autocomplete(sublime_plugin.EventListener):
             logger.debug('JEDI does not complete in strings')
             return
 
-        if self.is_complation_ready is None:
+        if self.is_completion_ready is None:
             if completion_mode == 'all':
                 self.completions = self._get_default_completions(view, prefix, locations[0])
 
             ask_daemon(view, self._show_completions, 'autocomplete', locations[0])
-            self.is_complation_ready = False
+            self.is_completion_ready = False
 
         view.run_command("hide_auto_complete")
         return
@@ -183,7 +183,7 @@ class Autocomplete(sublime_plugin.EventListener):
         """
         TODO: check position
         """
-        self.is_complation_ready = True
+        self.is_completion_ready = True
 
         if completions:
             self.completions = completions + self.completions
