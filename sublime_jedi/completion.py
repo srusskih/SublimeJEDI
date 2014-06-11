@@ -141,7 +141,7 @@ class Autocomplete(sublime_plugin.EventListener):
             self.is_completion_ready = None
 
             if self.completions:
-                cplns = [i for i in self.completions]
+                cplns = self.completions[:]
                 self.completions = []
 
                 if completion_mode in ('default', 'jedi'):
