@@ -111,9 +111,9 @@ Function parameters completion has 3 different behavior:
             "auto_complete_function_params": ""
         }
 
-#### Complation visbility
+#### Completion visbility
 
-Sublime Text has a bit strange complation behavior and some times does not adds it's own complation suggestions.
+Sublime Text has a bit strange completion behavior and some times does not adds it's own completion suggestions.
 This option is try to bring more comfortable workflow.
 
  - Suggest only Jedi completion
