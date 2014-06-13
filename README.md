@@ -111,6 +111,35 @@ Function parameters completion has 3 different behavior:
             "auto_complete_function_params": ""
         }
 
+#### Completion visbility
+
+Sublime Text has a bit strange completion behavior and some times does not adds it's own completion suggestions.
+This option is try to bring more comfortable workflow.
+
+ - Suggest only Jedi completion
+
+        # sublime_jedi.sublime-settins
+        {
+            "sublime_completions_visibility": "jedi"
+        }
+
+   or
+
+        # sublime_jedi.sublime-settins
+        {
+            "sublime_completions_visibility": "default"
+        }
+
+ - Suggest Jedi completion and Sublime completion in the end of the list
+
+        # sublime_jedi.sublime-settins
+        {
+            "sublime_completions_visibility": "list"
+        }
+
+Please note, if you are using [SublimeAllAutocomplete](https://github.com/alienhard/SublimeAllAutocomplete) - you should not care about this option.
+
+
 #### Jedi Goto / Go Definition
 
 Find function / variable / class definition
