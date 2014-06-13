@@ -139,6 +139,27 @@ class JediFacade:
         data.extend(self._completion() or [])
         return data
 
+    def get_docstring(self):
+        return self._docstring()
+
+    def get_signature(self):
+        return self._docstring(signature=1)
+
+    def _docstring(self, signature=0):
+        """ Jedi show doctring or signature
+
+        :rtype: str
+        """
+        defs = self.script.goto_definitions()
+        assert isinstance(defs, list)
+
+        if len(defs) > 0:
+            if signature:
+                calltip_signature = defs[0].docstring().split('\n\n')[0]
+                return calltip_signature.replace('\n', ' ').replace(' = ', '=')
+            else:
+                return defs[0].docstring()
+
     def _parameters_for_completion(self):
         """ Get function / class' constructor parameters completions list
 

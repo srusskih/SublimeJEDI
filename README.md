@@ -83,13 +83,13 @@ Function parameters completion has 3 different behavior:
   - insert all function arguments on autocomplete (default behavior)
 
         # complete result
-        func(a, b, c, d=True, e=1, f=None)        
+        func(a, b, c, d=True, e=1, f=None)
 
         # sublime_jedi.sublime-settins
         {
             "auto_complete_function_params": "all"
-        }	
-    
+        }
+
 
   - insert arguments that don't have default value (e.g. required)
 
@@ -102,7 +102,7 @@ Function parameters completion has 3 different behavior:
         }
 
   - do not insert any arguments
-        
+
         # complete result
         func()
 
@@ -111,18 +111,47 @@ Function parameters completion has 3 different behavior:
             "auto_complete_function_params": ""
         }
 
+#### Completion visbility
+
+Sublime Text has a bit strange completion behavior and some times does not adds it's own completion suggestions.
+This option is try to bring more comfortable workflow.
+
+ - Suggest only Jedi completion
+
+        # sublime_jedi.sublime-settins
+        {
+            "sublime_completions_visibility": "jedi"
+        }
+
+   or
+
+        # sublime_jedi.sublime-settins
+        {
+            "sublime_completions_visibility": "default"
+        }
+
+ - Suggest Jedi completion and Sublime completion in the end of the list
+
+        # sublime_jedi.sublime-settins
+        {
+            "sublime_completions_visibility": "list"
+        }
+
+Please note, if you are using [SublimeAllAutocomplete](https://github.com/alienhard/SublimeAllAutocomplete) - you should not care about this option.
+
+
 #### Jedi Goto / Go Definition
 
 Find function / variable / class definition
 
-Shortcuts: `CTRL+SHIFT+G` 
+Shortcuts: `CTRL+SHIFT+G`
 
 Mouse binding, was disabled, becase it's hard to keep ST default behavior.
 Now you can bind `CTRL + LeftMouseButton` by themself in this way:
 
     # User/Default.sublime-mousemap
     [{
-        "modifiers": ["ctrl"], "button": "button1", 
+        "modifiers": ["ctrl"], "button": "button1",
         "command": "sublime_jedi_goto",
         "press_command": "drag_select"
     }]
@@ -133,6 +162,20 @@ Now you can bind `CTRL + LeftMouseButton` by themself in this way:
 Find function / method / variable / class usage, definition
 
 Shortcut: `Alt+Shift+f`
+
+
+#### Jedi Show Docstring
+
+Show docstring in output panel
+
+Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`)
+
+
+#### Jedi Show Calltip
+
+Show calltip in status bar
+
+Exposed command is `sublime_jedi_signature`
 
 
 #### Logging
