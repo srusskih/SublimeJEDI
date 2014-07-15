@@ -110,6 +110,7 @@ class JediFacade:
 
     """
     def __init__(self, source, line, offset, filename='', encoding='utf-8'):
+        filename = filename or None
         self.script = jedi.Script(
             source, int(line), int(offset), filename, encoding
         )
