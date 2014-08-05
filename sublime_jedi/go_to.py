@@ -30,6 +30,25 @@ class BaseLookUpJediCommand(object):
         active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
                                 column_number or 0), sublime.ENCODED_POSITION)
 
+    def _view_in_window(self, filename, line_number=None, column_number=None):
+        """ Opens view to declaration if possible
+
+            :param filename: string or int
+            :param line_number: int
+            :param column_number: int
+        """
+        active_window = sublime.active_window()
+        print('showing', filename, line_number, column_number)
+
+        # If the file was selected from a drop down list
+        if isinstance(filename, int):
+            if filename == -1:  # cancelled
+                return
+            filename, line_number, column_number = self.options[filename]
+        active_window.open_file('%s:%s:%s' % (filename, line_number or 0,
+                                column_number or 0), sublime.ENCODED_POSITION |
+                                sublime.TRANSIENT)
+
     def _window_quick_panel_open_window(self, view, options):
         """ Shows the active `sublime.Window` quickpanel (dropdown) for
             user selection.
@@ -44,8 +63,7 @@ class BaseLookUpJediCommand(object):
         # Show the user a selection of filenames
         active_window.show_quick_panel(
             [self.prepare_option(o) for o in options],
-            self._jump_to_in_window
-        )
+            self._jump_to_in_window, on_highlight=self._view_in_window)
 
     def prepare_option(self, option):
         """ prepare option to display out in quick panel """
