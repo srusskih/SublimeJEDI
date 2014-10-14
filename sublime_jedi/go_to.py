@@ -26,9 +26,21 @@ class BaseLookUpJediCommand(object):
         """
         active_window = sublime.active_window()
 
+        # restore saved location
+        try:
+            if self.view.sel()[0] != self.point:
+                self.view.sel().clear()
+                self.view.sel().add(self.point)
+        except AttributeError:
+            # called without setting self.point
+            pass
+
         # If the file was selected from a drop down list
         if isinstance(filename, int):
             if filename == -1:  # cancelled
+                # restore view
+                active_window.focus_view(self.view)
+                self.view.show(self.point)
                 return
             filename, line_number, column_number = self.options[filename]
         flags = sublime.ENCODED_POSITION
@@ -48,10 +60,14 @@ class BaseLookUpJediCommand(object):
         # remember filenames
         self.options = options
 
+        # remember current file location
+        self.point = self.view.sel()[0]
+
         # Show the user a selection of filenames
         active_window.show_quick_panel(
             [self.prepare_option(o) for o in options],
-            self._jump_to_in_window, on_highlight=partial(self._jump_to_in_window, transient=True))
+            self._jump_to_in_window, 
+            on_highlight=partial(self._jump_to_in_window, transient=True))
 
     def prepare_option(self, option):
         """ prepare option to display out in quick panel """
