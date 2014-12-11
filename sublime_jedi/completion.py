@@ -141,12 +141,13 @@ class Autocomplete(sublime_plugin.EventListener):
             self.is_completion_ready = None
 
             if self.completions:
-                cplns = self.completions[:]
+                cplns = [tuple(i) for i in self.completions]
                 self.completions = []
 
                 if completion_mode in ('default', 'jedi'):
                     return cplns, PLUGIN_ONLY_COMPLETION
                 return cplns
+
             return
 
         if is_repl(view):
@@ -188,9 +189,9 @@ class Autocomplete(sublime_plugin.EventListener):
         if completions:
             self.completions = completions + self.completions
 
-        view.run_command("hide_auto_complete")
-
-        sublime.set_timeout(functools.partial(self._show_popup, view), 0)
+        if self.completions:
+            view.run_command("hide_auto_complete")
+            sublime.set_timeout(functools.partial(self._show_popup, view), 0)
 
     def _show_popup(self, view):
         """
@@ -203,7 +204,7 @@ class Autocomplete(sublime_plugin.EventListener):
         ]))
         command = view.command_history(0)
 
-        # if completion was triggerd by tab, then hide "tab" or "snippet"
+        # if completion was triggered by tab, then hide "tab" or "snippet"
         if command[0] == 'insert_best_completion' or\
                 (command == (u'insert', {'characters': u'\t'}, 1)):
             view.run_command('undo')
