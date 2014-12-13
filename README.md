@@ -1,6 +1,8 @@
 SublimeJEDI
 ============
 
+[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/srusskih/SublimeJEDI?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 [SublimeJEDI](https://github.com/srusskih/SublimeJEDI) is a [Sublime Text 2](http://www.sublimetext.com/) and Sublime Text 3 plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
 
