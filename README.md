@@ -82,7 +82,7 @@ set (additionally to the trigger above):
 SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settings#12). Thanks to @krya, now you can turn it off.
 Function parameters completion has 3 different behavior:
 
-  - insert all function arguments on autocomplete (default behavior)
+  - insert all function arguments on autocomplete
 
         # complete result
         func(a, b, c, d=True, e=1, f=None)
@@ -93,7 +93,7 @@ Function parameters completion has 3 different behavior:
         }
 
 
-  - insert arguments that don't have default value (e.g. required)
+  - insert only required arguments that don't have default value (default behavior)
 
         # complete result
         func(a, b, c)
