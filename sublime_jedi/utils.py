@@ -287,11 +287,11 @@ def to_relative_path(path):
 
 def split_path(d, keys):
     assert isinstance(d, dict) and isinstance(keys, list)
-    for k in [x for x in keys if d.get(x) and d[x] and os.path.exists(d[x])]:
-        d['%s_path' % (k,)], d['%s_name' % (k,)] = os.path.split(d[k])
-        d['%s_base_name' % (k,)], d['%s_extension' % (k,)] = \
-            os.path.splitext(d['%s_name' % (k,)])
-        d['%s_extension' % (k,)] = d['%s_extension' % (k,)].lstrip('.')
+    for k in [x for x in keys if d.get(x) and os.path.exists(d[x])]:
+        d['%s_path' % k], d['%s_name' % k] = os.path.split(d[k])
+        d['%s_base_name' % k], d['%s_extension' % k] = \
+            os.path.splitext(d['%s_name' % k])
+        d['%s_extension' % k] = d['%s_extension' % k].lstrip('.')
     return d
 
 
@@ -326,6 +326,6 @@ def expand_path(view, path):
             msg = e.message
         except AttributeError:
             msg = repr(e)
-        logger.debug('Exception while expanding "{}": {}'.format(path, msg))
+        logger.exception('Exception while expanding "{}": {}'.format(path, msg))
 
     return path
