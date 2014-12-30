@@ -127,9 +127,17 @@ class Autocomplete(sublime_plugin.EventListener):
 
         :return: list of tuple(str, str)
         """
-        completion_mode = self._get_completion_mode(view)
+        if is_repl(view):
+            logger.debug("JEDI does not complete in SublimeREPL views")
+            return
+
+        if not is_python_scope(view, locations[0]):
+            logger.debug('JEDI completes only in python scope')
+            return
 
         logger.info('JEDI completion triggered')
+
+        completion_mode = self._get_completion_mode(view)
 
         if self.is_completion_ready:
             logger.debug(
@@ -148,14 +156,6 @@ class Autocomplete(sublime_plugin.EventListener):
                     return cplns, PLUGIN_ONLY_COMPLETION
                 return cplns
 
-            return
-
-        if is_repl(view):
-            logger.debug("JEDI does not complete in SublimeREPL views")
-            return
-
-        if not is_python_scope(view, locations[0]):
-            logger.debug('JEDI does not complete in strings')
             return
 
         if self.is_completion_ready is None:
