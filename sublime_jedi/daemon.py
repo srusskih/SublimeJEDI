@@ -85,7 +85,7 @@ def get_function_parameters(callDef):
     params = []
     for param in callDef.params:
         cleaned_param = param.get_code().strip()
-        if '*' in cleaned_param or cleaned_param == 'self':
+        if '*' in cleaned_param or cleaned_param in ['self', '...']:
             continue
         params.append([s.strip() for s in cleaned_param.split('=')])
     return params
