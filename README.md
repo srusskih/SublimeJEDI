@@ -35,7 +35,7 @@ Also you can set different interpreter for each Sublime Project.
 To set project related Python interpreter you have to edit yours project config file.
 By default project config name is `<project name>.sublime-project`
 
-You can set Python interpreter, and additional python package directories, using following:
+You can set Python interpreter, and additional python package directories, using for example the following:
 
     # <project name>.sublime-project
     {
@@ -43,18 +43,18 @@ You can set Python interpreter, and additional python package directories, using
 
         "settings": {
             // ...
-            "python_interpreter_path": "/home/sr/.virtualenvs/django1.5/bin/python",
+            "python_interpreter": "$project_path/../../virtual/bin/python",
 
             "python_package_paths": [
-                "/home/sr/python_packages1",
-                "/home/sr/python_packages2",
-                "/home/sr/python_packages3"
+                "$home/.buildout/eggs",
+                "$project_path/addons",
                 ]
         }
     }
 
-Note that the `python_interpreter_path` and `python_package_paths` should be absolute path.
-If necessary you can use `$project_path` to present project's folder path.
+When setting paths, [Sublime Text Build System Variables](http://docs.sublimetext.info/en/latest/reference/build_systems.html#build-system-variables) and OS environment variables are automatically expanded.
+Note that using placeholders and substitutions, like in regular Sublime Text Build System paths is not supported.
+
 
 #### Autocomplete on DOT
 

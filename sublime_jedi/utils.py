@@ -230,10 +230,10 @@ def get_settings(view):
                       'Please, use `python_interpreter` instead.',
                       DeprecationWarning)
 
-    python_interpreter = expand_project_path(view, python_interpreter)
+    python_interpreter = expand_path(view, python_interpreter)
 
     extra_packages = get_settings_param(view, 'python_package_paths', [])
-    extra_packages = [expand_project_path(view, p) for p in extra_packages]
+    extra_packages = [expand_path(view, p) for p in extra_packages]
 
     complete_funcargs = get_settings_param(view,
                                            'auto_complete_function_params',
@@ -285,16 +285,43 @@ def to_relative_path(path):
     return path
 
 
-def expand_project_path(view, path):
+def split_path(d, keys):
+    assert isinstance(d, dict) and isinstance(keys, list)
+    for k in [x for x in keys if d.get(x) and os.path.exists(d[x])]:
+        d['%s_path' % k], d['%s_name' % k] = os.path.split(d[k])
+        d['%s_base_name' % k], d['%s_extension' % k] = \
+            os.path.splitext(d['%s_name' % k])
+        d['%s_extension' % k] = d['%s_extension' % k].lstrip('.')
+    return d
+
+
+def expand_path(view, path):
     """
-    expand variable `$project_path` in **path** to project's path
+    Expand ST build system and OS environment variables to normalized path
+    that allows collapsing up-level references for basic path manipulation
+    through combination of variables and/or separators, i.e.:
+        "python_interpreter": "$project_path/../../virtual/bin/python",
+        "python_package_paths": ["$home/.buildout/eggs"]
 
     :type view: sublime.View
     :type path: str
     :rtype: str
     """
-    if path.startswith('$project_path'):
-        project_dir = os.path.dirname(view.window().project_file_name())
-        return path.replace('$project_path', project_dir, 1)
-    else:
-        return path
+    subl_vars = {}
+    try:
+        subl_vars['$file'] = view.file_name()
+        subl_vars['$packages'] = sublime.packages_path()
+        subl_vars['$project'] = view.window().project_file_name()
+        subl_vars = split_path(subl_vars, ['$file', '$project'])
+        if '$' in path or '%' in path:
+            exp_path = path
+            for k in sorted(subl_vars, key=len, reverse=True):
+                if subl_vars[k]:
+                    exp_path = exp_path.replace(k, subl_vars[k])
+            exp_path = os.path.normpath(os.path.expandvars(exp_path))
+            if os.path.exists(exp_path):
+                path = exp_path
+    except Exception:
+        logger.exception('Exception while expanding "{}"'.format(path))
+
+    return path
