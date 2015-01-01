@@ -41,4 +41,4 @@ class SublimeJediSignature(sublime_plugin.TextCommand):
 
     def show_signature(self, view, signature):
         if signature:
-            sublime.status_message('Jedi: {}'.format(signature))
+            sublime.status_message('Jedi: {0}'.format(signature))
