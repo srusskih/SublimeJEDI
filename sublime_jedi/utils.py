@@ -322,6 +322,6 @@ def expand_path(view, path):
             if os.path.exists(exp_path):
                 path = exp_path
     except Exception:
-        logger.exception('Exception while expanding "{}"'.format(path))
+        logger.exception('Exception while expanding "{0}"'.format(path))
 
     return path
