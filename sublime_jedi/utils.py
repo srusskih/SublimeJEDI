@@ -6,6 +6,7 @@ import subprocess
 import json
 import threading
 import warnings
+import re
 from functools import partial
 from collections import defaultdict
 from uuid import uuid1
@@ -311,7 +312,12 @@ def expand_path(view, path):
     try:
         subl_vars['$file'] = view.file_name()
         subl_vars['$packages'] = sublime.packages_path()
-        subl_vars['$project'] = view.window().project_file_name()
+
+        try:
+            subl_vars['$project'] = view.window().project_file_name()
+        except AttributeError:
+            subl_vars['$project'] = get_project_file_name(view.window())
+
         subl_vars = split_path(subl_vars, ['$file', '$project'])
         if '$' in path or '%' in path:
             exp_path = path
@@ -325,3 +331,56 @@ def expand_path(view, path):
         logger.exception('Exception while expanding "{0}"'.format(path))
 
     return path
+
+
+def get_project_file_name(window):
+    """
+    Getting project file name for ST2
+    """
+    if not window.folders():
+        return None
+
+    projects = _get_projects_from_session()
+
+    for project_file in projects:
+        project_file = re.sub(r'^/([^/])/', '\\1:/', project_file)
+        project_json = json.loads(file(project_file, 'r').read(), strict=False)
+
+        if 'folders' in project_json:
+            folders = project_json['folders']
+            found_all = True
+            for directory in window.folders():
+                found = False
+                for folder in folders:
+                    folder_path = re.sub(r'^/([^/])/', '\\1:/', folder['path'])
+                    if folder_path == directory.replace('\\', '/'):
+                        found = True
+                        break
+                if not found:
+                    found_all = False
+                    break
+
+        if found_all:
+            return project_file
+    return None
+
+
+def _get_projects_from_session():
+    session_file_path = os.path.join(sublime.packages_path(), '..', 'Settings', 'Session.sublime_session')
+    auto_session_file_path = os.path.join(sublime.packages_path(), '..', 'Settings', 'Auto Save Session.sublime_session')
+
+    projects = []
+
+    for file_path in [session_file_path, auto_session_file_path]:
+        try:
+            with file(os.path.normpath(file_path), 'r') as fd:
+                data = fd.read().replace('\t', ' ')
+                data = json.loads(data, strict=False)
+                projects += data.get('workspaces', {}).get('recent_workspaces', [])
+        except:
+            logger.info("File {0} missed".format(file_path))
+            continue
+
+    projects = list(set(projects))
+
+    return projects
