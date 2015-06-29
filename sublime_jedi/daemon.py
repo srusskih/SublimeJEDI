@@ -84,7 +84,8 @@ def get_function_parameters(callDef):
 
     params = []
     for param in callDef.params:
-        cleaned_param = param.get_code().strip()
+        # logger.info("%s %s" % (param.name, param.description))
+        cleaned_param = param.description.rstrip(',')
         if '*' in cleaned_param or cleaned_param in ['self', '...']:
             continue
         params.append([s.strip() for s in cleaned_param.split('=')])
