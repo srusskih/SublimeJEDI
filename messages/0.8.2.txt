@@ -1,0 +1,6 @@
+Sublime Jedi v0.8.2
+===================
+
+254625a fix issue #179. fix broken call signature processing
+1758f7f fix issue #180. strip ',' (comma) in the end of parameter name on complete
+ed4d273 fix #178. add ST2 backward capability in vars extendings
