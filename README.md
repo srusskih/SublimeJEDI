@@ -22,7 +22,7 @@ Installation
  2. Type `package control install` and select command `Package Control: Install Package`
  3. Type `jedi` and select "SublimeJEDI"
 
-Additonal info installations you can find here [http://wbond.net/sublime_packages/package_control/usage](http://wbond.net/sublime_packages/package_control/usage)
+Additonal info installations you can find here [http://wbond.net/sublime_packages/package_control/usage](http://wbond.net/sublime_packages/package_control/usage).
 
 Settings
 --------
@@ -67,7 +67,7 @@ Sublime User or Python preferences:
         "auto_complete_triggers": [{"selector": "source.python", "characters": "."}],
     }
 
-If you want auto-completion ONLY on dot and not while typing, you can
+If you want auto-completion **ONLY** on dot and not while typing, you can
 set (additionally to the trigger above):
 
 
@@ -79,15 +79,16 @@ set (additionally to the trigger above):
 
 #### Function args fill up on completion
 
-SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settings#12). Thanks to @krya, now you can turn it off.
-Function parameters completion has 3 different behavior:
+SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settings#12).
+Thanks to [@krya](https://github.com/krya), now you can turn it off.
+Function parameters completion has 3 different behaviors:
 
   - insert all function arguments on autocomplete
 
         # complete result
         func(a, b, c, d=True, e=1, f=None)
 
-        # sublime_jedi.sublime-settins
+        # sublime_jedi.sublime-settings
         {
             "auto_complete_function_params": "all"
         }
@@ -98,7 +99,7 @@ Function parameters completion has 3 different behavior:
         # complete result
         func(a, b, c)
 
-        # sublime_jedi.sublime-settins
+        # sublime_jedi.sublime-settings
         {
             "auto_complete_function_params": "required"
         }
@@ -108,33 +109,33 @@ Function parameters completion has 3 different behavior:
         # complete result
         func()
 
-        # sublime_jedi.sublime-settins
+        # sublime_jedi.sublime-settings
         {
             "auto_complete_function_params": ""
         }
 
-#### Completion visbility
+#### Completion visibility
 
 Sublime Text has a bit strange completion behavior and some times does not adds it's own completion suggestions.
-This option is try to bring more comfortable workflow.
+Enabling this option to try to bring more comfortable workflow.
 
  - Suggest only Jedi completion
 
-        # sublime_jedi.sublime-settins
+        # sublime_jedi.sublime-settings
         {
             "sublime_completions_visibility": "jedi"
         }
 
    or
 
-        # sublime_jedi.sublime-settins
+        # sublime_jedi.sublime-settings
         {
             "sublime_completions_visibility": "default"
         }
 
  - Suggest Jedi completion and Sublime completion in the end of the list
 
-        # sublime_jedi.sublime-settins
+        # sublime_jedi.sublime-settings
         {
             "sublime_completions_visibility": "list"
         }
@@ -161,23 +162,23 @@ Now you can bind `CTRL + LeftMouseButton` by themself in this way:
 
 #### Jedi Find Related Names ("Find Usages")
 
-Find function / method / variable / class usage, definition
+Find function / method / variable / class usage, definition.
 
-Shortcut: `Alt+Shift+f`
+Shortcut: `Alt+Shift+f`.
 
 
 #### Jedi Show Docstring
 
-Show docstring in output panel
+Show docstring in output panel.
 
-Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`)
+Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`).
 
 
 #### Jedi Show Calltip
 
-Show calltip in status bar
+Show calltip in status bar.
 
-Exposed command is `sublime_jedi_signature`
+Exposed command is `sublime_jedi_signature`.
 
 
 #### Logging
