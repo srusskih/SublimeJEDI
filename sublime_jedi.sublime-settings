@@ -20,5 +20,13 @@
     // "all" - both jedi's and sublime's
     // "jedi" - only jedi's
     // "default" - only jedi's if it has something to show, otherwise sublime's
-    "sublime_completions_visibility": "default"
+    "sublime_completions_visibility": "default",
+
+    // how to open goto definition result with ability to show it transient
+    // variation (preview only. it won't have a tab assigned it until modified):
+    // "single-panel" - opens a file in same layout (default)
+    // "single-transient" - opens a file in same layout but transient
+    // "two-panel" - opens a file in a split layout
+    // "two-panel-transient" - opens a file in a split layout but transient
+    "sublime_goto_layout": "single-panel"
 }
