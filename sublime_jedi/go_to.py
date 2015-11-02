@@ -51,14 +51,14 @@ class BaseLookUpJediCommand(object):
 
     def prepare_layout(self, window, transient, filename):
         """
-        prepares the layout of the window to configured and returns a flags
+        prepares the layout of the window to configured and returns flags
         for opening the file
         """
         flags = sublime.ENCODED_POSITION
         if transient:
             flags |= sublime.TRANSIENT
         goto_layout = get_settings_param(self.view, 'sublime_goto_layout')
-        if goto_layout == 'single-transient' and not transient:
+        if goto_layout == 'single-panel-transient' and not transient:
             flags |= sublime.TRANSIENT
         elif goto_layout == 'two-panel':
             self.switch_to_two_panel_layout(window, filename)
@@ -78,7 +78,7 @@ class BaseLookUpJediCommand(object):
                 'rows': [0.0, 1.0],
                 'cells': [[0, 0, 1, 1], [1, 0, 2, 1]],
             })
-            # select non current group(panel)
+        # select non current group(panel)
         selected_group = None
         for group in range(window.num_groups()):
             if group != curr_group:
@@ -86,7 +86,7 @@ class BaseLookUpJediCommand(object):
                 window.focus_group(group)
                 break
         # if the file is already opened and is in current group
-        # move it to another panel. or we shouldn't ?
+        # move it to another panel.
         files_in_curr_group = dict([
             (i.file_name(), i) for i in
             window.views_in_group(curr_group)

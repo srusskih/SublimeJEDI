@@ -25,8 +25,8 @@
     // how to open goto definition result with ability to show it transient
     // variation (preview only. it won't have a tab assigned it until modified):
     // "single-panel" - opens a file in same layout (default)
-    // "single-transient" - opens a file in same layout but transient
-    // "two-panel" - opens a file in a split layout
-    // "two-panel-transient" - opens a file in a split layout but transient
+    // "single-panel-transient" - same as above but in transient mode
+    // "two-panel" - opens a file in a split to two columns layout
+    // "two-panel-transient" - same as above but in transient mode
     "sublime_goto_layout": "single-panel"
 }
