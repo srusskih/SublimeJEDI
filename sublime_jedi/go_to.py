@@ -57,6 +57,10 @@ class BaseLookUpJediCommand(object):
         flags = sublime.ENCODED_POSITION
         if transient:
             flags |= sublime.TRANSIENT
+            # sublime cant show quick panel with options on one panel and
+            # file's content in transient mode on another panel
+            # so dont do anything if its a requrest to show just options
+            return flags
         goto_layout = get_settings_param(self.view, 'sublime_goto_layout')
         if goto_layout == 'single-panel-transient' and not transient:
             flags |= sublime.TRANSIENT
