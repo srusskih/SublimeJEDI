@@ -92,7 +92,8 @@ class BaseLookUpJediCommand(object):
             window.views_in_group(curr_group)
         ])
         if filename and filename in files_in_curr_group:
-            window.set_view_index(files_in_curr_group[filename], selected_group, 0)
+            if files_in_curr_group[filename].view_id != self.view.view_id:
+                window.set_view_index(files_in_curr_group[filename], selected_group, 0)
 
     def _window_quick_panel_open_window(self, view, options):
         """ Shows the active `sublime.Window` quickpanel (dropdown) for
