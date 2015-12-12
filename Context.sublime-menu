@@ -1,0 +1,18 @@
+[
+    {
+        "command": "sublime_jedi_goto",
+        "caption": "Go to Definition (Jedi)"
+    },
+    {
+        "command": "sublime_jedi_find_usages",
+        "caption": "Find Usages (Jedi)"
+    },
+    {
+        "command": "sublime_jedi_docstring",
+        "caption": "Show Docstring (Jedi)"
+    },
+    {
+        "command": "sublime_jedi_signature",
+        "caption": "Show Signature (Jedi)"
+    }
+]
