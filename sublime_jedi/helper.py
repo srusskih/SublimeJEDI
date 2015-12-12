@@ -2,7 +2,7 @@
 import sublime
 import sublime_plugin
 
-from .utils import ask_daemon
+from .utils import ask_daemon, PythonCommandMixin
 
 
 class HelpMessageCommand(sublime_plugin.TextCommand):
@@ -12,7 +12,7 @@ class HelpMessageCommand(sublime_plugin.TextCommand):
         self.view.insert(edit, self.view.size(), docstring)
 
 
-class SublimeJediDocstring(sublime_plugin.TextCommand):
+class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
     """
     Show doctring in output panel
     """
@@ -32,7 +32,7 @@ class SublimeJediDocstring(sublime_plugin.TextCommand):
             sublime.status_message('Jedi: No results!')
 
 
-class SublimeJediSignature(sublime_plugin.TextCommand):
+class SublimeJediSignature(PythonCommandMixin, sublime_plugin.TextCommand):
     """
     Show signature in statusbar
     """
