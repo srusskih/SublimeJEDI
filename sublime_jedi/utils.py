@@ -261,6 +261,18 @@ def is_python_scope(view, location):
     return view.match_selector(location, "source.python - string - comment")
 
 
+class PythonCommandMixin(object):
+    """ A mixin that hides and disables command for non-python code """
+
+    def is_visible(self):
+        """ The command is visible only for python code """
+        return is_python_scope(self.view, self.view.sel()[0].begin())
+
+    def is_enabled(self):
+        """ The command is enabled only when it is visible """
+        return self.is_visible()
+
+
 def is_repl(view):
     """
     Is SublimeREPL ?

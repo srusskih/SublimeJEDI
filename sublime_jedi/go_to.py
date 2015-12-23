@@ -3,17 +3,11 @@ import sublime
 import sublime_plugin
 from functools import partial
 
-from .utils import to_relative_path, ask_daemon, is_python_scope
+from .utils import to_relative_path, ask_daemon, PythonCommandMixin
 from .settings import get_settings_param
 
 
-class BaseLookUpJediCommand(object):
-
-    def is_enabled(self):
-        """ command enable only for python source code """
-        if not is_python_scope(self.view, self.view.sel()[0].begin()):
-            return False
-        return True
+class BaseLookUpJediCommand(PythonCommandMixin):
 
     def _jump_to_in_window(self, filename, line_number=None, column_number=None, transient=False):
         """ Opens a new window and jumps to declaration if possible
