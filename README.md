@@ -47,7 +47,7 @@ You can set Python interpreter, and additional python package directories, using
 
             "python_package_paths": [
                 "$home/.buildout/eggs",
-                "$project_path/addons",
+                "$project_path/addons"
                 ]
         }
     }
