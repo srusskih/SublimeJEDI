@@ -5,7 +5,7 @@
     "python_interpreter": "python",
 
     // Additional python package paths.
-     "python_package_paths": [],
+    "python_package_paths": [],
 
     // Which function arguments to insert in autocompletion:
     // "all" - all
