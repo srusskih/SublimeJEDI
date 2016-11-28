@@ -77,6 +77,44 @@ set (additionally to the trigger above):
         "auto_complete_selector": "-",
     }
 
+
+#### Jedi Goto / Go Definition
+
+Find function / variable / class definition
+
+Shortcuts: `CTRL+SHIFT+G`
+
+Mouse binding, was disabled, becase it's hard to keep ST default behavior.
+Now you can bind `CTRL + LeftMouseButton` by themself in this way:
+
+    # User/Default.sublime-mousemap
+    [{
+        "modifiers": ["ctrl"], "button": "button1",
+        "command": "sublime_jedi_goto",
+        "press_command": "drag_select"
+    }]
+
+
+#### Jedi Find Related Names ("Find Usages")
+
+Find function / method / variable / class usage, definition.
+
+Shortcut: `Alt+Shift+f`.
+
+
+#### Jedi Show Docstring
+
+Show docstring in output panel.
+
+Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`).
+
+
+#### Jedi Show Calltip
+
+Show calltip in status bar.
+
+Exposed command is `sublime_jedi_signature`.
+
 #### Function args fill up on completion
 
 SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settings#12).
@@ -143,44 +181,6 @@ Enabling this option to try to bring more comfortable workflow.
 Please note, if you are using [SublimeAllAutocomplete](https://github.com/alienhard/SublimeAllAutocomplete) - you should not care about this option.
 
 
-#### Jedi Goto / Go Definition
-
-Find function / variable / class definition
-
-Shortcuts: `CTRL+SHIFT+G`
-
-Mouse binding, was disabled, becase it's hard to keep ST default behavior.
-Now you can bind `CTRL + LeftMouseButton` by themself in this way:
-
-    # User/Default.sublime-mousemap
-    [{
-        "modifiers": ["ctrl"], "button": "button1",
-        "command": "sublime_jedi_goto",
-        "press_command": "drag_select"
-    }]
-
-
-#### Jedi Find Related Names ("Find Usages")
-
-Find function / method / variable / class usage, definition.
-
-Shortcut: `Alt+Shift+f`.
-
-
-#### Jedi Show Docstring
-
-Show docstring in output panel.
-
-Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`).
-
-
-#### Jedi Show Calltip
-
-Show calltip in status bar.
-
-Exposed command is `sublime_jedi_signature`.
-
-
 #### Logging
 
 To change logging level of the plugin - change `logging_level` value in settings.
@@ -193,6 +193,36 @@ Possible values: "debug", "info", "error"
         // ...
 		"logging_level": "error"
     }
+
+
+Troubleshooting
+---------------
+
+#### Auto-complete for `import XXXX` does not works.
+
+It's a common issue for ST3.
+All language related settings are stored in Python Package.
+There is a `Completion Rules.tmPreferences` file where defined that completion should be canceled after some list of keywords (def, class, import & etc.).
+
+Sublime Jedi plugin already has `Completion Rules.tmPreferences` file for ST2, but ST3 ignores it.
+
+Some workarounds how to update completion rules:
+
+##### Copy-Paste
+
+    1. Delete your Sublime Text Cache file `Cache/Python/Completion Rules.tmPreferences.cache`
+    2. Download [Completion Rules.tmPreferences.cache](https://raw.githubusercontent.com/srusskih/SublimeJEDI/master/Completion%20Rules.tmPreferences) to `User/Packages/Python/`
+
+##### There is package for this...
+
+    1. install Package https://packagecontrol.io/packages/PackageResourceViewer
+    2. cmd+shift+p (Command Pannel)
+    2.1. type `PackageResourceViewer: Open Resource`
+    2.2. type `python` and select Python package
+    2.3. type `Completion Rules.tmPreferences`
+    2.4. remove `import` from the regexp.
+    2.5. save
+
 
 License
 -------
