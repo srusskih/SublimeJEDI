@@ -4,7 +4,11 @@ import functools
 import sublime
 import sublime_plugin
 
-from .utils import is_python_scope, ask_daemon, get_settings, is_repl
+from .utils import (ask_daemon,
+                    get_settings,
+                    is_python_scope,
+                    is_repl,
+                    is_sublime_v2)
 from .console_logging import getLogger
 from .settings import get_settings_param
 
@@ -197,17 +201,10 @@ class Autocomplete(sublime_plugin.EventListener):
         """
         Show completion Pop-Up
         """
-        logger.debug("command history: " + str([
-            view.command_history(-1),
-            view.command_history(0),
-            view.command_history(1),
-        ]))
-        command = view.command_history(0)
+        if is_sublime_v2():
+           self._fix_sublime2_tab_completion_issue(view)
 
-        # if completion was triggered by tab, then hide "tab" or "snippet"
-        if command[0] == 'insert_best_completion' or\
-                (command == (u'insert', {'characters': u'\t'}, 1)):
-            view.run_command('undo')
+        self._fix_tab_completion_issue(view)
 
         view.run_command("auto_complete", {
             'disable_auto_insert': True,
@@ -215,6 +212,35 @@ class Autocomplete(sublime_plugin.EventListener):
             'next_completion_if_showing': False,
             'auto_complete_commit_on_tab': True,
         })
+
+    def _fix_sublime2_tab_completion_issue(self, view):
+        """Fix ST2 issue with tab completion & commit on tab."""
+        logger.debug("command history: " + str([
+            view.command_history(-1),
+            view.command_history(0),
+            view.command_history(1),
+        ]))
+        last_command = view.command_history(0)
+
+        # when you type "os.<tab>" originaly it will insert `self.` snippet
+        # this detects such behavior and trying avoid it.
+        if (last_command[0] == 'insert_best_completion'):
+            view.run_command('undo')
+
+    def _fix_tab_completion_issue(self, view):
+        """Fix issue with tab completion & commit on tab."""
+        logger.debug("command history: " + str([
+            view.command_history(-1),
+            view.command_history(0),
+            view.command_history(1),
+        ]))
+        last_command = view.command_history(0)
+
+        # when you hit <tab> after completion commit, completion popup
+        # will appeares and `\t` would be inserted
+        # this detecs such behavior and trying avoid it.
+        if last_command == (u'insert', {'characters': u'\t'}, 1):
+            view.run_command('undo')
 
     def _get_completion_mode(self, view):
         return get_settings_param(view, 'sublime_completions_visibility',

@@ -396,3 +396,7 @@ def _get_projects_from_session():
     projects = list(set(projects))
 
     return projects
+
+
+def is_sublime_v2():
+    return sublime.version().startswith('2')
