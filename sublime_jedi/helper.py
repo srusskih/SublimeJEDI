@@ -33,12 +33,12 @@ def docstring_panel(view, docstring):
         sublime.status_message('Jedi: No results!')
 
 
-def docstring_tooltip(view, docstring, conent_builder):
+def docstring_tooltip(view, docstring, content_builder):
     """Show docstring in popup.
 
     :param view (sublime.View): current active view
     :param docstring (basestring): python __doc__ string
-    :param content_builder (callable): callable object should accept docstring 
+    :param content_builder (callable): callable object should accept docstring
         and return content read for popup (a html text)
     """
     if docstring:
@@ -52,7 +52,7 @@ def simple_html_builder(docstring):
     docstring = docstring.split('\n')
     docstring[0] = '<b>' + docstring[0] + '</b>'
     html = '<body><p style="font-family: sans-serif; font-family: sans-serif;">{0}</p></body>'.format(
-       '<br />'.join(docstring) 
+       '<br />'.join(docstring)
     )
     return html
 
@@ -67,7 +67,7 @@ class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
         if is_sublime_v2():
             docstring_panel(view, docstring)
         else:
-            docstring_tooltip(view, docstring, simple_html_bilder)
+            docstring_tooltip(view, docstring, simple_html_builder)
 
 
 class SublimeJediSignature(PythonCommandMixin, sublime_plugin.TextCommand):
