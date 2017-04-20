@@ -1,34 +1,63 @@
 import glob
 import os
 import sys
+from jedi.evaluate.site import addsitedir
 
 from jedi._compatibility import exec_function, unicode
-from jedi.parser import tree
-from jedi.parser import Parser
+from jedi.parser.python import tree
+from jedi.parser.python import parse
 from jedi.evaluate.cache import memoize_default
 from jedi import debug
 from jedi import common
-from jedi import cache
+from jedi.evaluate.compiled import CompiledObject
+from jedi.evaluate.context import ContextualizedNode
 
 
-def get_sys_path():
-    def check_virtual_env(sys_path):
-        """ Add virtualenv's site-packages to the `sys.path`."""
-        venv = os.getenv('VIRTUAL_ENV')
-        if not venv:
-            return
-        venv = os.path.abspath(venv)
-        p = _get_venv_sitepackages(venv)
-        if p not in sys_path:
-            sys_path.insert(0, p)
+def get_venv_path(venv):
+    """Get sys.path for specified virtual environment."""
+    sys_path = _get_venv_path_dirs(venv)
+    with common.ignored(ValueError):
+        sys_path.remove('')
+    sys_path = _get_sys_path_with_egglinks(sys_path)
+    # As of now, get_venv_path_dirs does not scan built-in pythonpath and
+    # user-local site-packages, let's approximate them using path from Jedi
+    # interpreter.
+    return sys_path + sys.path
 
-        # Add all egg-links from the virtualenv.
-        for egg_link in glob.glob(os.path.join(p, '*.egg-link')):
+
+def _get_sys_path_with_egglinks(sys_path):
+    """Find all paths including those referenced by egg-links.
+
+    Egg-link-referenced directories are inserted into path immediately before
+    the directory on which their links were found.  Such directories are not
+    taken into consideration by normal import mechanism, but they are traversed
+    when doing pkg_resources.require.
+    """
+    result = []
+    for p in sys_path:
+        # pkg_resources does not define a specific order for egg-link files
+        # using os.listdir to enumerate them, we're sorting them to have
+        # reproducible tests.
+        for egg_link in sorted(glob.glob(os.path.join(p, '*.egg-link'))):
             with open(egg_link) as fd:
-                sys_path.insert(0, fd.readline().rstrip())
+                for line in fd:
+                    line = line.strip()
+                    if line:
+                        result.append(os.path.join(p, line))
+                        # pkg_resources package only interprets the first
+                        # non-empty line in egg-link files.
+                        break
+        result.append(p)
+    return result
 
-    check_virtual_env(sys.path)
-    return [p for p in sys.path if p != ""]
+
+def _get_venv_path_dirs(venv):
+    """Get sys.path for venv without starting up the interpreter."""
+    venv = os.path.abspath(venv)
+    sitedir = _get_venv_sitepackages(venv)
+    sys_path = []
+    addsitedir(sys_path, sitedir)
+    return sys_path
 
 
 def _get_venv_sitepackages(venv):
@@ -57,7 +86,7 @@ def _execute_code(module_path, code):
     return []
 
 
-def _paths_from_assignment(evaluator, expr_stmt):
+def _paths_from_assignment(module_context, expr_stmt):
     """
     Extracts the assigned strings from an assignment that looks as follows::
 
@@ -71,7 +100,8 @@ def _paths_from_assignment(evaluator, expr_stmt):
     for assignee, operator in zip(expr_stmt.children[::2], expr_stmt.children[1::2]):
         try:
             assert operator in ['=', '+=']
-            assert tree.is_node(assignee, 'power') and len(assignee.children) > 1
+            assert assignee.type in ('power', 'atom_expr') and \
+                len(assignee.children) > 1
             c = assignee.children
             assert c[0].type == 'name' and c[0].value == 'sys'
             trailer = c[1]
@@ -90,101 +120,110 @@ def _paths_from_assignment(evaluator, expr_stmt):
         except AssertionError:
             continue
 
-        from jedi.evaluate.iterable import get_iterator_types
+        from jedi.evaluate.iterable import py__iter__
         from jedi.evaluate.precedence import is_string
-        for val in get_iterator_types(evaluator.eval_statement(expr_stmt)):
-            if is_string(val):
-                yield val.obj
+        cn = ContextualizedNode(module_context.create_context(expr_stmt), expr_stmt)
+        for lazy_context in py__iter__(module_context.evaluator, cn.infer(), cn):
+            for context in lazy_context.infer():
+                if is_string(context):
+                    yield context.obj
 
 
 def _paths_from_list_modifications(module_path, trailer1, trailer2):
     """ extract the path from either "sys.path.append" or "sys.path.insert" """
     # Guarantee that both are trailers, the first one a name and the second one
     # a function execution with at least one param.
-    if not (tree.is_node(trailer1, 'trailer') and trailer1.children[0] == '.'
-            and tree.is_node(trailer2, 'trailer') and trailer2.children[0] == '('
+    if not (trailer1.type == 'trailer' and trailer1.children[0] == '.'
+            and trailer2.type == 'trailer' and trailer2.children[0] == '('
             and len(trailer2.children) == 3):
         return []
 
     name = trailer1.children[1].value
     if name not in ['insert', 'append']:
         return []
-
     arg = trailer2.children[1]
     if name == 'insert' and len(arg.children) in (3, 4):  # Possible trailing comma.
         arg = arg.children[2]
     return _execute_code(module_path, arg.get_code())
 
 
-def _check_module(evaluator, module):
+def _check_module(module_context):
+    """
+    Detect sys.path modifications within module.
+    """
     def get_sys_path_powers(names):
         for name in names:
             power = name.parent.parent
-            if tree.is_node(power, 'power'):
+            if power.type in ('power', 'atom_expr'):
                 c = power.children
                 if isinstance(c[0], tree.Name) and c[0].value == 'sys' \
-                        and tree.is_node(c[1], 'trailer'):
+                        and c[1].type == 'trailer':
                     n = c[1].children[1]
                     if isinstance(n, tree.Name) and n.value == 'path':
                         yield name, power
 
-    sys_path = list(get_sys_path())  # copy
+    sys_path = list(module_context.evaluator.sys_path)  # copy
+    if isinstance(module_context, CompiledObject):
+        return sys_path
+
     try:
-        possible_names = module.used_names['path']
+        possible_names = module_context.tree_node.used_names['path']
     except KeyError:
+        # module.used_names is MergedNamesDict whose getitem never throws
+        # keyerror, this is superfluous.
         pass
     else:
         for name, power in get_sys_path_powers(possible_names):
             stmt = name.get_definition()
             if len(power.children) >= 4:
-                sys_path.extend(_paths_from_list_modifications(module.path, *power.children[2:4]))
+                sys_path.extend(
+                    _paths_from_list_modifications(
+                        module_context.py__file__(), *power.children[2:4]
+                    )
+                )
             elif name.get_definition().type == 'expr_stmt':
-                sys_path.extend(_paths_from_assignment(evaluator, stmt))
+                sys_path.extend(_paths_from_assignment(module_context, stmt))
     return sys_path
 
 
 @memoize_default(evaluator_is_first_arg=True, default=[])
-def sys_path_with_modifications(evaluator, module):
-    if module.path is None:
+def sys_path_with_modifications(evaluator, module_context):
+    path = module_context.py__file__()
+    if path is None:
         # Support for modules without a path is bad, therefore return the
         # normal path.
-        return list(get_sys_path())
+        return list(evaluator.sys_path)
 
     curdir = os.path.abspath(os.curdir)
+    #TODO why do we need a chdir?
     with common.ignored(OSError):
-        os.chdir(os.path.dirname(module.path))
+        os.chdir(os.path.dirname(path))
 
     buildout_script_paths = set()
 
-    result = _check_module(evaluator, module)
-    result += _detect_django_path(module.path)
-    for buildout_script in _get_buildout_scripts(module.path):
-        for path in _get_paths_from_buildout_script(evaluator, buildout_script):
+    result = _check_module(module_context)
+    result += _detect_django_path(path)
+    for buildout_script_path in _get_buildout_script_paths(path):
+        for path in _get_paths_from_buildout_script(evaluator, buildout_script_path):
             buildout_script_paths.add(path)
     # cleanup, back to old directory
     os.chdir(curdir)
     return list(result) + list(buildout_script_paths)
 
 
-def _get_paths_from_buildout_script(evaluator, buildout_script):
-    def load(buildout_script):
-        try:
-            with open(buildout_script, 'rb') as f:
-                source = common.source_to_unicode(f.read())
-        except IOError:
-            debug.dbg('Error trying to read buildout_script: %s', buildout_script)
-            return
-
-        p = Parser(evaluator.grammar, source, buildout_script)
-        cache.save_parser(buildout_script, p)
-        return p.module
-
-    cached = cache.load_parser(buildout_script)
-    module = cached and cached.module or load(buildout_script)
-    if not module:
+def _get_paths_from_buildout_script(evaluator, buildout_script_path):
+    try:
+        module_node = parse(
+            path=buildout_script_path,
+            grammar=evaluator.grammar,
+            cache=True
+        )
+    except IOError:
+        debug.warning('Error trying to read buildout_script: %s', buildout_script_path)
         return
 
-    for path in _check_module(evaluator, module):
+    from jedi.evaluate.representation import ModuleContext
+    for path in _check_module(ModuleContext(evaluator, module_node, buildout_script_path)):
         yield path
 
 
@@ -216,7 +255,7 @@ def _detect_django_path(module_path):
     return result
 
 
-def _get_buildout_scripts(module_path):
+def _get_buildout_script_paths(module_path):
     """
     if there is a 'buildout.cfg' file in one of the parent directories of the
     given module it will return a list of all files in the buildout bin
@@ -239,8 +278,8 @@ def _get_buildout_scripts(module_path):
                 firstline = f.readline()
                 if firstline.startswith('#!') and 'python' in firstline:
                     extra_module_paths.append(filepath)
-        except IOError as e:
-            # either permission error or race cond. because file got deleted
+        except (UnicodeDecodeError, IOError) as e:
+            # Probably a binary file; permission error or race cond. because file got deleted
             # ignore
             debug.warning(unicode(e))
             continue
