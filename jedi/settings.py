@@ -16,7 +16,6 @@ Completion output
 ~~~~~~~~~~~~~~~~~
 
 .. autodata:: case_insensitive_completion
-.. autodata:: add_dot_after_module
 .. autodata:: add_bracket_after_function
 .. autodata:: no_completion_duplicates
 
@@ -69,7 +68,6 @@ definitely worse in some cases. But a completion should also be fast.
 Caching
 ~~~~~~~
 
-.. autodata:: star_import_cache_validity
 .. autodata:: call_signatures_validity
 
 
@@ -84,13 +82,6 @@ import platform
 case_insensitive_completion = True
 """
 The completion is by default case insensitive.
-"""
-
-add_dot_after_module = False
-"""
-Adds a dot after a module, because a module that is not accessed this way is
-definitely not the normal case. However, in VIM this doesn't work, that's why
-it isn't used at the moment.
 """
 
 add_bracket_after_function = False
@@ -224,13 +215,6 @@ scale `max_executions` and `max_until_execution_unique`:
 # ----------------
 # caching validity (time)
 # ----------------
-
-star_import_cache_validity = 60.0
-"""
-In huge packages like numpy, checking all star imports on every completion
-might be slow, therefore we do a star import caching, that lasts a certain
-time span (in seconds).
-"""
 
 call_signatures_validity = 3.0
 """
