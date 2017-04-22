@@ -1,0 +1,5 @@
+New Features
+------------
+
+ - Jedi updated to [0.8.0](https://github.com/davidhalter/jedi/blob/master/CHANGELOG.rst#080-2013-04-01)
+ - `$project_path` variable can be used in paths (interpreter path, extra packages paths) [PR #127](https://github.com/srusskih/SublimeJEDI/pull/127)

@@ -84,8 +84,17 @@ def get_function_parameters(callDef):
 
     params = []
     for param in callDef.params:
-        cleaned_param = param.get_code().strip()
-        if '*' in cleaned_param or cleaned_param == 'self':
+        # logger.info("%s %s" % (param.name, param.description))
+
+        # when you writing a callable object
+        # jedi tring to complete incompleted object
+        # and returns "empty" calldefinition
+        # in this case we have to skip it
+        if not param.name:
+            continue
+
+        cleaned_param = param.description.rstrip(',')
+        if '*' in cleaned_param or cleaned_param in ['self', '...']:
             continue
         params.append([s.strip() for s in cleaned_param.split('=')])
     return params
@@ -110,6 +119,7 @@ class JediFacade:
 
     """
     def __init__(self, source, line, offset, filename='', encoding='utf-8'):
+        filename = filename or None
         self.script = jedi.Script(
             source, int(line), int(offset), filename, encoding
         )
@@ -135,8 +145,18 @@ class JediFacade:
 
     def get_autocomplete(self):
         """ Jedi "completion" """
-        data = self._parameters_for_completion() or []
-        data.extend(self._completion() or [])
+        data = []
+
+        try:
+            data.extend(self._parameters_for_completion())
+        except:
+            logger.info("params completion failed")
+
+        try:
+            data.extend(self._completion() or [])
+        except:
+            logger.info("general completion failed")
+
         return data
 
     def get_docstring(self):
@@ -204,7 +224,7 @@ class JediFacade:
             definitions = self.script.goto_assignments()
             if all(d.type == 'import' for d in definitions):
                 # check if it an import string and if it is get definition
-                definitions = self.script.get_definition()
+                definitions = self.script.goto_definitions()
         except NotFoundError:
             return
         else:

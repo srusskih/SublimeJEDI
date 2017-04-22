@@ -17,16 +17,16 @@ It works as follows:
 - execute these calls and check the input. This work with a ``ParamListener``.
 """
 
-from jedi._compatibility import unicode
-from jedi.parser import representation as pr
+from jedi.parser.python import tree
 from jedi import settings
-from jedi.evaluate import helpers
+from jedi import debug
 from jedi.evaluate.cache import memoize_default
 from jedi.evaluate import imports
+from jedi.evaluate.param import TreeArguments, create_default_param
+from jedi.common import to_list, unite
 
-# This is something like the sys.path, but only for searching params. It means
-# that this is the order in which Jedi searches params.
-search_param_modules = ['.']
+
+MAX_PARAM_SEARCHES = 20
 
 
 class ParamListener(object):
@@ -37,118 +37,165 @@ class ParamListener(object):
         self.param_possibilities = []
 
     def execute(self, params):
-        self.param_possibilities.append(params)
+        self.param_possibilities += params
 
 
-@memoize_default([], evaluator_is_first_arg=True)
-def search_params(evaluator, param):
+class MergedExecutedParams(object):
     """
-    This is a dynamic search for params. If you try to complete a type:
+    Simulates being a parameter while actually just being multiple params.
+    """
+    def __init__(self, executed_params):
+        self._executed_params = executed_params
+
+    def infer(self):
+        return unite(p.infer() for p in self._executed_params)
+
+
+@debug.increase_indent
+def search_params(evaluator, parent_context, funcdef):
+    """
+    A dynamic search for param values. If you try to complete a type:
 
     >>> def func(foo):
     ...     foo
     >>> func(1)
     >>> func("")
 
-    It is not known what the type is, because it cannot be guessed with
-    recursive madness. Therefore one has to analyse the statements that are
-    calling the function, as well as analyzing the incoming params.
+    It is not known what the type ``foo`` without analysing the whole code. You
+    have to look for all calls to ``func`` to find out what ``foo`` possibly
+    is.
     """
     if not settings.dynamic_params:
-        return []
+        return set()
 
-    def get_params_for_module(module):
-        """
-        Returns the values of a param, or an empty array.
-        """
-        @memoize_default([], evaluator_is_first_arg=True)
-        def get_posibilities(evaluator, module, func_name):
-            try:
-                possible_stmts = module.used_names[func_name]
-            except KeyError:
-                return []
+    evaluator.dynamic_params_depth += 1
+    try:
+        debug.dbg('Dynamic param search in %s.', funcdef.name.value, color='MAGENTA')
+        module_context = parent_context.get_root_context()
+        function_executions = _search_function_executions(
+            evaluator,
+            module_context,
+            funcdef
+        )
+        if function_executions:
+            zipped_params = zip(*list(
+                function_execution.get_params()
+                for function_execution in function_executions
+            ))
+            params = [MergedExecutedParams(executed_params) for executed_params in zipped_params]
+            # Evaluate the ExecutedParams to types.
+        else:
+            params = [create_default_param(parent_context, p) for p in funcdef.params]
+        debug.dbg('Dynamic param result finished', color='MAGENTA')
+        return params
+    finally:
+        evaluator.dynamic_params_depth -= 1
 
-            for stmt in possible_stmts:
-                if isinstance(stmt, pr.Import):
-                    continue
-                calls = helpers.scan_statement_for_calls(stmt, func_name)
-                for c in calls:
-                    # no execution means that params cannot be set
-                    call_path = list(c.generate_call_path())
-                    pos = c.start_pos
-                    scope = stmt.parent
 
-                    # this whole stuff is just to not execute certain parts
-                    # (speed improvement), basically we could just call
-                    # ``eval_call_path`` on the call_path and it would
-                    # also work.
-                    def listRightIndex(lst, value):
-                        return len(lst) - lst[-1::-1].index(value) - 1
+@memoize_default([], evaluator_is_first_arg=True)
+@to_list
+def _search_function_executions(evaluator, module_context, funcdef):
+    """
+    Returns a list of param names.
+    """
+    from jedi.evaluate import representation as er
 
-                    # Need to take right index, because there could be a
-                    # func usage before.
-                    call_path_simple = [unicode(d) if isinstance(d, pr.NamePart)
-                                        else d for d in call_path]
-                    i = listRightIndex(call_path_simple, func_name)
-                    first, last = call_path[:i], call_path[i + 1:]
-                    if not last and not call_path_simple.index(func_name) != i:
-                        continue
-                    scopes = [scope]
-                    if first:
-                        scopes = evaluator.eval_call_path(iter(first), scope, pos)
-                        pos = None
-                    from jedi.evaluate import representation as er
-                    for scope in scopes:
-                        s = evaluator.find_types(scope, func_name, position=pos,
-                                                 search_global=not first,
-                                                 resolve_decorator=False)
+    func_string_name = funcdef.name.value
+    compare_node = funcdef
+    if func_string_name == '__init__':
+        cls = funcdef.get_parent_scope()
+        if isinstance(cls, tree.Class):
+            func_string_name = cls.name.value
+            compare_node = cls
 
-                        c = [getattr(escope, 'base_func', None) or escope.base
-                             for escope in s
-                             if escope.isinstance(er.Function, er.Class)]
-                        if compare in c:
-                            # only if we have the correct function we execute
-                            # it, otherwise just ignore it.
-                            evaluator.follow_path(iter(last), s, scope)
+    found_executions = False
+    i = 0
+    for for_mod_context in imports.get_modules_containing_name(
+            evaluator, [module_context], func_string_name):
+        if not isinstance(module_context, er.ModuleContext):
+            return
+        for name, trailer in _get_possible_nodes(for_mod_context, func_string_name):
+            i += 1
 
-            return listener.param_possibilities
+            # This is a simple way to stop Jedi's dynamic param recursion
+            # from going wild: The deeper Jedi's in the recursion, the less
+            # code should be evaluated.
+            if i * evaluator.dynamic_params_depth > MAX_PARAM_SEARCHES:
+                return
 
-        result = []
-        for params in get_posibilities(evaluator, module, func_name):
-            for p in params:
-                if str(p) == param_name:
-                    result += evaluator.eval_statement(p.parent)
-        return result
+            random_context = evaluator.create_context(for_mod_context, name)
+            for function_execution in _check_name_for_execution(
+                    evaluator, random_context, compare_node, name, trailer):
+                found_executions = True
+                yield function_execution
 
-    func = param.get_parent_until(pr.Function)
-    current_module = param.get_parent_until()
-    func_name = unicode(func.name)
-    compare = func
-    if func_name == '__init__' and isinstance(func.parent, pr.Class):
-        func_name = unicode(func.parent.name)
-        compare = func.parent
+        # If there are results after processing a module, we're probably
+        # good to process. This is a speed optimization.
+        if found_executions:
+            return
 
-    # get the param name
-    if param.assignment_details:
-        # first assignment details, others would be a syntax error
-        expression_list, op = param.assignment_details[0]
-    else:
-        expression_list = param.expression_list()
-    offset = 1 if expression_list[0] in ['*', '**'] else 0
-    param_name = str(expression_list[offset].name)
 
-    # add the listener
-    listener = ParamListener()
-    func.listeners.add(listener)
+def _get_possible_nodes(module_context, func_string_name):
+    try:
+        names = module_context.tree_node.used_names[func_string_name]
+    except KeyError:
+        return
 
-    result = []
-    # This is like backtracking: Get the first possible result.
-    for mod in imports.get_modules_containing_name([current_module], func_name):
-        result = get_params_for_module(mod)
-        if result:
-            break
+    for name in names:
+        bracket = name.get_next_leaf()
+        trailer = bracket.parent
+        if trailer.type == 'trailer' and bracket == '(':
+            yield name, trailer
 
-    # cleanup: remove the listener; important: should not stick.
-    func.listeners.remove(listener)
 
-    return result
+def _check_name_for_execution(evaluator, context, compare_node, name, trailer):
+    from jedi.evaluate import representation as er, instance
+
+    def create_func_excs():
+        arglist = trailer.children[1]
+        if arglist == ')':
+            arglist = ()
+        args = TreeArguments(evaluator, context, arglist, trailer)
+        if value_node.type == 'funcdef':
+            yield value.get_function_execution(args)
+        else:
+            created_instance = instance.TreeInstance(
+                evaluator,
+                value.parent_context,
+                value,
+                args
+            )
+            for execution in created_instance.create_init_executions():
+                yield execution
+
+    for value in evaluator.goto_definitions(context, name):
+        value_node = value.tree_node
+        if compare_node == value_node:
+            for func_execution in create_func_excs():
+                yield func_execution
+        elif isinstance(value.parent_context, er.FunctionExecutionContext) and \
+                compare_node.type == 'funcdef':
+            # Here we're trying to find decorators by checking the first
+            # parameter. It's not very generic though. Should find a better
+            # solution that also applies to nested decorators.
+            params = value.parent_context.get_params()
+            if len(params) != 1:
+                continue
+            values = params[0].infer()
+            nodes = [v.tree_node for v in values]
+            if nodes == [compare_node]:
+                # Found a decorator.
+                module_context = context.get_root_context()
+                execution_context = next(create_func_excs())
+                for name, trailer in _get_possible_nodes(module_context, params[0].string_name):
+                    if value_node.start_pos < name.start_pos < value_node.end_pos:
+                        random_context = evaluator.create_context(execution_context, name)
+                        iterator = _check_name_for_execution(
+                            evaluator,
+                            random_context,
+                            compare_node,
+                            name,
+                            trailer
+                        )
+                        for function_execution in iterator:
+                            yield function_execution

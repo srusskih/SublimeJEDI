@@ -1,0 +1,12 @@
+Sublime Jedi v0.9.0
+===================
+
+* Added Jedi commands to Sublime Text Context menu.
+* Added option to show "Go To Definitions" in a split view.
+* Documentation (docstrings) appears in pop-up for ST3.
+* Updated behaviour for TAB completion for ST3. Now it can insert best completion on TAB.
+* Added Troubleshooting section to Readme.
+* Documentation command unavailable in non-python scope
+* Go to command unavailable in non-python scopes
+* Fixed find usages command: cant show file's content on another panel in transient mode
+* Fixed find usages command: don't move the view to second panel if its focused

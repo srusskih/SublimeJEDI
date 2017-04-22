@@ -1,189 +1,179 @@
 import copy
+from itertools import chain
+from contextlib import contextmanager
 
-from jedi import common
-from jedi.parser import representation as pr
-from jedi import debug
+from jedi.parser.python import tree
 
 
-def fast_parent_copy(obj):
+def deep_ast_copy(obj):
     """
-    Much, much faster than copy.deepcopy, but just for certain elements.
+    Much, much faster than copy.deepcopy, but just for parser tree nodes.
     """
-    new_elements = {}
+    # If it's already in the cache, just return it.
+    new_obj = copy.copy(obj)
 
-    def recursion(obj):
-        if isinstance(obj, pr.Statement):
-            # Need to set _set_vars, otherwise the cache is not working
-            # correctly, don't know why.
-            obj.get_defined_names()
-
-        new_obj = copy.copy(obj)
-        new_elements[obj] = new_obj
-
-        try:
-            items = list(new_obj.__dict__.items())
-        except AttributeError:
-            # __dict__ not available, because of __slots__
-            items = []
-
-        before = ()
-        for cls in new_obj.__class__.__mro__:
-            with common.ignored(AttributeError):
-                if before == cls.__slots__:
-                    continue
-                before = cls.__slots__
-                items += [(n, getattr(new_obj, n)) for n in before]
-
-        for key, value in items:
-            # replace parent (first try _parent and then parent)
-            if key in ['parent', '_parent'] and value is not None:
-                if key == 'parent' and '_parent' in items:
-                    # parent can be a property
-                    continue
-                with common.ignored(KeyError):
-                    setattr(new_obj, key, new_elements[value])
-            elif key in ['parent_function', 'use_as_parent', '_sub_module']:
-                continue
-            elif isinstance(value, list):
-                setattr(new_obj, key, list_rec(value))
-            elif isinstance(value, pr.Simple):
-                setattr(new_obj, key, recursion(value))
-        return new_obj
-
-    def list_rec(list_obj):
-        copied_list = list_obj[:]   # lists, tuples, strings, unicode
-        for i, el in enumerate(copied_list):
-            if isinstance(el, pr.Simple):
-                copied_list[i] = recursion(el)
-            elif isinstance(el, list):
-                copied_list[i] = list_rec(el)
-        return copied_list
-    return recursion(obj)
-
-
-def call_signature_array_for_pos(stmt, pos):
-    """
-    Searches for the array and position of a tuple.
-    """
-    def search_array(arr, pos):
-        accepted_types = pr.Array.TUPLE, pr.Array.NOARRAY
-        if arr.type == 'dict':
-            for stmt in arr.values + arr.keys:
-                new_arr, index = call_signature_array_for_pos(stmt, pos)
-                if new_arr is not None:
-                    return new_arr, index
+    # Copy children
+    new_children = []
+    for child in obj.children:
+        if isinstance(child, tree.Leaf):
+            new_child = copy.copy(child)
+            new_child.parent = new_obj
         else:
-            for i, stmt in enumerate(arr):
-                new_arr, index = call_signature_array_for_pos(stmt, pos)
-                if new_arr is not None:
-                    return new_arr, index
+            new_child = deep_ast_copy(child)
+            new_child.parent = new_obj
+        new_children.append(new_child)
+    new_obj.children = new_children
 
-                if arr.start_pos < pos <= stmt.end_pos:
-                    if arr.type in accepted_types and isinstance(arr.parent, pr.Call):
-                        return arr, i
-        if len(arr) == 0 and arr.start_pos < pos < arr.end_pos:
-            if arr.type in accepted_types and isinstance(arr.parent, pr.Call):
-                return arr, 0
-        return None, 0
-
-    def search_call(call, pos):
-        arr, index = None, 0
-        if call.next is not None:
-            if isinstance(call.next, pr.Array):
-                arr, index = search_array(call.next, pos)
-            else:
-                arr, index = search_call(call.next, pos)
-        if not arr and call.execution is not None:
-            arr, index = search_array(call.execution, pos)
-        return arr, index
-
-    if stmt.start_pos >= pos >= stmt.end_pos:
-        return None, 0
-
-    for command in stmt.expression_list():
-        arr = None
-        if isinstance(command, pr.Array):
-            arr, index = search_array(command, pos)
-        elif isinstance(command, pr.StatementElement):
-            arr, index = search_call(command, pos)
-        if arr is not None:
-            return arr, index
-    return None, 0
+    return new_obj
 
 
-def search_call_signatures(user_stmt, position):
+def evaluate_call_of_leaf(context, leaf, cut_own_trailer=False):
     """
-    Returns the function Call that matches the position before.
+    Creates a "call" node that consist of all ``trailer`` and ``power``
+    objects.  E.g. if you call it with ``append``::
+
+        list([]).append(3) or None
+
+    You would get a node with the content ``list([]).append`` back.
+
+    This generates a copy of the original ast node.
+
+    If you're using the leaf, e.g. the bracket `)` it will return ``list([])``.
+
+    # TODO remove cut_own_trailer option, since its always used with it. Just
+    #      ignore it, It's not what we want anyway. Or document it better?
     """
-    debug.speed('func_call start')
-    call, index = None, 0
-    if user_stmt is not None and isinstance(user_stmt, pr.Statement):
-        # some parts will of the statement will be removed
-        user_stmt = fast_parent_copy(user_stmt)
-        arr, index = call_signature_array_for_pos(user_stmt, position)
-        if arr is not None:
-            call = arr.parent
+    trailer = leaf.parent
+    # The leaf may not be the last or first child, because there exist three
+    # different trailers: `( x )`, `[ x ]` and `.x`. In the first two examples
+    # we should not match anything more than x.
+    if trailer.type != 'trailer' or leaf not in (trailer.children[0], trailer.children[-1]):
+        if trailer.type == 'atom':
+            return context.eval_node(trailer)
+        return context.eval_node(leaf)
 
-    debug.speed('func_call parsed')
-    return call, index
+    power = trailer.parent
+    index = power.children.index(trailer)
+    if cut_own_trailer:
+        cut = index
+    else:
+        cut = index + 1
+
+    if power.type == 'error_node':
+        start = index
+        while True:
+            start -= 1
+            base = power.children[start]
+            if base.type != 'trailer':
+                break
+        trailers = power.children[start + 1: index + 1]
+    else:
+        base = power.children[0]
+        trailers = power.children[1:cut]
+
+    values = context.eval_node(base)
+    for trailer in trailers:
+        values = context.eval_trailer(values, trailer)
+    return values
 
 
-def scan_statement_for_calls(stmt, search_name, assignment_details=False):
-    """ Returns the function Calls that match search_name in an Array. """
-    def scan_array(arr, search_name):
-        result = []
-        if arr.type == pr.Array.DICT:
-            for key_stmt, value_stmt in arr.items():
-                result += scan_statement_for_calls(key_stmt, search_name)
-                result += scan_statement_for_calls(value_stmt, search_name)
+def call_of_leaf(leaf):
+    """
+    Creates a "call" node that consist of all ``trailer`` and ``power``
+    objects.  E.g. if you call it with ``append``::
+
+        list([]).append(3) or None
+
+    You would get a node with the content ``list([]).append`` back.
+
+    This generates a copy of the original ast node.
+
+    If you're using the leaf, e.g. the bracket `)` it will return ``list([])``.
+    """
+    # TODO this is the old version of this call. Try to remove it.
+    trailer = leaf.parent
+    # The leaf may not be the last or first child, because there exist three
+    # different trailers: `( x )`, `[ x ]` and `.x`. In the first two examples
+    # we should not match anything more than x.
+    if trailer.type != 'trailer' or leaf not in (trailer.children[0], trailer.children[-1]):
+        if trailer.type == 'atom':
+            return trailer
+        return leaf
+
+    power = trailer.parent
+    index = power.children.index(trailer)
+
+    new_power = copy.copy(power)
+    new_power.children = list(new_power.children)
+    new_power.children[index + 1:] = []
+
+    if power.type == 'error_node':
+        start = index
+        while True:
+            start -= 1
+            if power.children[start].type != 'trailer':
+                break
+        transformed = tree.Node('power', power.children[start:])
+        transformed.parent = power.parent
+        return transformed
+
+    return power
+
+
+def get_names_of_node(node):
+    try:
+        children = node.children
+    except AttributeError:
+        if node.type == 'name':
+            return [node]
         else:
-            for stmt in arr:
-                result += scan_statement_for_calls(stmt, search_name)
-        return result
-
-    check = list(stmt.expression_list())
-    if assignment_details:
-        for expression_list, op in stmt.assignment_details:
-            check += expression_list
-
-    result = []
-    for c in check:
-        if isinstance(c, pr.Array):
-            result += scan_array(c, search_name)
-        elif isinstance(c, pr.Call):
-            s_new = c
-            while s_new is not None:
-                n = s_new.name
-                if isinstance(n, pr.Name) \
-                        and search_name in [str(x) for x in n.names]:
-                    result.append(c)
-
-                if s_new.execution is not None:
-                    result += scan_array(s_new.execution, search_name)
-                s_new = s_new.next
-
-    return result
+            return []
+    else:
+        return list(chain.from_iterable(get_names_of_node(c) for c in children))
 
 
-class FakeSubModule():
-    line_offset = 0
+def get_module_names(module, all_scopes):
+    """
+    Returns a dictionary with name parts as keys and their call paths as
+    values.
+    """
+    names = chain.from_iterable(module.used_names.values())
+    if not all_scopes:
+        # We have to filter all the names that don't have the module as a
+        # parent_scope. There's None as a parent, because nodes in the module
+        # node have the parent module and not suite as all the others.
+        # Therefore it's important to catch that case.
+        names = [n for n in names if n.get_parent_scope().parent in (module, None)]
+    return names
 
 
-class FakeArray(pr.Array):
-    def __init__(self, values, parent, arr_type=pr.Array.LIST):
-        p = (0, 0)
-        super(FakeArray, self).__init__(FakeSubModule, p, arr_type, parent)
-        self.values = values
+class FakeName(tree.Name):
+    def __init__(self, name_str, parent=None, start_pos=(0, 0), is_definition=None):
+        """
+        In case is_definition is defined (not None), that bool value will be
+        returned.
+        """
+        super(FakeName, self).__init__(name_str, start_pos)
+        self.parent = parent
+        self._is_definition = is_definition
+
+    def get_definition(self):
+        return self.parent
+
+    def is_definition(self):
+        if self._is_definition is None:
+            return super(FakeName, self).is_definition()
+        else:
+            return self._is_definition
 
 
-class FakeStatement(pr.Statement):
-    def __init__(self, expression_list, start_pos=(0, 0)):
-        p = start_pos
-        super(FakeStatement, self).__init__(FakeSubModule, expression_list, p, p)
-        self.set_expression_list(expression_list)
-
-
-class FakeName(pr.Name):
-    def __init__(self, name, parent=None):
-        p = 0, 0
-        super(FakeName, self).__init__(FakeSubModule, [(name, p)], p, p, parent)
+@contextmanager
+def predefine_names(context, flow_scope, dct):
+    predefined = context.predefined_names
+    if flow_scope in predefined:
+        raise NotImplementedError('Why does this happen?')
+    predefined[flow_scope] = dct
+    try:
+        yield
+    finally:
+        del predefined[flow_scope]

@@ -1,7 +1,10 @@
 """
-Searcjing for names with given scope and name. This is very central in Jedi and
+Searching for names with given scope and name. This is very central in Jedi and
 Python. The name resolution is quite complicated with descripter,
 ``__getattribute__``, ``__getattr__``, ``global``, etc.
+
+If you want to understand name resolution, please read the first few chapters
+in http://blog.ionelmc.ro/2015/02/09/understanding-python-metaclasses/.
 
 Flow checks
 +++++++++++
@@ -11,288 +14,277 @@ would check whether a flow has the form of ``if isinstance(a, type_or_tuple)``.
 Unfortunately every other thing is being ignored (e.g. a == '' would be easy to
 check for -> a is a string). There's big potential in these checks.
 """
-import sys
 
-from jedi._compatibility import hasattr, unicode, u, reraise
-from jedi.parser import representation as pr, tokenize
+from jedi.parser.python import tree
 from jedi import debug
-from jedi import common
+from jedi.common import unite
 from jedi import settings
 from jedi.evaluate import representation as er
-from jedi.evaluate import dynamic
+from jedi.evaluate.instance import AbstractInstanceContext
 from jedi.evaluate import compiled
-from jedi.evaluate import docstrings
+from jedi.evaluate import pep0484
 from jedi.evaluate import iterable
 from jedi.evaluate import imports
+from jedi.evaluate import analysis
+from jedi.evaluate import flow_analysis
+from jedi.evaluate import param
+from jedi.evaluate import helpers
+from jedi.evaluate.filters import get_global_filters
+from jedi.evaluate.context import ContextualizedName, ContextualizedNode
 
 
 class NameFinder(object):
-    def __init__(self, evaluator, scope, name_str, position=None):
+    def __init__(self, evaluator, context, name_context, name_or_str, position=None):
         self._evaluator = evaluator
-        self.scope = scope
-        self.name_str = name_str
-        self.position = position
-
-    def find(self, scopes, resolve_decorator=True):
-        names = self.filter_name(scopes)
-        types = self._names_to_types(names, resolve_decorator)
-        debug.dbg('finder._names_to_types: %s, old: %s', names, types)
-        return self._resolve_descriptors(types)
-
-    def scopes(self, search_global=False):
-        if search_global:
-            return get_names_of_scope(self._evaluator, self.scope, self.position)
+        # Make sure that it's not just a syntax tree node.
+        self._context = context
+        self._name_context = name_context
+        self._name = name_or_str
+        if isinstance(name_or_str, tree.Name):
+            self._string_name = name_or_str.value
         else:
-            if isinstance(self.scope, er.Instance):
-                return self.scope.scope_generator()
-            else:
-                if isinstance(self.scope, er.Class):
-                    # classes are only available directly via chaining?
-                    # strange stuff...
-                    names = self.scope.get_defined_names()
+            self._string_name = name_or_str
+        self._position = position
+        self._found_predefined_types = None
+
+    @debug.increase_indent
+    def find(self, filters, attribute_lookup):
+        """
+        :params bool attribute_lookup: Tell to logic if we're accessing the
+            attribute or the contents of e.g. a function.
+        """
+        names = self.filter_name(filters)
+        if self._found_predefined_types is not None and names:
+            check = flow_analysis.reachability_check(
+                self._context, self._context.tree_node, self._name)
+            if check is flow_analysis.UNREACHABLE:
+                return set()
+            return self._found_predefined_types
+
+        types = self._names_to_types(names, attribute_lookup)
+
+        if not names and not types \
+                and not (isinstance(self._name, tree.Name) and
+                         isinstance(self._name.parent.parent, tree.Param)):
+            if isinstance(self._name, tree.Name):
+                if attribute_lookup:
+                    analysis.add_attribute_error(
+                        self._name_context, self._context, self._name)
                 else:
-                    names = _get_defined_names_for_position(self.scope, self.position)
-                return iter([(self.scope, names)])
+                    message = ("NameError: name '%s' is not defined."
+                               % self._string_name)
+                    analysis.add(self._name_context, 'name-error', self._name, message)
 
-    def filter_name(self, scope_generator):
+        return types
+
+    def _get_origin_scope(self):
+        if isinstance(self._name, tree.Name):
+            scope = self._name
+            while scope.parent is not None:
+                # TODO why if classes?
+                if not isinstance(scope, tree.Scope):
+                    break
+                scope = scope.parent
+            return scope
+        else:
+            return None
+
+    def get_filters(self, search_global=False):
+        origin_scope = self._get_origin_scope()
+        if search_global:
+            return get_global_filters(self._evaluator, self._context, self._position, origin_scope)
+        else:
+            return self._context.get_filters(search_global, self._position, origin_scope=origin_scope)
+
+    def filter_name(self, filters):
         """
-        Filters all variables of a scope (which are defined in the
-        `scope_generator`), until the name fits.
+        Searches names that are defined in a scope (the different
+        ``filters``), until a name fits.
         """
-        result = []
-        for nscope, name_list in scope_generator:
-            break_scopes = []
-            if not isinstance(nscope, compiled.CompiledObject):
-                # Here is the position stuff happening (sorting of variables).
-                # Compiled objects don't need that, because there's only one
-                # reference.
-                name_list = sorted(name_list, key=lambda n: n.start_pos, reverse=True)
-            for name in name_list:
-                if unicode(self.name_str) != name.get_code():
-                    continue
-
-                parpar = name.parent.parent
-                if name.parent.parent in break_scopes:
-                    continue
-
-                if not self._name_is_array_assignment(name):
-                    result.append(name)  # `arr[1] =` is not the definition
-                # for comparison we need the raw class
-                # this means that a definition was found and is not e.g.
-                # in if/else.
-                if result and self._name_is_break_scope(name):
-                    #print result, name.parent, parpar, s
-                    if isinstance(parpar, pr.Flow) \
-                            or isinstance(parpar, pr.KeywordStatement) \
-                            and parpar.name == 'global':
-                        s = nscope.base if isinstance(nscope, er.Class) else nscope
-                        if parpar == s:
-                            break
+        names = []
+        if self._context.predefined_names:
+            # TODO is this ok? node might not always be a tree.Name
+            node = self._name
+            while node is not None and not node.is_scope():
+                node = node.parent
+                if node.type in ("if_stmt", "for_stmt", "comp_for"):
+                    try:
+                        name_dict = self._context.predefined_names[node]
+                        types = name_dict[self._string_name]
+                    except KeyError:
+                        continue
                     else:
+                        self._found_predefined_types = types
                         break
-                    break_scopes.append(parpar)
-            if result:
-                break
 
-        debug.dbg('finder.filter_name "%s" in (%s-%s): %s@%s', self.name_str,
-                  self.scope, nscope, u(result), self.position)
-        return result
+        for filter in filters:
+            names = filter.get(self._name)
+            if names:
+                break
+        debug.dbg('finder.filter_name "%s" in (%s): %s@%s', self._string_name,
+                  self._context, names, self._position)
+        return list(names)
 
     def _check_getattr(self, inst):
         """Checks for both __getattr__ and __getattribute__ methods"""
-        result = []
-        # str is important to lose the NamePart!
-        name = compiled.create(self._evaluator, str(self.name_str))
-        with common.ignored(KeyError):
-            result = inst.execute_subscope_by_name('__getattr__', [name])
-        if not result:
-            # this is a little bit special. `__getattribute__` is executed
-            # before anything else. But: I know no use case, where this
-            # could be practical and the jedi would return wrong types. If
-            # you ever have something, let me know!
-            with common.ignored(KeyError):
-                result = inst.execute_subscope_by_name('__getattribute__', [name])
-        return result
+        # str is important, because it shouldn't be `Name`!
+        name = compiled.create(self._evaluator, self._string_name)
 
-    def _name_is_break_scope(self, name):
-        """
-        Returns the parent of a name, which means the element which stands
-        behind a name.
-        """
-        par = name.parent
-        if par.isinstance(pr.Statement):
-            if isinstance(name, er.InstanceElement) and not name.is_class_var:
-                return False
-        elif isinstance(par, pr.Import) and len(par.namespace) > 1:
-            # TODO multi-level import non-breakable
-            return False
-        return True
+        # This is a little bit special. `__getattribute__` is in Python
+        # executed before `__getattr__`. But: I know no use case, where
+        # this could be practical and where Jedi would return wrong types.
+        # If you ever find something, let me know!
+        # We are inversing this, because a hand-crafted `__getattribute__`
+        # could still call another hand-crafted `__getattr__`, but not the
+        # other way around.
+        names = (inst.get_function_slot_names('__getattr__') or
+                 inst.get_function_slot_names('__getattribute__'))
+        return inst.execute_function_slots(names, name)
 
-    def _name_is_array_assignment(self, name):
-        if name.parent.isinstance(pr.Statement):
-            def is_execution(calls):
-                for c in calls:
-                    if isinstance(c, (unicode, str, tokenize.Token)):
-                        continue
-                    if c.isinstance(pr.Array):
-                        if is_execution(c):
-                            return True
-                    elif c.isinstance(pr.Call):
-                        # Compare start_pos, because names may be different
-                        # because of executions.
-                        if c.name.start_pos == name.start_pos \
-                                and c.execution:
-                            return True
-                return False
+    def _names_to_types(self, names, attribute_lookup):
+        types = set()
 
-            is_exe = False
-            for assignee, op in name.parent.assignment_details:
-                is_exe |= is_execution(assignee)
+        types = unite(name.infer() for name in names)
 
-            if is_exe:
-                # filter array[3] = ...
-                # TODO check executions for dict contents
-                return True
-        return False
-
-    def _names_to_types(self, names, resolve_decorator):
-        types = []
-        # Add isinstance and other if/assert knowledge.
-        flow_scope = self.scope
-        evaluator = self._evaluator
-        while flow_scope:
-            # TODO check if result is in scope -> no evaluation necessary
-            n = check_flow_information(evaluator, flow_scope,
-                                       self.name_str, self.position)
-            if n:
-                return n
-            flow_scope = flow_scope.parent
-
-        for name in names:
-            typ = name.parent
-            if typ.isinstance(pr.ForFlow):
-                types += self._handle_for_loops(typ)
-            elif isinstance(typ, pr.Param):
-                types += self._eval_param(typ)
-            elif typ.isinstance(pr.Statement):
-                if typ.is_global():
-                    # global keyword handling.
-                    types += evaluator.find_types(typ.parent.parent, str(name))
-                else:
-                    types += self._remove_statements(typ)
-            else:
-                if isinstance(typ, pr.Class):
-                    typ = er.Class(evaluator, typ)
-                elif isinstance(typ, pr.Function):
-                    typ = er.Function(evaluator, typ)
-                if typ.isinstance(er.Function) and resolve_decorator:
-                    typ = typ.get_decorated_func()
-                types.append(typ)
-
-        if not names and isinstance(self.scope, er.Instance):
+        debug.dbg('finder._names_to_types: %s -> %s', names, types)
+        if not names and isinstance(self._context, AbstractInstanceContext):
             # handling __getattr__ / __getattribute__
-            types = self._check_getattr(self.scope)
+            return self._check_getattr(self._context)
 
+        # Add isinstance and other if/assert knowledge.
+        if not types and isinstance(self._name, tree.Name) and \
+                not isinstance(self._name_context, AbstractInstanceContext):
+            flow_scope = self._name
+            base_node = self._name_context.tree_node
+            if base_node.type == 'comp_for':
+                return types
+            while True:
+                flow_scope = flow_scope.get_parent_scope(include_flows=True)
+                n = _check_flow_information(self._name_context, flow_scope,
+                                            self._name, self._position)
+                if n is not None:
+                    return n
+                if flow_scope == base_node:
+                    break
         return types
 
-    def _remove_statements(self, stmt):
-        """
-        This is the part where statements are being stripped.
 
-        Due to lazy evaluation, statements like a = func; b = a; b() have to be
-        evaluated.
-        """
-        evaluator = self._evaluator
-        types = []
-        # Remove the statement docstr stuff for now, that has to be
-        # implemented with the evaluator class.
-        #if stmt.docstr:
-            #res_new.append(stmt)
-
-        check_instance = None
-        if isinstance(stmt, er.InstanceElement) and stmt.is_class_var:
-            check_instance = stmt.instance
-            stmt = stmt.var
-
-        types += evaluator.eval_statement(stmt, seek_name=unicode(self.name_str))
-
-        if check_instance is not None:
-            # class renames
-            types = [er.InstanceElement(evaluator, check_instance, a, True)
-                     if isinstance(a, (er.Function, pr.Function))
-                     else a for a in types]
-        return types
-
-    def _eval_param(self, param):
-        evaluator = self._evaluator
-        res_new = []
-        func = param.parent
-
-        cls = func.parent.get_parent_until((pr.Class, pr.Function))
-
-        if isinstance(cls, pr.Class) and param.position_nr == 0:
-            # This is where we add self - if it has never been
-            # instantiated.
-            if isinstance(self.scope, er.InstanceElement):
-                res_new.append(self.scope.instance)
-            else:
-                for inst in evaluator.execute(er.Class(evaluator, cls)):
-                    inst.is_generated = True
-                    res_new.append(inst)
-            return res_new
-
-        # Instances are typically faked, if the instance is not called from
-        # outside. Here we check it for __init__ functions and return.
-        if isinstance(func, er.InstanceElement) \
-                and func.instance.is_generated and str(func.name) == '__init__':
-            param = func.var.params[param.position_nr]
-
-        # Add docstring knowledge.
-        doc_params = docstrings.follow_param(evaluator, param)
-        if doc_params:
-            return doc_params
-
-        if not param.is_generated:
-            # Param owns no information itself.
-            res_new += dynamic.search_params(evaluator, param)
-            if not res_new:
-                if param.stars:
-                    t = 'tuple' if param.stars == 1 else 'dict'
-                    typ = evaluator.find_types(compiled.builtin, t)[0]
-                    res_new = evaluator.execute(typ)
-            if not param.assignment_details:
-                # this means that there are no default params,
-                # so just ignore it.
-                return res_new
-        return res_new + evaluator.eval_statement(param, seek_name=unicode(self.name_str))
-
-    def _handle_for_loops(self, loop):
-        # Take the first statement (for has always only
-        # one, remember `in`). And follow it.
-        if not loop.inputs:
-            return []
-        result = iterable.get_iterator_types(self._evaluator.eval_statement(loop.inputs[0]))
-        if len(loop.set_vars) > 1:
-            expression_list = loop.set_stmt.expression_list()
-            # loops with loop.set_vars > 0 only have one command
-            result = _assign_tuples(expression_list[0], result, unicode(self.name_str))
-        return result
-
-    def _resolve_descriptors(self, types):
-        """Processes descriptors"""
-        result = []
-        for r in types:
-            if isinstance(self.scope, (er.Instance, er.Class)) \
-                    and hasattr(r, 'get_descriptor_return'):
-                # handle descriptors
-                with common.ignored(KeyError):
-                    result += r.get_descriptor_return(self.scope)
-                    continue
-            result.append(r)
-        return result
+def _name_to_types(evaluator, context, tree_name):
+    types = []
+    node = tree_name.get_definition()
+    typ = node.type
+    if typ == 'for_stmt':
+        types = pep0484.find_type_from_comment_hint_for(context, node, tree_name)
+        if types:
+            return types
+    if typ == 'with_stmt':
+        types = pep0484.find_type_from_comment_hint_with(context, node, tree_name)
+        if types:
+            return types
+    if typ in ('for_stmt', 'comp_for'):
+        try:
+            types = context.predefined_names[node][tree_name.value]
+        except KeyError:
+            cn = ContextualizedNode(context, node.children[3])
+            for_types = iterable.py__iter__types(evaluator, cn.infer(), cn)
+            c_node = ContextualizedName(context, tree_name)
+            types = check_tuple_assignments(evaluator, c_node, for_types)
+    elif typ == 'expr_stmt':
+        types = _remove_statements(evaluator, context, node, tree_name)
+    elif typ == 'with_stmt':
+        types = context.eval_node(node.node_from_name(tree_name))
+    elif typ in ('import_from', 'import_name'):
+        types = imports.infer_import(context, tree_name)
+    elif typ in ('funcdef', 'classdef'):
+        types = _apply_decorators(evaluator, context, node)
+    elif typ == 'global_stmt':
+        context = evaluator.create_context(context, tree_name)
+        finder = NameFinder(evaluator, context, context, str(tree_name))
+        filters = finder.get_filters(search_global=True)
+        # For global_stmt lookups, we only need the first possible scope,
+        # which means the function itself.
+        filters = [next(filters)]
+        types += finder.find(filters, attribute_lookup=False)
+    elif typ == 'try_stmt':
+        # TODO an exception can also be a tuple. Check for those.
+        # TODO check for types that are not classes and add it to
+        # the static analysis report.
+        exceptions = context.eval_node(tree_name.get_previous_sibling().get_previous_sibling())
+        types = unite(
+            evaluator.execute(t, param.ValuesArguments([]))
+            for t in exceptions
+        )
+    else:
+        raise ValueError("Should not happen.")
+    return types
 
 
-def check_flow_information(evaluator, flow, search_name_part, pos):
+def _apply_decorators(evaluator, context, node):
+    """
+    Returns the function, that should to be executed in the end.
+    This is also the places where the decorators are processed.
+    """
+    if node.type == 'classdef':
+        decoratee_context = er.ClassContext(
+            evaluator,
+            parent_context=context,
+            classdef=node
+        )
+    else:
+        decoratee_context = er.FunctionContext(
+            evaluator,
+            parent_context=context,
+            funcdef=node
+        )
+    initial = values = set([decoratee_context])
+    for dec in reversed(node.get_decorators()):
+        debug.dbg('decorator: %s %s', dec, values)
+        dec_values = context.eval_node(dec.children[1])
+        trailer_nodes = dec.children[2:-1]
+        if trailer_nodes:
+            # Create a trailer and evaluate it.
+            trailer = tree.PythonNode('trailer', trailer_nodes)
+            trailer.parent = dec
+            dec_values = evaluator.eval_trailer(context, dec_values, trailer)
+
+        if not len(dec_values):
+            debug.warning('decorator not found: %s on %s', dec, node)
+            return initial
+
+        values = unite(dec_value.execute(param.ValuesArguments([values]))
+                       for dec_value in dec_values)
+        if not len(values):
+            debug.warning('not possible to resolve wrappers found %s', node)
+            return initial
+
+        debug.dbg('decorator end %s', values)
+    return values
+
+
+def _remove_statements(evaluator, context, stmt, name):
+    """
+    This is the part where statements are being stripped.
+
+    Due to lazy evaluation, statements like a = func; b = a; b() have to be
+    evaluated.
+    """
+    types = set()
+    check_instance = None
+
+    pep0484types = \
+        pep0484.find_type_from_comment_hint_assign(context, stmt, name)
+    if pep0484types:
+        return pep0484types
+    types |= context.eval_stmt(stmt, seek_name=name)
+
+    if check_instance is not None:
+        # class renames
+        types = set([er.get_instance_el(evaluator, check_instance, a, True)
+                     if isinstance(a, er.Function) else a for a in types])
+    return types
+
+
+def _check_flow_information(context, flow, search_name, pos):
     """ Try to find out the type of a variable just with the information that
     is given by the flows: e.g. It is also responsible for assert checks.::
 
@@ -304,228 +296,88 @@ def check_flow_information(evaluator, flow, search_name_part, pos):
     if not settings.dynamic_flow_information:
         return None
 
-    result = []
-    if isinstance(flow, pr.IsScope) and not result:
-        for ass in reversed(flow.asserts):
-            if pos is None or ass.start_pos > pos:
-                continue
-            result = _check_isinstance_type(evaluator, ass, search_name_part)
-            if result:
-                break
+    result = None
+    if flow.is_scope():
+        # Check for asserts.
+        module_node = flow.get_root_node()
+        try:
+            names = module_node.used_names[search_name.value]
+        except KeyError:
+            return None
+        names = reversed([
+            n for n in names
+            if flow.start_pos <= n.start_pos < (pos or flow.end_pos)
+        ])
 
-    if isinstance(flow, pr.Flow) and not result:
-        if flow.command in ['if', 'while'] and len(flow.inputs) == 1:
-            result = _check_isinstance_type(evaluator, flow.inputs[0], search_name_part)
+        for name in names:
+            ass = tree.search_ancestor(name, 'assert_stmt')
+            if ass is not None:
+                result = _check_isinstance_type(context, ass.assertion(), search_name)
+                if result is not None:
+                    return result
+
+    if flow.type in ('if_stmt', 'while_stmt'):
+        potential_ifs = [c for c in flow.children[1::4] if c != ':']
+        for if_test in reversed(potential_ifs):
+            if search_name.start_pos > if_test.end_pos:
+                return _check_isinstance_type(context, if_test, search_name)
     return result
 
 
-def _check_isinstance_type(evaluator, stmt, search_name_part):
+def _check_isinstance_type(context, element, search_name):
     try:
-        expression_list = stmt.expression_list()
+        assert element.type in ('power', 'atom_expr')
         # this might be removed if we analyze and, etc
-        assert len(expression_list) == 1
-        call = expression_list[0]
-        assert isinstance(call, pr.Call) and str(call.name) == 'isinstance'
-        assert bool(call.execution)
+        assert len(element.children) == 2
+        first, trailer = element.children
+        assert first.type == 'name' and first.value == 'isinstance'
+        assert trailer.type == 'trailer' and trailer.children[0] == '('
+        assert len(trailer.children) == 3
 
-        # isinstance check
-        isinst = call.execution.values
-        assert len(isinst) == 2  # has two params
-        obj, classes = [statement.expression_list() for statement in isinst]
-        assert len(obj) == 1
-        assert len(classes) == 1
-        assert isinstance(obj[0], pr.Call)
-
-        # names fit?
-        assert unicode(obj[0].name) == unicode(search_name_part)
-        assert isinstance(classes[0], pr.StatementElement)  # can be type or tuple
+        # arglist stuff
+        arglist = trailer.children[1]
+        args = param.TreeArguments(context.evaluator, context, arglist, trailer)
+        param_list = list(args.unpack())
+        # Disallow keyword arguments
+        assert len(param_list) == 2
+        (key1, lazy_context_object), (key2, lazy_context_cls) = param_list
+        assert key1 is None and key2 is None
+        call = helpers.call_of_leaf(search_name)
+        is_instance_call = helpers.call_of_leaf(lazy_context_object.data)
+        # Do a simple get_code comparison. They should just have the same code,
+        # and everything will be all right.
+        assert is_instance_call.get_code(normalized=True) == call.get_code(normalized=True)
     except AssertionError:
-        return []
+        return None
 
-    result = []
-    for c in evaluator.eval_call(classes[0]):
-        for typ in (c.get_index_types() if isinstance(c, iterable.Array) else [c]):
-            result += evaluator.execute(typ)
-    return result
-
-
-def _get_defined_names_for_position(scope, position=None, start_scope=None):
-    """
-    Return filtered version of ``scope.get_defined_names()``.
-
-    This function basically does what :meth:`scope.get_defined_names
-    <parsing_representation.Scope.get_defined_names>` does.
-
-    - If `position` is given, delete all names defined after `position`.
-    - For special objects like instances, `position` is ignored and all
-      names are returned.
-
-    :type     scope: :class:`parsing_representation.IsScope`
-    :param    scope: Scope in which names are searched.
-    :param position: The position as a line/column tuple, default is infinity.
-    """
-    names = scope.get_defined_names()
-    # Instances have special rules, always return all the possible completions,
-    # because class variables are always valid and the `self.` variables, too.
-    if not position or isinstance(scope, (iterable.Array, er.Instance, compiled.CompiledObject)) \
-            or start_scope != scope \
-            and isinstance(start_scope, (pr.Function, er.FunctionExecution)):
-        return names
-    names_new = []
-    for n in names:
-        if n.start_pos[0] is not None and n.start_pos < position:
-            names_new.append(n)
-    return names_new
-
-
-def get_names_of_scope(evaluator, scope, position=None, star_search=True, include_builtin=True):
-    """
-    Get all completions (names) possible for the current scope. The star search
-    option is only here to provide an optimization. Otherwise the whole thing
-    would probably start a little recursive madness.
-
-    This function is used to include names from outer scopes. For example, when
-    the current scope is function:
-
-    >>> from jedi._compatibility import u
-    >>> from jedi.parser import Parser
-    >>> parser = Parser(u('''
-    ... x = ['a', 'b', 'c']
-    ... def func():
-    ...     y = None
-    ... '''))
-    >>> scope = parser.module.subscopes[0]
-    >>> scope
-    <Function: func@3-5>
-
-    `get_names_of_scope` is a generator.  First it yields names from most inner
-    scope.
-
-    >>> from jedi.evaluate import Evaluator
-    >>> pairs = list(get_names_of_scope(Evaluator(), scope))
-    >>> pairs[0]
-    (<Function: func@3-5>, [<Name: y@4,4>])
-
-    Then it yield the names from one level outer scope. For this example, this
-    is the most outer scope.
-
-    >>> pairs[1]
-    (<SubModule: None@1-5>, [<Name: x@2,0>, <Name: func@3,4>])
-
-    Finally, it yields names from builtin, if `include_builtin` is
-    true (default).
-
-    >>> pairs[2]                                        #doctest: +ELLIPSIS
-    (<Builtin: ...builtin...>, [<CompiledName: ...>, ...])
-
-    :rtype: [(pr.Scope, [pr.Name])]
-    :return: Return an generator that yields a pair of scope and names.
-    """
-    in_func_scope = scope
-    non_flow = scope.get_parent_until(pr.Flow, reverse=True)
-    while scope:
-        if isinstance(scope, pr.SubModule) and scope.parent:
-            # we don't want submodules to report if we have modules.
-            scope = scope.parent
-            continue
-        # `pr.Class` is used, because the parent is never `Class`.
-        # Ignore the Flows, because the classes and functions care for that.
-        # InstanceElement of Class is ignored, if it is not the start scope.
-        if not (scope != non_flow and scope.isinstance(pr.Class)
-                or scope.isinstance(pr.Flow)
-                or scope.isinstance(er.Instance)
-                and non_flow.isinstance(er.Function)
-                or isinstance(scope, compiled.CompiledObject)
-                and scope.type() == 'class' and in_func_scope != scope):
-            try:
-                if isinstance(scope, er.Instance):
-                    for g in scope.scope_generator():
-                        yield g
-                else:
-                    yield scope, _get_defined_names_for_position(scope, position, in_func_scope)
-            except StopIteration:
-                reraise(common.MultiLevelStopIteration, sys.exc_info()[2])
-        if scope.isinstance(pr.ForFlow) and scope.is_list_comp:
-            # is a list comprehension
-            yield scope, scope.get_defined_names(is_internal_call=True)
-
-        scope = scope.parent
-        # This is used, because subscopes (Flow scopes) would distort the
-        # results.
-        if scope and scope.isinstance(er.Function, pr.Function, er.FunctionExecution):
-            in_func_scope = scope
-
-    # Add star imports.
-    if star_search:
-        for s in imports.remove_star_imports(evaluator, non_flow.get_parent_until()):
-            for g in get_names_of_scope(evaluator, s, star_search=False):
-                yield g
-
-        # Add builtins to the global scope.
-        if include_builtin:
-            yield compiled.builtin, compiled.builtin.get_defined_names()
-
-
-def _assign_tuples(tup, results, seek_name):
-    """
-    This is a normal assignment checker. In python functions and other things
-    can return tuples:
-    >>> a, b = 1, ""
-    >>> a, (b, c) = 1, ("", 1.0)
-
-    Here, if `seek_name` is "a", the number type will be returned.
-    The first part (before `=`) is the param tuples, the second one result.
-
-    :type tup: pr.Array
-    """
-    def eval_results(index):
-        types = []
-        for r in results:
-            try:
-                func = r.get_exact_index_types
-            except AttributeError:
-                debug.warning("invalid tuple lookup %s of result %s in %s",
-                              tup, results, seek_name)
-            else:
-                with common.ignored(IndexError):
-                    types += func(index)
-        return types
-
-    result = []
-    for i, stmt in enumerate(tup):
-        # Used in assignments. There is just one call and no other things,
-        # therefore we can just assume, that the first part is important.
-        command = stmt.expression_list()[0]
-
-        if tup.type == pr.Array.NOARRAY:
-
-                # unnessecary braces -> just remove.
-            r = results
+    result = set()
+    for cls_or_tup in lazy_context_cls.infer():
+        if isinstance(cls_or_tup, iterable.AbstractSequence) and \
+                cls_or_tup.array_type == 'tuple':
+            for lazy_context in cls_or_tup.py__iter__():
+                for context in lazy_context.infer():
+                    result |= context.execute_evaluated()
         else:
-            r = eval_results(i)
-
-        # LHS of tuples can be nested, so resolve it recursively
-        result += find_assignments(command, r, seek_name)
+            result |= cls_or_tup.execute_evaluated()
     return result
 
 
-def find_assignments(lhs, results, seek_name):
+def check_tuple_assignments(evaluator, contextualized_name, types):
     """
-    Check if `seek_name` is in the left hand side `lhs` of assignment.
-
-    `lhs` can simply be a variable (`pr.Call`) or a tuple/list (`pr.Array`)
-    representing the following cases::
-
-        a = 1        # lhs is pr.Call
-        (a, b) = 2   # lhs is pr.Array
-
-    :type lhs: pr.Call
-    :type results: list
-    :type seek_name: str
+    Checks if tuples are assigned.
     """
-    if isinstance(lhs, pr.Array):
-        return _assign_tuples(lhs, results, seek_name)
-    elif unicode(lhs.name.names[-1]) == seek_name:
-        return results
-    else:
-        return []
+    lazy_context = None
+    for index, node in contextualized_name.assignment_indexes():
+        cn = ContextualizedNode(contextualized_name.context, node)
+        iterated = iterable.py__iter__(evaluator, types, cn)
+        for _ in range(index + 1):
+            try:
+                lazy_context = next(iterated)
+            except StopIteration:
+                # We could do this with the default param in next. But this
+                # would allow this loop to run for a very long time if the
+                # index number is high. Therefore break if the loop is
+                # finished.
+                return set()
+        types = lazy_context.infer()
+    return types

@@ -1,23 +1,32 @@
 {
-    // we will use it to get PYTHONPATH for interpreter
-    // You cat set a path to your virtualenv python interpreter 
-	// (ex. /home/user/.virtualenvs/myenv/bin/python)
+    // Used to get the `PYTHONPATH`.
+    // You can set a path to your python interpreter,
+    // for example `/home/user/.virtualenvs/myenv/bin/python)`.
     "python_interpreter": "python",
 
-    // additional python package path list
-     "python_package_paths": [],
+    // Additional python package paths.
+    "python_package_paths": [],
 
-    // "all" - insert all function arguments on autocomplete
-    // "required" - insert arguments that dont have default value (e.g. required)
-    // "" - dont insert any arguments
+    // Which function arguments to insert in autocompletion:
+    // "all" - all
+    // "required" - those with no default value (that are required)
+    // "" - none
     "auto_complete_function_params": "required",
 
     // "debug", "error", "info", "warn"
     "logging_level": "warn",
 
-    // what to show in completion list
-    // all - show all completions ( both jedi's and sublime's )
-    // jedi - only jedi's
-    // default - only jedi's in case it has something to show else sublime's
-    "sublime_completions_visibility": "default"
+    // Which completions to show:
+    // "all" - both jedi's and sublime's
+    // "jedi" - only jedi's
+    // "default" - only jedi's if it has something to show, otherwise sublime's
+    "sublime_completions_visibility": "default",
+
+    // how to open goto definition result with ability to show it transient
+    // variation (preview only. it won't have a tab assigned it until modified):
+    // "single-panel" - opens a file in same layout (default)
+    // "single-panel-transient" - same as above but in transient mode
+    // "two-panel" - opens a file in a split to two columns layout
+    // "two-panel-transient" - same as above but in transient mode
+    "sublime_goto_layout": "single-panel"
 }
