@@ -2,6 +2,8 @@
 import sublime
 import sublime_plugin
 
+import html
+
 try:
     # mdpopups needs 3119+ for wrapper_class, which diff popup relies on
     if int(sublime.version()) < 3119:
@@ -91,8 +93,7 @@ def docstring_tooltip(view, docstring, location=None):
 
 
 def markdown_html_builder(view, docstring):
-
-    doclines = docstring.split('\n')
+    doclines = html.escape(docstring, quote=False).split('\n')
     signature = doclines[0].strip()
     # first line is a signature if it contains parentheses
     if '(' in signature:
@@ -132,12 +133,12 @@ def markdown_html_builder(view, docstring):
 
 
 def simple_html_builder(docstring):
-    docstring = docstring.split('\n')
+    docstring = html.escape(docstring, quote=False).split('\n')
     docstring[0] = '<b>' + docstring[0] + '</b>'
-    html = '<body><p style="font-family: sans-serif;">{0}</p></body>'.format(
+    content = '<body><p style="font-family: sans-serif;">{0}</p></body>'.format(
        '<br />'.join(docstring)
     )
-    return html
+    return content
 
 
 class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
