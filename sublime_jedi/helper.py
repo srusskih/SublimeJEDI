@@ -2,7 +2,20 @@
 import sublime
 import sublime_plugin
 
+try:
+    # mdpopups needs 3119+ for wrapper_class, which diff popup relies on
+    if int(sublime.version()) < 3119:
+        raise ImportError('Sublime Text 3119+ required.')
+    # mdpopups 1.9.0+ is required because of wrapper_class and templates
+    import mdpopups
+    if mdpopups.version() < (1, 9, 0):
+        raise ImportError('mdpopups 1.9.0+ required.')
+    _HAVE_MDPOPUPS = True
+except ImportError:
+    _HAVE_MDPOPUPS = False
+
 from .console_logging import getLogger
+from .settings import get_plugin_settings
 from .utils import ask_daemon, PythonCommandMixin, is_sublime_v2
 
 logger = getLogger(__name__)
@@ -33,25 +46,95 @@ def docstring_panel(view, docstring):
         sublime.status_message('Jedi: No results!')
 
 
-def docstring_tooltip(view, docstring, content_builder):
+def docstring_tooltip(view, docstring, location=None):
     """Show docstring in popup.
 
     :param view (sublime.View): current active view
     :param docstring (basestring): python __doc__ string
-    :param content_builder (callable): callable object should accept docstring
-        and return content read for popup (a html text)
+    :param location (int): The text point where to create the popup
     """
-    if docstring:
-        content = content_builder(docstring)
-        view.show_popup(content, max_width=512)
+    if not docstring:
+        return sublime.status_message('Jedi: No results!')
+
+    if location is None:
+        location = view.sel()[0].begin()
+
+    # fallback if mdpopups is not available
+    if not _HAVE_MDPOPUPS:
+        content = simple_html_builder(docstring)
+        return view.show_popup(content, location=location, max_width=512)
+
+    # Some basic defaults, which can be modified by user in the
+    # Packages/User/mdpopups.css file.
+    css = """
+        body {
+            margin: 6px;
+        }
+        div.mdpopups {
+            margin: 0;
+            padding: 0;
+        }
+        .jedi h6 {
+            font-weight: bold;
+            color: var(--bluish);
+        }
+    """
+    return mdpopups.show_popup(
+        view=view,
+        content=markdown_html_builder(view, docstring),
+        location=location,
+        max_width=800,
+        md=True,
+        css=css,
+        wrapper_class='jedi',
+        flags=sublime.HIDE_ON_MOUSE_MOVE_AWAY)
+
+
+def markdown_html_builder(view, docstring):
+
+    doclines = docstring.split('\n')
+    signature = doclines[0].strip()
+    # first line is a signature if it contains parentheses
+    if '(' in signature:
+
+        def is_class(string):
+            """Check whether string contains a class or function signature."""
+            for c in string:
+                if c != '_':
+                    break
+            return c.isupper()
+
+        # a hackish way to determine whether it is a class or function
+        prefix = 'class' if is_class(signature) else 'def'
+        # highlight signature
+        content = '```python\n{0} {1}\n```\n'.format(prefix, signature)
+        # merge the rest of the docstring beginning with 3rd line
+        # skip leading and tailing empty lines
+        content += '\n'.join(doclines[1:]).strip()
     else:
-        sublime.status_message('Jedi: No results!')
+        # docstring does not contain signature
+        content = docstring
+
+    # preserve empty lines
+    content = content.replace('\n\n', '\n\u00A0\n')
+    # preserve whitespace
+    content = content.replace('  ', '\u00A0\u00A0')
+    # convert markdown to html
+    content = mdpopups.md2html(view, content)
+    # highlight headlines ( Google Python Style Guide )
+    keywords = (
+        'Args:', 'Arguments:', 'Attributes:', 'Example:', 'Examples:', 'Note:',
+        'Raises:', 'Returns:', 'Yields:')
+    for keyword in keywords:
+        content = content.replace(
+            keyword + '<br />', '<h6>' + keyword + '</h6>')
+    return content
 
 
 def simple_html_builder(docstring):
     docstring = docstring.split('\n')
     docstring[0] = '<b>' + docstring[0] + '</b>'
-    html = '<body><p style="font-family: sans-serif; font-family: sans-serif;">{0}</p></body>'.format(
+    html = '<body><p style="font-family: sans-serif;">{0}</p></body>'.format(
        '<br />'.join(docstring)
     )
     return html
@@ -67,16 +150,45 @@ class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
         if is_sublime_v2():
             docstring_panel(view, docstring)
         else:
-            docstring_tooltip(view, docstring, simple_html_builder)
+            docstring_tooltip(view, docstring)
 
 
 class SublimeJediSignature(PythonCommandMixin, sublime_plugin.TextCommand):
-    """
-    Show signature in status bar
-    """
+    """Show signature in status bar."""
+
     def run(self, edit):
         ask_daemon(self.view, self.show_signature, 'signature')
 
     def show_signature(self, view, signature):
         if signature:
             sublime.status_message('Jedi: {0}'.format(signature))
+
+
+class SublimeJediTooltip(sublime_plugin.EventListener):
+    """EventListener to show jedi's docstring tooltip."""
+
+    def enabled(self):
+        """Check if hover popup is desired."""
+        return get_plugin_settings().get('enable_tooltip', True)
+
+    def on_activated(self, view):
+        """Handle view.on_activated event."""
+        if not self.enabled():
+            return
+        if not view.match_selector(0, 'source.python'):
+            return
+        # disable default goto definition popup
+        view.settings().set('show_definitions', False)
+
+    def on_hover(self, view, point, hover_zone):
+        """Handle view.on_hover event."""
+        if hover_zone != sublime.HOVER_TEXT:
+            return
+        if not self.enabled():
+            return
+        if not view.match_selector(point, 'source.python - string - comment'):
+            return
+
+        def render(view, docstring):
+            docstring_tooltip(view, docstring, point)
+        ask_daemon(view, render, 'docstring', point)

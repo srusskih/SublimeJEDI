@@ -28,5 +28,10 @@
     // "single-panel-transient" - same as above but in transient mode
     // "two-panel" - opens a file in a split to two columns layout
     // "two-panel-transient" - same as above but in transient mode
-    "sublime_goto_layout": "single-panel"
+    "sublime_goto_layout": "single-panel",
+
+    // Use hover popup to display the docstring of a function.
+    // "true" - replace ST's goto defintion popup by jedi's docstring popup
+    // "false" - use ST's default goto definition popup
+    "enable_tooltip": true
 }
