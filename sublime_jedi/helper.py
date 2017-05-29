@@ -93,7 +93,7 @@ def docstring_tooltip(view, docstring, location=None):
 
 
 def markdown_html_builder(view, docstring):
-    doclines = html.escape(docstring, quote=False).split('\n')
+    doclines = docstring.split('\n')
     signature = doclines[0].strip()
     # first line is a signature if it contains parentheses
     if '(' in signature:
@@ -111,10 +111,11 @@ def markdown_html_builder(view, docstring):
         content = '```python\n{0} {1}\n```\n'.format(prefix, signature)
         # merge the rest of the docstring beginning with 3rd line
         # skip leading and tailing empty lines
-        content += '\n'.join(doclines[1:]).strip()
+        docstring = '\n'.join(doclines[1:]).strip()
+        content += html.escape(docstring, quote=False)
     else:
         # docstring does not contain signature
-        content = docstring
+        content = html.escape(docstring, quote=False)
 
     # preserve empty lines
     content = content.replace('\n\n', '\n\u00A0\n')
