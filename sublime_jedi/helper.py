@@ -18,7 +18,7 @@ except ImportError:
 
 from .console_logging import getLogger
 from .settings import get_plugin_settings
-from .utils import ask_daemon, PythonCommandMixin, is_sublime_v2
+from .utils import ask_daemon, PythonCommandMixin, is_sublime_v2, is_python_scope
 
 logger = getLogger(__name__)
 
@@ -187,7 +187,7 @@ class SublimeJediTooltip(sublime_plugin.EventListener):
             return
         if not self.enabled():
             return
-        if not view.match_selector(point, 'source.python - string - comment'):
+        if not is_python_scope(view, point):
             return
 
         def render(view, docstring):
