@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 from functools import partial
 
+import html
+import re
+
 import sublime
 import sublime_plugin
 

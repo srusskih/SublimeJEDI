@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import html
+import re
 
 import sublime
 
@@ -43,6 +44,30 @@ class MarkDownTooltip(Tooltip):
         """
         return css
 
+    def _prepare_signatire(self, signature):
+        """Parse string and prepend def/class keyword for valid signature.
+
+        :param signature: The string parse and check whether it is a signature.
+
+        :returns: None string or the prefixed signature
+        """
+        pattern = '^([\w\.]+\.)?(\w+)\('
+        match = re.match(pattern, signature)
+
+        if not match:
+            return None
+
+        # lower case built-in types
+        path, func = match.groups()
+        types = ('dict', 'int', 'list', 'tuple', 'str', 'set', 'frozenset')
+        if any(func.startswith(s) for s in types):
+            prefix = ''
+        else:
+            func = func.lstrip('_')
+            prefix = 'class ' if func[0].isupper() else 'def '
+
+        return prefix + signature
+
     def _build_html(self, view, docstring):
         """ Convert python docstring to text ready to show in popup.
         
@@ -50,21 +75,12 @@ class MarkDownTooltip(Tooltip):
         :param docstring: python docstring as a string
         """
         doclines = docstring.split('\n')
-        signature = doclines[0].strip()
+        signature = self._prepare_signatire(doclines[0])
         # first line is a signature if it contains parentheses
-        if '(' in signature:
-
-            def is_class(string):
-                """Check whether string contains a class or function signature."""
-                for c in string:
-                    if c != '_':
-                        break
-                return c.isupper()
-
-            # a hackish way to determine whether it is a class or function
-            prefix = 'class' if is_class(signature) else 'def'
+        if signature:
             # highlight signature
-            content = '```python\n{0} {1}\n```\n'.format(prefix, signature)
+            content = '```python\n{0}\n```\n'.format(signature)
+
             # merge the rest of the docstring beginning with 3rd line
             # skip leading and tailing empty lines
             docstring = '\n'.join(doclines[1:]).strip()
