@@ -1,6 +1,6 @@
-jedic
 *.py[co]
-*.sublime
+*.sublime-project
+*.sublime-workspace
 *.ropeproject
 package-metadata.json
 .DS_Store
