@@ -64,11 +64,18 @@ def docstring_tooltip(view, docstring, location=None):
 
     # fallback if mdpopups is not available
     if not _HAVE_MDPOPUPS:
-        content = simple_html_builder(docstring)
-        return view.show_popup(content, location=location, max_width=512)
+        return docstring_tooltip_simple(view, docstring, location)
+    #use mdpopups by default
+    return docstring_tooltip_markdown(view, docstring, location)
 
-    # Some basic defaults, which can be modified by user in the
-    # Packages/User/mdpopups.css file.
+
+def docstring_tooltip_markdown(view, docstring, location):
+    """Show docstring in popup using mdpopups and markdown renderer.
+
+    :param view (sublime.View): current active view
+    :param docstring (basestring): python __doc__ string
+    :param location (int): The text point where to create the popup
+    """
     css = """
         body {
             margin: 6px;
@@ -121,6 +128,17 @@ def markdown_html_builder(view, docstring):
         content = content.replace(
             keyword + '<br />', '<h6>' + keyword + '</h6>')
     return content
+
+
+def docstring_tooltip_simple(view, docstring, location):
+    """Show docstring in popup using simple renderer.
+
+    :param view (sublime.View): current active view
+    :param docstring (basestring): python __doc__ string
+    :param location (int): The text point where to create the popup
+    """
+    content = simple_html_builder(docstring)
+    return view.show_popup(content, location=location, max_width=512)
 
 
 def simple_html_builder(docstring):
