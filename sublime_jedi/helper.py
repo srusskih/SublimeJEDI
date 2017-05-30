@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
+import html
+import re
+
 import sublime
 import sublime_plugin
-
-import html
 
 try:
     # mdpopups needs 3119+ for wrapper_class, which diff popup relies on
@@ -94,21 +95,10 @@ def docstring_tooltip(view, docstring, location=None):
 
 def markdown_html_builder(view, docstring):
     doclines = docstring.split('\n')
-    signature = doclines[0].strip()
-    # first line is a signature if it contains parentheses
-    if '(' in signature:
-
-        def is_class(string):
-            """Check whether string contains a class or function signature."""
-            for c in string:
-                if c != '_':
-                    break
-            return c.isupper()
-
-        # a hackish way to determine whether it is a class or function
-        prefix = 'class' if is_class(signature) else 'def'
+    signature = signature_builder(doclines[0])
+    if signature:
         # highlight signature
-        content = '```python\n{0} {1}\n```\n'.format(prefix, signature)
+        content = '```python\n{0}\n```\n'.format(signature)
         # merge the rest of the docstring beginning with 3rd line
         # skip leading and tailing empty lines
         docstring = '\n'.join(doclines[1:]).strip()
@@ -140,6 +130,30 @@ def simple_html_builder(docstring):
        '<br />'.join(docstring)
     )
     return content
+
+
+def signature_builder(string):
+    """Parse string and prepend def/class keyword for valid signature.
+
+    :param string: The string parse and check whether it is a signature.
+
+    :returns: None string or the prefixed signature
+    """
+    pattern = '^([\w\.]+\.)?(\w+)\('
+    match = re.match(pattern, string)
+    if not match:
+        return None
+
+    path, func = match.groups()
+    # lower case built-in types
+    types = ('dict', 'int', 'list', 'tuple', 'str', 'set', 'frozenset')
+    if any(func.startswith(s) for s in types):
+        prefix = ''
+    else:
+        func = func.lstrip('_')
+        prefix = 'class ' if func[0].isupper() else 'def '
+
+    return prefix + string
 
 
 class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
