@@ -13,7 +13,8 @@ def _guess_docstring_format(docstring):
     :rtype: sublime_jedi.tooltips.base.Tooltip
     """
     for tooltip_class in [MarkDownTooltip]:
-        return tooltip_class.guess(docstring) and tooltip_class()
+        if tooltip_class.guess(docstring):
+            return tooltip_class()
 
     return SimpleTooltip()
 
