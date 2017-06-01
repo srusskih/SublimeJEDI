@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 from functools import partial
 
-import html
-import re
-
 import sublime
 import sublime_plugin
 
@@ -87,9 +84,8 @@ class SublimeJediTooltip(sublime_plugin.EventListener):
 
     def on_hover(self, view, point, hover_zone):
         """Handle view.on_hover event."""
-        if not (hover_zone == sublime.HOVER_TEXT
-                and self.enabled()
-                and is_python_scope(view, point)):
+        if not (hover_zone == sublime.HOVER_TEXT and self.enabled() and
+                is_python_scope(view, point)):
             return
 
         ask_daemon(view,

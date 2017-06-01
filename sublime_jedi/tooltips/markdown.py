@@ -69,8 +69,8 @@ class MarkDownTooltip(Tooltip):
         return prefix + signature
 
     def _build_html(self, view, docstring):
-        """ Convert python docstring to text ready to show in popup.
-        
+        """Convert python docstring to text ready to show in popup.
+
         :param view: sublime text view object
         :param docstring: python docstring as a string
         """
@@ -97,8 +97,8 @@ class MarkDownTooltip(Tooltip):
         content = mdpopups.md2html(view, content)
         # highlight headlines ( Google Python Style Guide )
         keywords = (
-            'Args:', 'Arguments:', 'Attributes:', 'Example:', 'Examples:', 'Note:',
-            'Raises:', 'Returns:', 'Yields:')
+            'Args:', 'Arguments:', 'Attributes:', 'Example:', 'Examples:',
+            'Note:', 'Raises:', 'Returns:', 'Yields:')
         for keyword in keywords:
             content = content.replace(
                 keyword + '<br />', '<h6>' + keyword + '</h6>')
@@ -117,4 +117,3 @@ class MarkDownTooltip(Tooltip):
             css=self._get_style(),
             wrapper_class='jedi',
             flags=sublime.HIDE_ON_MOUSE_MOVE_AWAY)
-

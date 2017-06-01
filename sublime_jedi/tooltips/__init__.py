@@ -26,5 +26,6 @@ def show_docstring_tooltip(view, docstring, location=None):
     :param docstring (basestring): python __doc__ string
     :param location (int): The text point where to create the popup
     """
-    tooltip = _guess_docstring_format(docstring)
-    tooltip.show_popup(view, docstring, location)
+    if docstring:
+        tooltip = _guess_docstring_format(docstring)
+        tooltip.show_popup(view, docstring, location)
