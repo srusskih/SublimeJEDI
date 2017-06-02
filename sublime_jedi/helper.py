@@ -70,6 +70,11 @@ class SublimeJediSignature(PythonCommandMixin, sublime_plugin.TextCommand):
 class SublimeJediTooltip(sublime_plugin.EventListener):
     """EventListener to show jedi's docstring tooltip."""
 
+    # display tooltip only for
+    #  - function/variable usage (variable.function, variable.other)
+    #  - function/variable definition (entity.name.class, entity.name.function)
+    SELECTOR = 'source.python & (variable | entity.name)'
+
     def enabled(self):
         """Check if hover popup is desired."""
         return get_plugin_settings().get('enable_tooltip', True)
@@ -85,7 +90,7 @@ class SublimeJediTooltip(sublime_plugin.EventListener):
     def on_hover(self, view, point, hover_zone):
         """Handle view.on_hover event."""
         if not (hover_zone == sublime.HOVER_TEXT and self.enabled() and
-                is_python_scope(view, point)):
+                view.match_selector(point, self.SELECTOR)):
             return
 
         ask_daemon(view,
