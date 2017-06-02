@@ -51,7 +51,7 @@ class MarkDownTooltip(Tooltip):
 
         :returns: None string or the prefixed signature
         """
-        pattern = '^([\w\.]+\.)?(\w+)\('
+        pattern = '^([\w\. \t]+\.[ \t]*)?(\w+)\('
         match = re.match(pattern, signature)
 
         if not match:
@@ -59,7 +59,9 @@ class MarkDownTooltip(Tooltip):
 
         # lower case built-in types
         path, func = match.groups()
-        types = ('dict', 'int', 'list', 'tuple', 'str', 'set', 'frozenset')
+        types = (
+            'basestring', 'unicode', 'byte', 'dict', 'float', 'int',
+            'list', 'tuple', 'str', 'set', 'frozenset')
         if any(func.startswith(s) for s in types):
             prefix = ''
         else:
@@ -112,7 +114,7 @@ class MarkDownTooltip(Tooltip):
             view=view,
             content=self._build_html(view, docstring),
             location=location,
-            max_width=800,
+            max_width=int(view.viewport_extent()[0]),
             md=True,
             css=self._get_style(),
             wrapper_class='jedi',
