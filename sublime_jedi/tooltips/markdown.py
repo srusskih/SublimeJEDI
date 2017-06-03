@@ -44,31 +44,42 @@ class MarkDownTooltip(Tooltip):
         """
         return css
 
-    def _prepare_signatire(self, signature):
+    def _prepare_signature(self, docstring):
         """Parse string and prepend def/class keyword for valid signature.
 
-        :param signature: The string parse and check whether it is a signature.
+        :param docstring: The string to extract the signature from.
 
         :returns: None string or the prefixed signature
         """
-        pattern = '^([\w\. \t]+\.[ \t]*)?(\w+)\('
-        match = re.match(pattern, signature)
-
+        pattern = (
+            '(?x)'
+            '^([\w\. \t]+\.[ \t]*)?'        # path
+            '(\w+)'                         # function / object
+            '[ \t]*(\([^\)]*\))'            # arguments
+            '(\s*->\s*.*$)?'                # annotation (rest of line)
+        )
+        match = re.match(pattern, docstring, re.MULTILINE)
         if not match:
-            return None
+            return (None, docstring)
 
         # lower case built-in types
-        path, func = match.groups()
+        path, func, args, note = match.groups()
         types = (
             'basestring', 'unicode', 'byte', 'dict', 'float', 'int',
             'list', 'tuple', 'str', 'set', 'frozenset')
         if any(func.startswith(s) for s in types):
             prefix = ''
         else:
-            func = func.lstrip('_')
-            prefix = 'class ' if func[0].isupper() else 'def '
+            prefix = 'class ' if func.lstrip('_')[0].isupper() else 'def '
 
-        return prefix + signature
+        # join signature
+        signature = ''.join(
+            (prefix, path or '', func or '', args or '', note or ''))
+        # Signature may span multiple lines which need to be merged to one.
+        signature = signature.replace('\n', ' ')
+        # Everything after the signature is docstring
+        docstring = docstring[len(signature) - len(prefix):] or ''
+        return (signature, docstring)
 
     def _build_html(self, view, docstring):
         """Convert python docstring to text ready to show in popup.
@@ -76,21 +87,15 @@ class MarkDownTooltip(Tooltip):
         :param view: sublime text view object
         :param docstring: python docstring as a string
         """
-        doclines = docstring.split('\n')
-        signature = self._prepare_signatire(doclines[0])
-        # first line is a signature if it contains parentheses
+        # highlight signature
+        signature, docstring = self._prepare_signature(docstring)
         if signature:
-            # highlight signature
             content = '```python\n{0}\n```\n'.format(signature)
-
-            # merge the rest of the docstring beginning with 3rd line
-            # skip leading and tailing empty lines
-            docstring = '\n'.join(doclines[1:]).strip()
-            content += html.escape(docstring, quote=False)
         else:
-            # docstring does not contain signature
-            content = html.escape(docstring, quote=False)
-
+            content = ''
+        # merge the rest of the docstring beginning with 3rd line
+        # skip leading and tailing empty lines
+        content += html.escape(docstring, quote=False)
         # preserve empty lines
         content = content.replace('\n\n', '\n\u00A0\n')
         # preserve whitespace
