@@ -53,17 +53,20 @@ class MarkDownTooltip(Tooltip):
         """
         pattern = (
             '(?x)'
-            '^([\w\. \t]+\.[ \t]*)?'        # path
-            '(\w+)'                         # function / object
-            '[ \t]*(\([^\)]*\))'            # arguments
-            '(\s*->\s*.*$)?'                # annotation (rest of line)
+            '^([\w\. \t]+\.[ \t]*)?'    # path
+            '(\w+)'                     # function / object
+            '[ \t]*(\([^\)]*\))'        # arguments
+            '(?:'
+            '(\s*->\s*.*?)'             # annotation: -> Type
+            '(--|$)'                    # inline comment: -- blabla
+            ')?'
         )
         match = re.match(pattern, docstring, re.MULTILINE)
         if not match:
             return (None, docstring)
 
         # lower case built-in types
-        path, func, args, note = match.groups()
+        path, func, args, note, comment = match.groups()
         types = (
             'basestring', 'unicode', 'byte', 'dict', 'float', 'int',
             'list', 'tuple', 'str', 'set', 'frozenset')
@@ -78,8 +81,9 @@ class MarkDownTooltip(Tooltip):
         # Signature may span multiple lines which need to be merged to one.
         signature = signature.replace('\n', ' ')
         # Everything after the signature is docstring
-        docstring = docstring[len(signature) - len(prefix):] or ''
-        return (signature, docstring)
+        docstring = docstring[
+            len(signature) + len(comment or '') - len(prefix):] or ''
+        return (signature, docstring.strip())
 
     def _build_html(self, view, docstring):
         """Convert python docstring to text ready to show in popup.
