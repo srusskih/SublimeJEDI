@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
+from functools import partial
+
 import sublime
 import sublime_plugin
 
 from .console_logging import getLogger
-from .utils import ask_daemon, PythonCommandMixin, is_sublime_v2
+from .settings import get_plugin_settings
+from .tooltips import show_docstring_tooltip
+from .utils import (
+    ask_daemon, is_python_scope, is_sublime_v2, PythonCommandMixin
+)
 
 logger = getLogger(__name__)
 
@@ -14,7 +20,7 @@ class HelpMessageCommand(sublime_plugin.TextCommand):
         self.view.insert(edit, self.view.size(), docstring)
 
 
-def docstring_panel(view, docstring):
+def show_docstring_panel(view, docstring):
     """Show docstring in output panel.
 
     :param view (sublime.View): current active view
@@ -33,30 +39,6 @@ def docstring_panel(view, docstring):
         sublime.status_message('Jedi: No results!')
 
 
-def docstring_tooltip(view, docstring, content_builder):
-    """Show docstring in popup.
-
-    :param view (sublime.View): current active view
-    :param docstring (basestring): python __doc__ string
-    :param content_builder (callable): callable object should accept docstring
-        and return content read for popup (a html text)
-    """
-    if docstring:
-        content = content_builder(docstring)
-        view.show_popup(content, max_width=512)
-    else:
-        sublime.status_message('Jedi: No results!')
-
-
-def simple_html_builder(docstring):
-    docstring = docstring.split('\n')
-    docstring[0] = '<b>' + docstring[0] + '</b>'
-    html = '<body><p style="font-family: sans-serif; font-family: sans-serif;">{0}</p></body>'.format(
-       '<br />'.join(docstring)
-    )
-    return html
-
-
 class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
     """Show docstring."""
 
@@ -64,19 +46,54 @@ class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
         ask_daemon(self.view, self.render, 'docstring')
 
     def render(self, view, docstring):
+        if docstring is None or docstring == '':
+            logger.debug('Empty docstring.')
+            return
+
         if is_sublime_v2():
-            docstring_panel(view, docstring)
+            show_docstring_panel(view, docstring)
         else:
-            docstring_tooltip(view, docstring, simple_html_builder)
+            show_docstring_tooltip(view, docstring)
 
 
 class SublimeJediSignature(PythonCommandMixin, sublime_plugin.TextCommand):
-    """
-    Show signature in status bar
-    """
+    """Show signature in status bar."""
+
     def run(self, edit):
         ask_daemon(self.view, self.show_signature, 'signature')
 
     def show_signature(self, view, signature):
         if signature:
             sublime.status_message('Jedi: {0}'.format(signature))
+
+
+class SublimeJediTooltip(sublime_plugin.EventListener):
+    """EventListener to show jedi's docstring tooltip."""
+
+    # display tooltip only for
+    #  - function/variable usage (variable.function, variable.other)
+    #  - function/variable definition (entity.name.class, entity.name.function)
+    SELECTOR = 'source.python & (variable | entity.name)'
+
+    def enabled(self):
+        """Check if hover popup is desired."""
+        return get_plugin_settings().get('enable_tooltip', True)
+
+    def on_activated(self, view):
+        """Handle view.on_activated event."""
+        if not (self.enabled() and view.match_selector(0, 'source.python')):
+            return
+
+        # disable default goto definition popup
+        view.settings().set('show_definitions', False)
+
+    def on_hover(self, view, point, hover_zone):
+        """Handle view.on_hover event."""
+        if not (hover_zone == sublime.HOVER_TEXT and self.enabled() and
+                view.match_selector(point, self.SELECTOR)):
+            return
+
+        ask_daemon(view,
+                   partial(show_docstring_tooltip, location=point),
+                   'docstring',
+                   point)
