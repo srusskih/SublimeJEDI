@@ -22,7 +22,7 @@ Installation
  2. Type `package control install` and select command `Package Control: Install Package`
  3. Type `jedi` and select "SublimeJEDI"
 
-Additonal info installations you can find here [http://wbond.net/sublime_packages/package_control/usage](http://wbond.net/sublime_packages/package_control/usage).
+Additional info about to use Sublime Package Control you can find here: [http://wbond.net/sublime_packages/package_control/usage](http://wbond.net/sublime_packages/package_control/usage).
 
 Settings
 --------
@@ -48,7 +48,7 @@ You can set Python interpreter, and additional python package directories, using
             "python_package_paths": [
                 "$home/.buildout/eggs",
                 "$project_path/addons"
-                ]
+            ]
         }
     }
 
@@ -78,7 +78,7 @@ set (additionally to the trigger above):
     }
 
 
-#### Jedi Goto / Go Definition
+#### Goto / Go Definition
 
 Find function / variable / class definition
 
@@ -95,18 +95,21 @@ Now you can bind `CTRL + LeftMouseButton` by themself in this way:
     }]
 
 
-#### Jedi Find Related Names ("Find Usages")
+#### Find Related Names ("Find Usages")
 
 Find function / method / variable / class usage, definition.
 
-Shortcut: `Alt+Shift+f`.
+Shortcut: `ALT+SHIFT+F`.
 
 
-#### Jedi Show Docstring
+#### Show Python Docstring
 
-Show docstring in output panel.
+Show docstring as tooltip.
 
-Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate shortcut (i.e. `F1`).
+For ST2:
+	Show docstring in output panel.
+
+Shortcut: `CTRL+ALT+D`.
 
 
 #### Jedi Show Calltip
@@ -114,6 +117,7 @@ Exposed command is `sublime_jedi_docstring` which can be assigned to appropriate
 Show calltip in status bar.
 
 Exposed command is `sublime_jedi_signature`.
+
 
 #### Function args fill up on completion
 
@@ -202,11 +206,11 @@ Troubleshooting
 
 It's a common issue for ST3.
 All language related settings are stored in Python Package.
-There is a `Completion Rules.tmPreferences` file where defined that completion should be canceled after some list of keywords (def, class, import & etc.).
+There is a `Completion Rules.tmPreferences` file where defined that completion should be cancelled after a keyword (def, class, import & etc.).
 
-Sublime Jedi plugin already has `Completion Rules.tmPreferences` file for ST2, but ST3 ignores it.
+To solve this issue Sublime Jedi plugin already has a proper `Completion Rules.tmPreferences` file for ST2, but ST3 ignores it.
 
-Some workarounds how to update completion rules:
+Some workarounds how to update completion rules and fix the issue:
 
 ##### Copy-Paste
 
@@ -216,7 +220,7 @@ Some workarounds how to update completion rules:
 ##### There is package for this...
 
     1. install Package https://packagecontrol.io/packages/PackageResourceViewer
-    2. cmd+shift+p (Command Pannel)
+    2. cmd+shift+p (Command Panel)
     2.1. type `PackageResourceViewer: Open Resource`
     2.2. type `python` and select Python package
     2.3. type `Completion Rules.tmPreferences`
