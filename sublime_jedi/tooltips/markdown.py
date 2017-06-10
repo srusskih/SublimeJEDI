@@ -106,6 +106,7 @@ class MarkDownTooltip(Tooltip):
         content = content.replace('  ', '\u00A0\u00A0')
         # convert markdown to html
         content = mdpopups.md2html(view, content)
+        # TODO: move to GoogleStyleTooltip
         # highlight headlines ( Google Python Style Guide )
         keywords = (
             'Args:', 'Arguments:', 'Attributes:', 'Example:', 'Examples:',
