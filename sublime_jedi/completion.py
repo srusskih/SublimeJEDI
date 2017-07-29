@@ -159,7 +159,7 @@ class Autocomplete(sublime_plugin.EventListener):
                     self.completions,
                     key=lambda x: (
                         -buffer.count(x[1]),  # frequency in the text
-                        len(x[1]) - len(x[1].strip('_')),  # now many undescores
+                        len(x[1]) - len(x[1].strip('_')),  # how many undescores
                         x[1]  # alphabetically
                     )
                 )
