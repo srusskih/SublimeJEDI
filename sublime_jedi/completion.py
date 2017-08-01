@@ -153,9 +153,18 @@ class Autocomplete(sublime_plugin.EventListener):
             self.is_completion_ready = None
 
             if self.completions:
-                cplns = [tuple(i) for i in self.completions]
+                # sort completions by frequency in document
+                buffer = view.substr(sublime.Region(0, view.size()))
+                cplns = sorted(
+                    self.completions,
+                    key=lambda x: (
+                        -buffer.count(x[1]),  # frequency in the text
+                        len(x[1]) - len(x[1].strip('_')),  # how many undescores
+                        x[1]  # alphabetically
+                    )
+                )
+                cplns = [tuple(x) for x in cplns]
                 self.completions = []
-
                 if completion_mode in ('default', 'jedi'):
                     return cplns, PLUGIN_ONLY_COMPLETION
                 return cplns
