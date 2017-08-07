@@ -1,0 +1,7 @@
+Sublime Jedi v0.10.0
+====================
+
+* Improve order of suggestions in autocompletion by taking into account the current file.
+* Update README.md
+* Improve doc-string's tooltips.
+* Update jedi to 0.10.2
