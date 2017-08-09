@@ -112,6 +112,36 @@ For ST2:
 Shortcut: `CTRL+ALT+D`.
 
 
+#### Styling Python Docstring
+
+If available [mdpopups](https://github.com/facelessuser/sublime-markdown-popups) is used to display the docstring tooltips. To modify the style please follow mdpopups' [styling guide](http://facelessuser.github.io/sublime-markdown-popups/styling).
+
+Basically a `Packages/User/mdpopups.css` is required to define your own style.
+
+To specify rules which apply to Jedi tooltips only, use `.jedi` selector as displayed in the following example.
+
+```css
+
+/* JEDI's python function signature */
+.jedi .highlight {
+    font-size: 1.1rem;
+}
+
+/* JEDI's docstring titles
+  
+  h6 is used to highlight special keywords in the docstring such as
+
+  Args:
+  Return:
+*/
+.jedi h6 {
+    font-weight: bold;
+}
+```
+
+mdpopups provides a [default.css](https://github.com/facelessuser/sublime-markdown-popups/blob/master/css/default.css) which might be used as cheat sheet to learn about the available styles.
+
+
 #### Jedi Show Calltip
 
 Show calltip in status bar.
