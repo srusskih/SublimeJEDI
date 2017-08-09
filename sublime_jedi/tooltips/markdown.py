@@ -41,6 +41,9 @@ class MarkDownTooltip(Tooltip):
                 font-weight: bold;
                 color: var(--bluish);
             }
+            .jedi .highlight {
+                font-size: 1.1rem;
+            }
         """
         return css
 
