@@ -51,6 +51,7 @@ You can set Python interpreter, and additional python package directories, using
             ]
         }
     }
+**NOTE**: Please note that Python will goes through the directories from `"python_package_paths"` to search for modules and files. In other words, each item in `"python_package_paths"` list is a directory with extra packages and modules, not a direct path to package or module.
 
 When setting paths, [Sublime Text Build System Variables](http://docs.sublimetext.info/en/latest/reference/build_systems.html#build-system-variables) and OS environment variables are automatically expanded.
 Note that using placeholders and substitutions, like in regular Sublime Text Build System paths is not supported.
