@@ -70,33 +70,38 @@ def format_completion(complete):
     return display, insert
 
 
-def get_function_parameters(callDef):
+def get_function_parameters(call_signature):
     """  Return list function parameters, prepared for sublime completion.
     Tuple contains parameter name and default value
 
     Parameters list excludes: self, *args and **kwargs parameters
 
-    :type callDef: jedi.api_classes.CallDef
+    :type call_signature: jedi.api.classes.CallSignature
     :rtype: list of (str, str or None)
     """
-    if not callDef:
+    if not call_signature:
         return []
 
     params = []
-    for param in callDef.params:
-        # logger.info("%s %s" % (param.name, param.description))
+    for param in call_signature.params:
+        param_name = param.name
+        param_description = param.description.replace('param ', '')
 
         # when you writing a callable object
         # jedi tring to complete incompleted object
         # and returns "empty" calldefinition
         # in this case we have to skip it
-        if not param.name:
+        if (not param.name or
+                param.name in ('self', '...') or
+                '*' in param.description):
             continue
 
-        cleaned_param = param.description.rstrip(',')
-        if '*' in cleaned_param or cleaned_param in ['self', '...']:
-            continue
-        params.append([s.strip() for s in cleaned_param.split('=')])
+        if '=' in param_description:
+            default_value = param_description.rsplit('=', 1)[1]
+            params.append((param_name, default_value))
+        else:
+            params.append((param_name, None))
+
     return params
 
 
@@ -194,11 +199,7 @@ class JediFacade:
         parameters = get_function_parameters(in_call)
 
         for parameter in parameters:
-            try:
-                name, value = parameter
-            except ValueError:
-                name = parameter[0]
-                value = None
+            name, value = parameter
 
             if value is None:
                 completions.append((name, '${1:%s}' % name))
@@ -257,11 +258,7 @@ class JediFacade:
         parameters = get_function_parameters(call_definition)
 
         for index, parameter in enumerate(parameters):
-            try:
-                name, value = parameter
-            except ValueError:
-                name = parameter[0]
-                value = None
+            name, value = parameter
 
             if value is None:
                 completions.append('${%d:%s}' % (index + 1, name))
