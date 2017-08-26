@@ -14,7 +14,7 @@ from .utils import (
 )
 try:
     from .tooltips import show_docstring_tooltip
-except ImportError:
+except ImportError as e:
     logger.debug('Unable to import tooltips: %s %s' % (type(e), e.message))
     logger.warning('Tooltips disabled for ST2.')
 
