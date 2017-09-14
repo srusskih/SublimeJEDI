@@ -1,0 +1,7 @@
+Sublime Jedi v0.10.1
+====================
+
+* Fix startup for ST2
+* Fix arguments completion for python3
+* Added aditional notes about extra packages
+* Increase docstring signature font-size and add tooltip styling guide
