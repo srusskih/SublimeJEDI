@@ -70,7 +70,7 @@ def format_completion(complete):
     return display, insert
 
 
-def get_function_parameters(call_signature):
+def get_function_parameters(call_signature, complete_all=True):
     """  Return list function parameters, prepared for sublime completion.
     Tuple contains parameter name and default value
 
@@ -84,23 +84,24 @@ def get_function_parameters(call_signature):
 
     params = []
     for param in call_signature.params:
-        param_name = param.name
-        param_description = param.description.replace('param ', '')
-
         # when you writing a callable object
         # jedi tring to complete incompleted object
         # and returns "empty" calldefinition
         # in this case we have to skip it
-        if (not param.name or
-                param.name in ('self', '...') or
+        if (not complete_all and
+                param.name == '...' or
                 '*' in param.description):
+            break
+
+        if not param.name or param.name in ('self', '...'):
             continue
 
+        param_description = param.description.replace('param ', '')
         if '=' in param_description:
             default_value = param_description.rsplit('=', 1)[1]
-            params.append((param_name, default_value))
+            params.append((param.name, default_value))
         else:
-            params.append((param_name, None))
+            params.append((param.name, None))
 
     return params
 
@@ -155,12 +156,12 @@ class JediFacade:
         try:
             data.extend(self._parameters_for_completion())
         except:
-            logger.info("params completion failed")
+            logger.error("params completion failed")
 
         try:
             data.extend(self._completion() or [])
         except:
-            logger.info("general completion failed")
+            logger.error("general completion failed")
 
         return data
 
@@ -255,7 +256,7 @@ class JediFacade:
         except IndexError:
             call_definition = None
 
-        parameters = get_function_parameters(call_definition)
+        parameters = get_function_parameters(call_definition, complete_all)
 
         for index, parameter in enumerate(parameters):
             name, value = parameter
