@@ -9,9 +9,6 @@ from optparse import OptionParser
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import jedi
-from jedi.api import NotFoundError
-
-# remove it. WHY?
 sys.path.pop(0)
 
 is_funcargs_complete_enabled = True
@@ -222,16 +219,12 @@ class JediFacade:
 
         :rtype: list of (str, int, int) or None
         """
-        try:
-            definitions = self.script.goto_assignments()
-            if all(d.type == 'import' for d in definitions):
-                # check if it an import string and if it is get definition
-                definitions = self.script.goto_definitions()
-        except NotFoundError:
-            return
-        else:
-            return [(i.module_path, i.line, i.column + 1)
-                    for i in definitions if not i.in_builtin_module()]
+        definitions = self.script.goto_assignments()
+        if all(d.type == 'import' for d in definitions):
+            # check if it an import string and if it is get definition
+            definitions = self.script.goto_definitions()
+        return [(i.module_path, i.line, i.column + 1)
+                for i in definitions if not i.in_builtin_module()]
 
     def _usages(self):
         """ Jedi "find usages" functionality
