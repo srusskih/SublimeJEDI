@@ -3,14 +3,16 @@ Helpers for the API
 """
 import re
 from collections import namedtuple
+from textwrap import dedent
+
+from parso.python.parser import Parser
+from parso.python import tree
+from parso import split_lines
 
 from jedi._compatibility import u
+from jedi.evaluate.syntax_tree import eval_atom
 from jedi.evaluate.helpers import evaluate_call_of_leaf
-from jedi.parser.python.parser import Parser
-from jedi.parser.python import tree
-from jedi.parser import tokenize
 from jedi.cache import time_cache
-from jedi import common
 
 
 CompletionParts = namedtuple('CompletionParts', ['path', 'has_dot', 'name'])
@@ -52,7 +54,7 @@ class OnErrorLeaf(Exception):
 
 
 def _is_on_comment(leaf, position):
-    comment_lines = common.splitlines(leaf.prefix)
+    comment_lines = split_lines(leaf.prefix)
     difference = leaf.start_pos[0] - position[0]
     prefix_start_pos = leaf.get_start_pos_of_prefix()
     if difference == 0:
@@ -93,11 +95,10 @@ def _get_code_for_stack(code_lines, module_node, position):
         # impossible.
         raise OnErrorLeaf(leaf)
     else:
-        if leaf == ';':
-            user_stmt = leaf.parent
-        else:
-            user_stmt = leaf.get_definition()
-        if user_stmt.parent.type == 'simple_stmt':
+        user_stmt = leaf
+        while True:
+            if user_stmt.parent.type in ('file_input', 'suite', 'simple_stmt'):
+                break
             user_stmt = user_stmt.parent
 
         if is_after_newline:
@@ -118,21 +119,24 @@ def get_stack_at_position(grammar, code_lines, module_node, pos):
         pass
 
     def tokenize_without_endmarker(code):
-        tokens = tokenize.source_tokens(code, use_exact_op_types=True)
+        # TODO This is for now not an official parso API that exists purely
+        #   for Jedi.
+        tokens = grammar._tokenize(code)
         for token_ in tokens:
             if token_.string == safeword:
                 raise EndMarkerReached()
             else:
                 yield token_
 
-    code = _get_code_for_stack(code_lines, module_node, pos)
+    # The code might be indedented, just remove it.
+    code = dedent(_get_code_for_stack(code_lines, module_node, pos))
     # We use a word to tell Jedi when we have reached the start of the
     # completion.
     # Use Z as a prefix because it's not part of a number suffix.
     safeword = 'ZZZ_USER_WANTS_TO_COMPLETE_HERE_WITH_JEDI'
     code = code + safeword
 
-    p = Parser(grammar, error_recovery=True)
+    p = Parser(grammar._pgen_grammar, error_recovery=True)
     try:
         p.parse(tokens=tokenize_without_endmarker(code))
     except EndMarkerReached:
@@ -151,7 +155,7 @@ class Stack(list):
                 yield node
 
 
-def get_possible_completion_types(grammar, stack):
+def get_possible_completion_types(pgen_grammar, stack):
     def add_results(label_index):
         try:
             grammar_labels.append(inversed_tokens[label_index])
@@ -159,17 +163,17 @@ def get_possible_completion_types(grammar, stack):
             try:
                 keywords.append(inversed_keywords[label_index])
             except KeyError:
-                t, v = grammar.labels[label_index]
+                t, v = pgen_grammar.labels[label_index]
                 assert t >= 256
                 # See if it's a symbol and if we're in its first set
                 inversed_keywords
-                itsdfa = grammar.dfas[t]
+                itsdfa = pgen_grammar.dfas[t]
                 itsstates, itsfirst = itsdfa
                 for first_label_index in itsfirst.keys():
                     add_results(first_label_index)
 
-    inversed_keywords = dict((v, k) for k, v in grammar.keywords.items())
-    inversed_tokens = dict((v, k) for k, v in grammar.tokens.items())
+    inversed_keywords = dict((v, k) for k, v in pgen_grammar.keywords.items())
+    inversed_tokens = dict((v, k) for k, v in pgen_grammar.tokens.items())
 
     keywords = []
     grammar_labels = []
@@ -203,7 +207,7 @@ def evaluate_goto_definition(evaluator, context, leaf):
     elif parent.type == 'trailer':
         return evaluate_call_of_leaf(context, leaf)
     elif isinstance(leaf, tree.Literal):
-        return context.evaluator.eval_atom(context, leaf)
+        return eval_atom(context, leaf)
     return []
 
 

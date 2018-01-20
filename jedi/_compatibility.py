@@ -7,6 +7,7 @@ import imp
 import os
 import re
 import pkgutil
+import warnings
 try:
     import importlib
 except ImportError:
@@ -60,7 +61,13 @@ def find_module_py33(string, path=None, loader=None, fullname=None):
 
     if loader is None and path is None:  # Fallback to find builtins
         try:
-            loader = importlib.find_loader(string)
+            with warnings.catch_warnings(record=True):
+                # Mute "DeprecationWarning: Use importlib.util.find_spec()
+                # instead." While we should replace that in the future, it's
+                # probably good to wait until we deprecate Python 3.3, since
+                # it was added in Python 3.4 and find_loader hasn't been
+                # removed in 3.6.
+                loader = importlib.find_loader(string)
         except ValueError as e:
             # See #491. Importlib might raise a ValueError, to avoid this, we
             # just raise an ImportError to fix the issue.
@@ -166,22 +173,6 @@ try:
 except NameError:
     unicode = str
 
-if is_py3:
-    u = lambda s: s
-else:
-    u = lambda s: s.decode('utf-8')
-
-u.__doc__ = """
-Decode a raw string into unicode object.  Do nothing in Python 3.
-"""
-
-# exec function
-if is_py3:
-    def exec_function(source, global_map):
-        exec(source, global_map)
-else:
-    eval(compile("""def exec_function(source, global_map):
-                        exec source in global_map """, 'blub', 'exec'))
 
 # re-raise function
 if is_py3:

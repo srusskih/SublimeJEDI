@@ -2,7 +2,7 @@
 Module for statical analysis.
 """
 from jedi import debug
-from jedi.parser.python import tree
+from parso.python import tree
 from jedi.evaluate.compiled import CompiledObject
 
 
@@ -92,14 +92,14 @@ def _check_for_setattr(instance):
     """
     Check if there's any setattr method inside an instance. If so, return True.
     """
-    from jedi.evaluate.representation import ModuleContext
+    from jedi.evaluate.context import ModuleContext
     module = instance.get_root_context()
     if not isinstance(module, ModuleContext):
         return False
 
     node = module.tree_node
     try:
-        stmts = node.used_names['setattr']
+        stmts = node.get_used_names()['setattr']
     except KeyError:
         return False
 
@@ -109,7 +109,7 @@ def _check_for_setattr(instance):
 
 def add_attribute_error(name_context, lookup_context, name):
     message = ('AttributeError: %s has no attribute %s.' % (lookup_context, name))
-    from jedi.evaluate.instance import AbstractInstanceContext, CompiledInstanceName
+    from jedi.evaluate.context.instance import AbstractInstanceContext, CompiledInstanceName
     # Check for __getattr__/__getattribute__ existance and issue a warning
     # instead of an error, if that happens.
     typ = Error
@@ -153,14 +153,14 @@ def _check_for_exception_catch(node_context, jedi_name, exception, payload=None)
                     and not (branch_type.start_pos < jedi_name.start_pos <= suite.end_pos):
                 return False
 
-        for node in obj.except_clauses():
+        for node in obj.get_except_clause_tests():
             if node is None:
                 return True  # An exception block that catches everything.
             else:
                 except_classes = node_context.eval_node(node)
                 for cls in except_classes:
-                    from jedi.evaluate import iterable
-                    if isinstance(cls, iterable.AbstractSequence) and \
+                    from jedi.evaluate.context import iterable
+                    if isinstance(cls, iterable.AbstractIterable) and \
                             cls.array_type == 'tuple':
                         # multiple exceptions
                         for lazy_context in cls.py__iter__():
@@ -181,7 +181,7 @@ def _check_for_exception_catch(node_context, jedi_name, exception, payload=None)
             assert trailer.type == 'trailer'
             arglist = trailer.children[1]
             assert arglist.type == 'arglist'
-            from jedi.evaluate.param import TreeArguments
+            from jedi.evaluate.arguments import TreeArguments
             args = list(TreeArguments(node_context.evaluator, node_context, arglist).unpack())
             # Arguments should be very simple
             assert len(args) == 2
@@ -190,7 +190,7 @@ def _check_for_exception_catch(node_context, jedi_name, exception, payload=None)
             key, lazy_context = args[1]
             names = list(lazy_context.infer())
             assert len(names) == 1 and isinstance(names[0], CompiledObject)
-            assert names[0].obj == str(payload[1])
+            assert names[0].obj == payload[1].value
 
             # Check objects
             key, lazy_context = args[0]

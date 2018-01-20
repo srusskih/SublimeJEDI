@@ -1,16 +1,38 @@
 from abc import abstractproperty
 
 from jedi._compatibility import is_py3
-from jedi.common import unite
 from jedi import debug
 from jedi.evaluate import compiled
 from jedi.evaluate import filters
-from jedi.evaluate.context import Context, LazyKnownContext, LazyKnownContexts
-from jedi.evaluate.cache import memoize_default
+from jedi.evaluate.base_context import Context, NO_CONTEXTS, ContextSet, \
+    iterator_to_context_set
+from jedi.evaluate.lazy_context import LazyKnownContext, LazyKnownContexts
+from jedi.evaluate.cache import evaluator_method_cache
+from jedi.evaluate.arguments import AbstractArguments, AnonymousArguments
 from jedi.cache import memoize_method
-from jedi.evaluate import representation as er
-from jedi.evaluate.dynamic import search_params
-from jedi.evaluate import iterable
+from jedi.evaluate.context.function import FunctionExecutionContext, FunctionContext
+from jedi.evaluate.context.klass import ClassContext, apply_py__get__
+from jedi.evaluate.context import iterable
+from jedi.parser_utils import get_parent_scope
+
+
+
+class InstanceFunctionExecution(FunctionExecutionContext):
+    def __init__(self, instance, parent_context, function_context, var_args):
+        self.instance = instance
+        var_args = InstanceVarArgs(self, var_args)
+
+        super(InstanceFunctionExecution, self).__init__(
+            instance.evaluator, parent_context, function_context, var_args)
+
+
+class AnonymousInstanceFunctionExecution(FunctionExecutionContext):
+    function_execution_filter = filters.AnonymousInstanceFunctionExecutionFilter
+
+    def __init__(self, instance, parent_context, function_context, var_args):
+        self.instance = instance
+        super(AnonymousInstanceFunctionExecution, self).__init__(
+            instance.evaluator, parent_context, function_context, var_args)
 
 
 class AbstractInstanceContext(Context):
@@ -18,6 +40,7 @@ class AbstractInstanceContext(Context):
     This class is used to evaluate instances.
     """
     api_type = 'instance'
+    function_execution_cls = InstanceFunctionExecution
 
     def __init__(self, evaluator, parent_context, class_context, var_args):
         super(AbstractInstanceContext, self).__init__(evaluator, parent_context)
@@ -37,7 +60,7 @@ class AbstractInstanceContext(Context):
             raise AttributeError
 
         def execute(arguments):
-            return unite(name.execute(arguments) for name in names)
+            return ContextSet.from_sets(name.execute(arguments) for name in names)
 
         return execute
 
@@ -59,7 +82,7 @@ class AbstractInstanceContext(Context):
         return []
 
     def execute_function_slots(self, names, *evaluated_args):
-        return unite(
+        return ContextSet.from_sets(
             name.execute_evaluated(*evaluated_args)
             for name in names
         )
@@ -75,7 +98,7 @@ class AbstractInstanceContext(Context):
                 none_obj = compiled.create(self.evaluator, None)
                 return self.execute_function_slots(names, none_obj, obj)
         else:
-            return set([self])
+            return ContextSet(self)
 
     def get_filters(self, search_global=None, until_position=None,
                     origin_scope=None, include_self_names=True):
@@ -101,7 +124,7 @@ class AbstractInstanceContext(Context):
             names = self.get_function_slot_names('__getitem__')
         except KeyError:
             debug.warning('No __getitem__, cannot access the array.')
-            return set()
+            return NO_CONTEXTS
         else:
             index_obj = compiled.create(self.evaluator, index)
             return self.execute_function_slots(names, index_obj)
@@ -135,7 +158,7 @@ class AbstractInstanceContext(Context):
         bound_method = BoundMethod(
             self.evaluator, self, class_context, self.parent_context, func_node
         )
-        return InstanceFunctionExecution(
+        return self.function_execution_cls(
             self,
             class_context.parent_context,
             bound_method,
@@ -147,11 +170,11 @@ class AbstractInstanceContext(Context):
             if isinstance(name, LazyInstanceName):
                 yield self._create_init_execution(name.class_context, name.tree_name.parent)
 
-    @memoize_default()
+    @evaluator_method_cache()
     def create_instance_context(self, class_context, node):
         if node.parent.type in ('funcdef', 'classdef'):
             node = node.parent
-        scope = node.get_parent_scope()
+        scope = get_parent_scope(node)
         if scope == class_context.tree_node:
             return class_context
         else:
@@ -162,9 +185,15 @@ class AbstractInstanceContext(Context):
                 else:
                     bound_method = BoundMethod(
                         self.evaluator, self, class_context,
-                        self.parent_context, scope
+                        parent_context, scope
                     )
                     return bound_method.get_function_execution()
+            elif scope.type == 'classdef':
+                class_context = ClassContext(self.evaluator, scope, parent_context)
+                return class_context
+            elif scope.type == 'comp_for':
+                # Comprehensions currently don't have a special scope in Jedi.
+                return self.create_instance_context(class_context, scope)
             else:
                 raise NotImplementedError
         return class_context
@@ -189,25 +218,32 @@ class CompiledInstance(AbstractInstanceContext):
         return compiled.CompiledContextName(self, self.class_context.name.string_name)
 
     def create_instance_context(self, class_context, node):
-        if node.get_parent_scope().type == 'classdef':
+        if get_parent_scope(node).type == 'classdef':
             return class_context
         else:
             return super(CompiledInstance, self).create_instance_context(class_context, node)
 
 
 class TreeInstance(AbstractInstanceContext):
+    def __init__(self, evaluator, parent_context, class_context, var_args):
+        super(TreeInstance, self).__init__(evaluator, parent_context,
+                                           class_context, var_args)
+        self.tree_node = class_context.tree_node
+
     @property
     def name(self):
         return filters.ContextName(self, self.class_context.name.tree_name)
 
 
 class AnonymousInstance(TreeInstance):
+    function_execution_cls = AnonymousInstanceFunctionExecution
+
     def __init__(self, evaluator, parent_context, class_context):
         super(AnonymousInstance, self).__init__(
             evaluator,
             parent_context,
             class_context,
-            var_args=None
+            var_args=AnonymousArguments(),
         )
 
 
@@ -216,9 +252,10 @@ class CompiledInstanceName(compiled.CompiledName):
         super(CompiledInstanceName, self).__init__(evaluator, parent_context, name)
         self._instance = instance
 
+    @iterator_to_context_set
     def infer(self):
         for result_context in super(CompiledInstanceName, self).infer():
-            if isinstance(result_context, er.FunctionContext):
+            if isinstance(result_context, FunctionContext):
                 parent_context = result_context.parent_context
                 while parent_context.is_class():
                     parent_context = parent_context.parent_context
@@ -250,7 +287,7 @@ class CompiledInstanceClassFilter(compiled.CompiledObjectFilter):
             self._evaluator, self._instance, self._compiled_object, name)
 
 
-class BoundMethod(er.FunctionContext):
+class BoundMethod(FunctionContext):
     def __init__(self, evaluator, instance, class_context, *args, **kwargs):
         super(BoundMethod, self).__init__(evaluator, *args, **kwargs)
         self._instance = instance
@@ -258,8 +295,9 @@ class BoundMethod(er.FunctionContext):
 
     def get_function_execution(self, arguments=None):
         if arguments is None:
+            arguments = AnonymousArguments()
             return AnonymousInstanceFunctionExecution(
-                self._instance, self.parent_context, self)
+                self._instance, self.parent_context, self, arguments)
         else:
             return InstanceFunctionExecution(
                 self._instance, self.parent_context, self, arguments)
@@ -276,9 +314,7 @@ class CompiledBoundMethod(compiled.CompiledObject):
 
 class InstanceNameDefinition(filters.TreeNameDefinition):
     def infer(self):
-        contexts = super(InstanceNameDefinition, self).infer()
-        for context in contexts:
-            yield context
+        return super(InstanceNameDefinition, self).infer()
 
 
 class LazyInstanceName(filters.TreeNameDefinition):
@@ -296,9 +332,10 @@ class LazyInstanceName(filters.TreeNameDefinition):
 
 
 class LazyInstanceClassName(LazyInstanceName):
+    @iterator_to_context_set
     def infer(self):
         for result_context in super(LazyInstanceClassName, self).infer():
-            if isinstance(result_context, er.FunctionContext):
+            if isinstance(result_context, FunctionContext):
                 # Classes are never used to resolve anything within the
                 # functions. Only other functions and modules will resolve
                 # those things.
@@ -311,7 +348,7 @@ class LazyInstanceClassName(LazyInstanceName):
                     parent_context, result_context.tree_node
                 )
             else:
-                for c in er.apply_py__get__(result_context, self._instance):
+                for c in apply_py__get__(result_context, self._instance):
                     yield c
 
 
@@ -332,7 +369,7 @@ class InstanceClassFilter(filters.ParserTreeFilter):
         while node is not None:
             if node == self._parser_scope or node == self.context:
                 return True
-            node = node.get_parent_scope()
+            node = get_parent_scope(node)
         return False
 
     def _access_possible(self, name):
@@ -372,74 +409,27 @@ class SelfNameFilter(InstanceClassFilter):
         return names
 
 
-class ParamArguments(object):
-    """
-    TODO This seems like a strange class, clean up?
-    """
-    class LazyParamContext(object):
-        def __init__(self, fucking_param):
-            self._param = fucking_param
-
-        def infer(self):
-            return self._param.infer()
-
-    def __init__(self, class_context, funcdef):
-        self._class_context = class_context
-        self._funcdef = funcdef
-
-    def unpack(self, func=None):
-        params = search_params(
-            self._class_context.evaluator,
-            self._class_context,
-            self._funcdef
-        )
-        is_first = True
-        for p in params:
-            # TODO Yeah, here at last, the class seems to be really wrong.
-            if is_first:
-                is_first = False
-                continue
-            yield None, self.LazyParamContext(p)
-
-
-class InstanceVarArgs(object):
-    def __init__(self, instance, funcdef, var_args):
-        self._instance = instance
-        self._funcdef = funcdef
+class InstanceVarArgs(AbstractArguments):
+    def __init__(self, execution_context, var_args):
+        self._execution_context = execution_context
         self._var_args = var_args
 
     @memoize_method
     def _get_var_args(self):
-        if self._var_args is None:
-            # TODO this parent_context might be wrong. test?!
-            return ParamArguments(self._instance.class_context, self._funcdef)
-
         return self._var_args
 
+    @property
+    def argument_node(self):
+        return self._var_args.argument_node
+
+    @property
+    def trailer(self):
+        return self._var_args.trailer
+
     def unpack(self, func=None):
-        yield None, LazyKnownContext(self._instance)
+        yield None, LazyKnownContext(self._execution_context.instance)
         for values in self._get_var_args().unpack(func):
             yield values
 
     def get_calling_nodes(self):
         return self._get_var_args().get_calling_nodes()
-
-    def __getattr__(self, name):
-        return getattr(self._var_args, name)
-
-
-class InstanceFunctionExecution(er.FunctionExecutionContext):
-    def __init__(self, instance, parent_context, function_context, var_args):
-        self.instance = instance
-        var_args = InstanceVarArgs(instance, function_context.tree_node, var_args)
-
-        super(InstanceFunctionExecution, self).__init__(
-            instance.evaluator, parent_context, function_context, var_args)
-
-
-class AnonymousInstanceFunctionExecution(InstanceFunctionExecution):
-    function_execution_filter = filters.AnonymousInstanceFunctionExecutionFilter
-
-    def __init__(self, instance, parent_context, function_context):
-        super(AnonymousInstanceFunctionExecution, self).__init__(
-            instance, parent_context, function_context, None)

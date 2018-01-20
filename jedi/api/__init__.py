@@ -10,43 +10,36 @@ arguments.
 .. warning:: Please, note that Jedi is **not thread safe**.
 """
 import os
-import warnings
 import sys
 
-from jedi.parser.python import load_grammar
-from jedi.parser.python import tree
-from jedi.parser.python import parse
+import parso
+from parso.python import tree
+from parso import python_bytes_to_unicode, split_lines
+
+from jedi.parser_utils import get_executable_nodes, get_statement_of_position
 from jedi import debug
 from jedi import settings
-from jedi import common
 from jedi import cache
 from jedi.api import classes
 from jedi.api import interpreter
-from jedi.api import usages
 from jedi.api import helpers
 from jedi.api.completion import Completion
 from jedi.evaluate import Evaluator
-from jedi.evaluate import representation as er
 from jedi.evaluate import imports
-from jedi.evaluate.param import try_iter_content
-from jedi.evaluate.helpers import get_module_names
-from jedi.evaluate.sys_path import get_venv_path
-from jedi.evaluate.iterable import unpack_tuple_to_dict
+from jedi.evaluate import usages
+from jedi.evaluate.project import Project
+from jedi.evaluate.arguments import try_iter_content
+from jedi.evaluate.helpers import get_module_names, evaluate_call_of_leaf
+from jedi.evaluate.sys_path import dotted_path_in_sys_path
 from jedi.evaluate.filters import TreeNameDefinition
+from jedi.evaluate.syntax_tree import tree_name_to_contexts
+from jedi.evaluate.context import ModuleContext
+from jedi.evaluate.context.module import ModuleName
+from jedi.evaluate.context.iterable import unpack_tuple_to_dict
 
 # Jedi uses lots and lots of recursion. By setting this a little bit higher, we
 # can remove some "maximum recursion depth" errors.
-sys.setrecursionlimit(2000)
-
-
-class NotFoundError(Exception):
-    """A custom error to avoid catching the wrong exceptions.
-
-    .. deprecated:: 0.9.0
-       Not in use anymore, Jedi just returns no goto result if you're not on a
-       valid name.
-    .. todo:: Remove!
-    """
+sys.setrecursionlimit(3000)
 
 
 class Script(object):
@@ -89,15 +82,7 @@ class Script(object):
 
     """
     def __init__(self, source=None, line=None, column=None, path=None,
-                 encoding='utf-8', source_path=None, source_encoding=None,
-                 sys_path=None):
-        if source_path is not None:
-            warnings.warn("Use path instead of source_path.", DeprecationWarning)
-            path = source_path
-        if source_encoding is not None:
-            warnings.warn("Use encoding instead of source_encoding.", DeprecationWarning)
-            encoding = source_encoding
-
+                 encoding='utf-8', sys_path=None):
         self._orig_path = path
         # An empty path (also empty string) should always result in no path.
         self.path = os.path.abspath(path) if path else None
@@ -107,8 +92,9 @@ class Script(object):
             with open(path, 'rb') as f:
                 source = f.read()
 
-        self._source = common.source_to_unicode(source, encoding)
-        self._code_lines = common.splitlines(self._source)
+        # TODO do we really want that?
+        self._source = python_bytes_to_unicode(source, encoding, errors='replace')
+        self._code_lines = split_lines(self._source)
         line = max(len(self._code_lines), 1) if line is None else line
         if not (0 < line <= len(self._code_lines)):
             raise ValueError('`line` parameter is not in a valid range.')
@@ -122,43 +108,36 @@ class Script(object):
 
         cache.clear_time_caches()
         debug.reset_time()
-        self._grammar = load_grammar(version='%s.%s' % sys.version_info[:2])
-        if sys_path is None:
-            venv = os.getenv('VIRTUAL_ENV')
-            if venv:
-                sys_path = list(get_venv_path(venv))
-        self._evaluator = Evaluator(self._grammar, sys_path=sys_path)
+
+        # Load the Python grammar of the current interpreter.
+        self._grammar = parso.load_grammar()
+        project = Project(sys_path=sys_path)
+        self._evaluator = Evaluator(self._grammar, project)
+        project.add_script_path(self.path)
         debug.speed('init')
 
     @cache.memoize_method
     def _get_module_node(self):
-        return parse(
+        return self._grammar.parse(
             code=self._source,
             path=self.path,
-            grammar=self._grammar,
             cache=False,  # No disk cache, because the current script often changes.
             diff_cache=True,
+            cache_path=settings.cache_directory
         )
 
     @cache.memoize_method
     def _get_module(self):
-        module = er.ModuleContext(
+        module = ModuleContext(
             self._evaluator,
             self._get_module_node(),
             self.path
         )
-        imports.add_module(self._evaluator, module.name.string_name, module)
+        if self.path is not None:
+            name = dotted_path_in_sys_path(self._evaluator.project.sys_path, self.path)
+            if name is not None:
+                imports.add_module(self._evaluator, name, module)
         return module
-
-    @property
-    def source_path(self):
-        """
-        .. deprecated:: 0.7.0
-           Use :attr:`.path` instead.
-        .. todo:: Remove!
-        """
-        warnings.warn("Use path instead of source_path.", DeprecationWarning)
-        return self.path
 
     def __repr__(self):
         return '<%s: %s>' % (self.__class__.__name__, repr(self._orig_path))
@@ -193,7 +172,7 @@ class Script(object):
         :rtype: list of :class:`classes.Definition`
         """
         module_node = self._get_module_node()
-        leaf = module_node.name_for_position(self._pos)
+        leaf = module_node.get_name_of_position(self._pos)
         if leaf is None:
             leaf = module_node.get_leaf_for_position(self._pos)
             if leaf is None:
@@ -218,30 +197,33 @@ class Script(object):
 
         :rtype: list of :class:`classes.Definition`
         """
-        def filter_follow_imports(names):
+        def filter_follow_imports(names, check):
             for name in names:
-                if isinstance(name, (imports.ImportName, TreeNameDefinition)):
-                    for context in name.infer():
-                        yield context.name
+                if check(name):
+                    for result in filter_follow_imports(name.goto(), check):
+                        yield result
                 else:
                     yield name
 
-        names = self._goto()
+        tree_name = self._get_module_node().get_name_of_position(self._pos)
+        if tree_name is None:
+            return []
+        context = self._evaluator.create_context(self._get_module(), tree_name)
+        names = list(self._evaluator.goto(context, tree_name))
+
         if follow_imports:
-            names = filter_follow_imports(names)
+            def check(name):
+                if isinstance(name, ModuleName):
+                    return False
+                return name.api_type == 'module'
+        else:
+            def check(name):
+                return isinstance(name, imports.SubModuleName)
+
+        names = filter_follow_imports(names, check)
 
         defs = [classes.Definition(self._evaluator, d) for d in set(names)]
         return helpers.sorted_definitions(defs)
-
-    def _goto(self):
-        """
-        Used for goto_assignments and usages.
-        """
-        name = self._get_module_node().name_for_position(self._pos)
-        if name is None:
-            return []
-        context = self._evaluator.create_context(self._get_module(), name)
-        return list(self._evaluator.goto(context, name))
 
     def usages(self, additional_module_paths=()):
         """
@@ -254,36 +236,15 @@ class Script(object):
 
         :rtype: list of :class:`classes.Definition`
         """
-        temp, settings.dynamic_flow_information = \
-            settings.dynamic_flow_information, False
-        try:
-            module_node = self._get_module_node()
-            user_stmt = module_node.get_statement_for_position(self._pos)
-            definition_names = self._goto()
-            if not definition_names and isinstance(user_stmt, tree.Import):
-                # For not defined imports (goto doesn't find something, we take
-                # the name as a definition. This is enough, because every name
-                # points to it.
-                name = user_stmt.name_for_position(self._pos)
-                if name is None:
-                    # Must be syntax
-                    return []
-                definition_names = [TreeNameDefinition(self._get_module(), name)]
+        tree_name = self._get_module_node().get_name_of_position(self._pos)
+        if tree_name is None:
+            # Must be syntax
+            return []
 
-            if not definition_names:
-                # Without a definition for a name we cannot find references.
-                return []
+        names = usages.usages(self._get_module(), tree_name)
 
-            definition_names = usages.resolve_potential_imports(self._evaluator,
-                                                                definition_names)
-
-            modules = set([d.get_root_context() for d in definition_names])
-            modules.add(self._get_module())
-            definitions = usages.usages(self._evaluator, definition_names, modules)
-        finally:
-            settings.dynamic_flow_information = temp
-
-        return helpers.sorted_definitions(set(definitions))
+        definitions = [classes.Definition(self._evaluator, n) for n in names]
+        return helpers.sorted_definitions(definitions)
 
     def call_signatures(self):
         """
@@ -310,14 +271,13 @@ class Script(object):
             self._get_module(),
             call_signature_details.bracket_leaf
         )
-        with common.scale_speed_settings(settings.scale_call_signatures):
-            definitions = helpers.cache_call_signatures(
-                self._evaluator,
-                context,
-                call_signature_details.bracket_leaf,
-                self._code_lines,
-                self._pos
-            )
+        definitions = helpers.cache_call_signatures(
+            self._evaluator,
+            context,
+            call_signature_details.bracket_leaf,
+            self._code_lines,
+            self._pos
+        )
         debug.speed('func_call followed')
 
         return [classes.CallSignature(self._evaluator, d.name,
@@ -331,17 +291,15 @@ class Script(object):
         module_node = self._get_module_node()
         self._evaluator.analysis_modules = [module_node]
         try:
-            for node in module_node.nodes_to_execute():
+            for node in get_executable_nodes(module_node):
                 context = self._get_module().create_context(node)
                 if node.type in ('funcdef', 'classdef'):
-                    # TODO This is stupid, should be private
-                    from jedi.evaluate.finder import _name_to_types
                     # Resolve the decorators.
-                    _name_to_types(self._evaluator, context, node.children[1])
+                    tree_name_to_contexts(self._evaluator, context, node.children[1])
                 elif isinstance(node, tree.Import):
                     import_names = set(node.get_defined_names())
                     if node.is_nested():
-                        import_names |= set(path[-1] for path in node.paths())
+                        import_names |= set(path[-1] for path in node.get_paths())
                     for n in import_names:
                         imports.infer_import(context, n)
                 elif node.type == 'expr_stmt':
@@ -350,7 +308,11 @@ class Script(object):
                         # Iterate tuples.
                         unpack_tuple_to_dict(context, types, testlist)
                 else:
-                    try_iter_content(self._evaluator.goto_definitions(context, node))
+                    if node.type == 'name':
+                        defs = self._evaluator.goto_definitions(context, node)
+                    else:
+                        defs = evaluate_call_of_leaf(context, node)
+                    try_iter_content(defs)
                 self._evaluator.reset_recursion_limitations()
 
             ana = [a for a in self._evaluator.analysis if self.path == a.path]
@@ -407,26 +369,6 @@ class Interpreter(Script):
         )
 
 
-def defined_names(source, path=None, encoding='utf-8'):
-    """
-    Get all definitions in `source` sorted by its position.
-
-    This functions can be used for listing functions, classes and
-    data defined in a file.  This can be useful if you want to list
-    them in "sidebar".  Each element in the returned list also has
-    `defined_names` method which can be used to get sub-definitions
-    (e.g., methods in class).
-
-    :rtype: list of classes.Definition
-
-    .. deprecated:: 0.9.0
-       Use :func:`names` instead.
-    .. todo:: Remove!
-    """
-    warnings.warn("Use call_signatures instead.", DeprecationWarning)
-    return names(source, path, encoding)
-
-
 def names(source=None, path=None, encoding='utf-8', all_scopes=False,
           definitions=True, references=False):
     """
@@ -454,7 +396,7 @@ def names(source=None, path=None, encoding='utf-8', all_scopes=False,
         classes.Definition(
             script._evaluator,
             TreeNameDefinition(
-                module_context.create_context(name.parent),
+                module_context.create_context(name if name.parent.type == 'file_input' else name.parent),
                 name
             )
         ) for name in get_module_names(script._get_module_node(), all_scopes)

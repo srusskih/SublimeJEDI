@@ -12,10 +12,9 @@ there are global variables, which are holding the cache information. Some of
 these variables are being cleaned after every API usage.
 """
 import time
-import inspect
 
 from jedi import settings
-from jedi.parser.cache import parser_cache
+from parso.cache import parser_cache
 
 _time_caches = {}
 
@@ -46,8 +45,6 @@ def underscore_memoization(func):
             return getattr(self, name)
         except AttributeError:
             result = func(self)
-            if inspect.isgenerator(result):
-                result = list(result)
             setattr(self, name, result)
             return result
 
