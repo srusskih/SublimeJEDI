@@ -5,11 +5,11 @@ import json
 import logging
 from optparse import OptionParser
 
-# add jedi too sys.path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# add dependencies to sys.path (jedi and parso)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../dependencies'))
 
-import jedi
-sys.path.pop(0)
+import jedi  # noqa
+
 
 is_funcargs_complete_enabled = True
 auto_complete_function_params = 'required'
