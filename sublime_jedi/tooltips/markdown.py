@@ -79,7 +79,10 @@ class MarkDownTooltip(Tooltip):
             prefix = 'class ' if func.lstrip('_')[0].isupper() else 'def '
 
         # handle hanging indentation of arguments
-        clean_args = ''.join(args.split()).replace(',',', ')
+        clean_args = ''.join(
+            [each.group() for each in re.finditer(
+                '[^\s"\']+|"([^"]*)"|\'([^\']*)', args)]
+        ).replace(',', ', ')
         args_length_difference = len(args) - len(clean_args)
         # join signature
         signature = ''.join(
