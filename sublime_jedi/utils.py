@@ -326,9 +326,9 @@ def expand_path(view, path):
         subl_vars['$packages'] = sublime.packages_path()
 
         try:
-            subl_vars['$project_path'] = view.window().project_file_name()
+            subl_vars['$project'] = view.window().project_file_name()
         except AttributeError:
-            subl_vars['$project_path'] = get_project_file_name(view.window())
+            subl_vars['$project'] = get_project_file_name(view.window())
 
         subl_vars = split_path(subl_vars, ['$file', '$project'])
         if '$' in path or '%' in path:
