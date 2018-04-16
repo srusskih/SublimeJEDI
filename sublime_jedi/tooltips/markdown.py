@@ -78,14 +78,21 @@ class MarkDownTooltip(Tooltip):
         else:
             prefix = 'class ' if func.lstrip('_')[0].isupper() else 'def '
 
+        # handle hanging indentation of arguments
+        clean_args = ''.join(
+            [each.group() for each in re.finditer(
+                '[^\s"\']+|"([^"]*)"|\'([^\']*)', args)]
+        ).replace(',', ', ')
+        args_length_difference = len(args) - len(clean_args)
         # join signature
         signature = ''.join(
-            (prefix, path or '', func or '', args or '', note or ''))
+            (prefix, path or '', func or '', clean_args or '', note or ''))
+        signature_length = len(signature) + args_length_difference
         # Signature may span multiple lines which need to be merged to one.
         signature = signature.replace('\n', ' ')
         # Everything after the signature is docstring
         docstring = docstring[
-            len(signature) + len(comment or '') - len(prefix):] or ''
+            signature_length + len(comment or '') - len(prefix):] or ''
         return (signature, docstring.strip())
 
     def _build_html(self, view, docstring):

@@ -95,7 +95,7 @@ def get_function_parameters(call_signature, complete_all=True):
 
         param_description = param.description.replace('param ', '')
         if '=' in param_description:
-            default_value = param_description.rsplit('=', 1)[1]
+            default_value = param_description.rsplit('=', 1)[1].lstrip()
             params.append((param.name, default_value))
         else:
             params.append((param.name, None))
