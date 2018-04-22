@@ -4,7 +4,6 @@ import os
 from os.path import dirname as up, join
 import sys
 import json
-import warnings
 import re
 from functools import partial
 from collections import defaultdict
