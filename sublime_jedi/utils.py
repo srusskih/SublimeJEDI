@@ -57,16 +57,16 @@ class Daemon(object):
 
     def _start_process(self, settings):
         python_interpreter = settings.get('python_interpreter')
-        virtualenv_path = settings.get('virtualenv_path')
+        python_virtualenv = settings.get('python_virtualenv')
 
-        if python_interpreter and not virtualenv_path:
-            virtualenv_path = up(up(python_interpreter))
+        if python_interpreter and not python_virtualenv:
+            python_virtualenv = up(up(python_interpreter))
 
-        if virtualenv_path and not python_interpreter:
-            python_interpreter = join(virtualenv_path, 'bin', 'python')
+        if python_virtualenv and not python_interpreter:
+            python_interpreter = join(python_virtualenv, 'bin', 'python')
 
-        if virtualenv_path and python_interpreter:
-            self.env = Environment(virtualenv_path, python_interpreter)
+        if python_virtualenv and python_interpreter:
+            self.env = Environment(python_virtualenv, python_interpreter)
         else:
             self.env = jedi.get_default_environment()
 
@@ -131,24 +131,17 @@ def get_settings(view):
     :type view: sublime.View
     :rtype: dict
     """
-    python_interpreter = get_settings_param(view, 'python_interpreter_path')
+    python_virtualenv = get_settings_param(view, 'python_virtualenv', None)
 
-    if not python_interpreter:
-        python_interpreter = get_settings_param(view, 'python_interpreter',
-                                                'python')
-    else:
-        warnings.warn('`python_interpreter_path` parameter is deprecated.'
-                      'Please, use `python_interpreter` instead.',
-                      DeprecationWarning)
-
-    python_interpreter = expand_path(view, python_interpreter)
+    python_interpreter = get_settings_param(view, 'python_interpreter', None)
+    if python_interpreter:
+        python_interpreter = expand_path(view, python_interpreter)
 
     extra_packages = get_settings_param(view, 'python_package_paths', [])
     extra_packages = [expand_path(view, p) for p in extra_packages]
 
-    complete_funcargs = get_settings_param(view,
-                                           'auto_complete_function_params',
-                                           'all')
+    complete_funcargs = get_settings_param(
+        view, 'auto_complete_function_params', 'all')
 
     first_folder = ''
     if view.window().folders():
@@ -157,6 +150,7 @@ def get_settings(view):
 
     return {
         'python_interpreter': python_interpreter,
+        'python_virtualenv': python_virtualenv,
         'extra_packages': extra_packages,
         'project_name': project_name,
         'complete_funcargs': complete_funcargs
