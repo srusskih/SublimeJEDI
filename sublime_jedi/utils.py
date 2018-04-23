@@ -132,6 +132,8 @@ def get_settings(view):
     :rtype: dict
     """
     python_virtualenv = get_settings_param(view, 'python_virtualenv', None)
+    if python_virtualenv:
+        python_virtualenv = expand_path(view, python_virtualenv)
 
     python_interpreter = get_settings_param(view, 'python_interpreter', None)
     if python_interpreter:
