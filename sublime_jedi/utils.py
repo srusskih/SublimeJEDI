@@ -45,7 +45,8 @@ def ask_daemon(view, callback, ask_type, location=None):
     if PY3:
         sublime.set_timeout_async(summon_daemon, 0)
     else:
-        sublime.set_timeout(summon_daemon, 0)
+        import thread
+        thread.start_new_thread(summon_daemon, args=())
 
 
 class Daemon(object):
