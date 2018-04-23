@@ -53,9 +53,9 @@ class Daemon(object):
 
     def __init__(self, view):
         self.window_id = view.window().id()
-        self.process = self._start_process(get_settings(view))
+        settings = get_settings(view)
 
-    def _start_process(self, settings):
+        # infer `python_interpreter` and `python_virtualenv`
         python_interpreter = settings.get('python_interpreter')
         python_virtualenv = settings.get('python_virtualenv')
 
@@ -70,12 +70,14 @@ class Daemon(object):
         else:
             self.env = jedi.get_default_environment()
 
+        # prepare the extra packages if any
         extra_packages = settings.get('extra_packages')
         if extra_packages:
             self.sys_path = self.env.get_sys_path() + extra_packages
         else:
             self.sys_path = None
 
+        # how to autocomplete arguments
         self.complete_funcargs = settings.get('complete_funcargs')
 
     def request(self, view, request_type, callback, location=None):
