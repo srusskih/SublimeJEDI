@@ -1,11 +1,18 @@
 SublimeJEDI
 ============
 
-[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/srusskih/SublimeJEDI?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/srusskih/SublimeJEDI?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 [SublimeJEDI](https://github.com/srusskih/SublimeJEDI) is a [Sublime Text 2](http://www.sublimetext.com/) and Sublime Text 3 plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
 
+Python Vesion Support
+---------------------
+
+Sublime Jedi Plugin | Jedi Lib version | Python 2.6.x | Python 2.7.x | Python 3.x
+--------------------|------------------|--------------|--------------|------------
+| <= 0.11.1 | 0.11.1 | ✅ | ✅ | ✅ | ✅ |
+| >= 0.12.0(master branch) | 0.12.0 |  ❌ | ✅ | ✅ | ✅ |
 
 Installation
 ------------
