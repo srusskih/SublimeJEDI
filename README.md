@@ -43,6 +43,7 @@ You can set Python interpreter, and additional python package directories, using
 
         "settings": {
             // ...
+            "python_virtualenv": "$project_path/../../virtual/",
             "python_interpreter": "$project_path/../../virtual/bin/python",
 
             "python_package_paths": [
@@ -51,6 +52,9 @@ You can set Python interpreter, and additional python package directories, using
             ]
         }
     }
+
+**NOTE**: You can configure `python_interpreter` and `python_virtualen` at the same time, no problem with that. If you configure `python_interpreter` alone, the `python_virtualen` will be inferred  so it will be 2 directories above `python_interpreter`. If you configure `python_virtualen` alone, the `python_interpreter` will be always where ever `python_virtualen` plus `'bin/python'`. If you don't configure any of this then the default Python environment of your system will be used.
+
 **NOTE**: Please note that Python will goes through the directories from `"python_package_paths"` to search for modules and files. In other words, each item in `"python_package_paths"` list is a directory with extra packages and modules, not a direct path to package or module.
 
 When setting paths, [Sublime Text Build System Variables](http://docs.sublimetext.info/en/latest/reference/build_systems.html#build-system-variables) and OS environment variables are automatically expanded.
