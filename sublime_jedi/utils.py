@@ -2,35 +2,29 @@
 from __future__ import print_function
 import os
 from os.path import dirname as up, join
-import sys
 import json
 import re
 from functools import partial
 from collections import defaultdict
 
+import jedi
+from jedi.api.environment import Environment
+
 import sublime
 
+from .daemon import JediFacade
 from .console_logging import getLogger
 from .settings import get_settings_param
 
-
 logger = getLogger(__name__)
-CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-PY3 = sys.version_info[0] == 3
 DAEMONS = defaultdict(dict)  # per window
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../dependencies'))
-
-import jedi  # noqa
-from jedi.api.environment import Environment  # noqa
 
 
 def ask_daemon(view, callback, ask_type, location=None):
-    """
-    Daemon request shortcut
+    """Daemon request shortcut.
 
     :type view: sublime.View
-    :type callback: callabel
+    :type callback: callable
     :type ask_type: str
     :type location: type of (int, int) or None
     """
@@ -42,11 +36,11 @@ def ask_daemon(view, callback, ask_type, location=None):
     def summon_daemon():
         DAEMONS[window_id].request(view, ask_type, callback, location)
 
-    if PY3:
-        sublime.set_timeout_async(summon_daemon, 0)
-    else:
+    if is_sublime_v2():
         import thread
-        thread.start_new_thread(summon_daemon, args=())
+        thread.start_new_thread(summon_daemon, tuple())
+    else:
+        sublime.set_timeout_async(summon_daemon, 0)
 
 
 class Daemon(object):
@@ -81,17 +75,14 @@ class Daemon(object):
         self.complete_funcargs = settings.get('complete_funcargs')
 
     def request(self, view, request_type, callback, location=None):
-        """
-        Send request to daemon process
+        """Send request to daemon process.
 
         :type view: sublime.View
         :type request_type: str
-        :type callback: callabel
+        :type callback: callable
         :type location: type of (int, int) or None
         """
         logger.info('Sending request to daemon for "{0}"'.format(request_type))
-
-        from .daemon import JediFacade
 
         if location is None:
             location = view.sel()[0].begin()
@@ -127,8 +118,7 @@ def run_in_active_view(window_id, callback, response):
 
 
 def get_settings(view):
-    """
-    get settings for daemon
+    """Get settings for daemon.
 
     :type view: sublime.View
     :rtype: dict
@@ -170,7 +160,7 @@ def is_python_scope(view, location):
 
 
 class PythonCommandMixin(object):
-    """ A mixin that hides and disables command for non-python code """
+    """A mixin that hides and disables command for non-python code """
 
     def is_visible(self):
         """ The command is visible only for python code """
@@ -182,9 +172,7 @@ class PythonCommandMixin(object):
 
 
 def is_repl(view):
-    """
-    Is SublimeREPL ?
-    """
+    """Check if a view is a REPL."""
     return view.settings().get("repl", False)
 
 
@@ -254,9 +242,7 @@ def expand_path(view, path):
 
 
 def get_project_file_name(window):
-    """
-    Getting project file name for ST2
-    """
+    """Getting project file name for ST2."""
     if not window.folders():
         return None
 
