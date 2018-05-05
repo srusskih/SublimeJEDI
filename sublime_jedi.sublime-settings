@@ -2,7 +2,7 @@
     // Used to get the `PYTHONPATH`.
     // You can set a path to your python interpreter,
     // for example `/home/user/.virtualenvs/myenv/bin/python)`.
-    "python_interpreter": "python",
+    "python_interpreter": "",
 
     // Additional python package paths.
     "python_package_paths": [],
