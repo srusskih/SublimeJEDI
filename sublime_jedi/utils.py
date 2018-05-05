@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 import os
-from os.path import dirname as up, join
 import json
 import re
-from functools import partial
+from functools import partial, wraps
 from collections import defaultdict
 
 import jedi
-from jedi.api.environment import Environment
+from jedi.api import environment
 
 import sublime
 
@@ -29,55 +28,65 @@ def ask_daemon(view, callback, ask_type, location=None):
     :type location: type of (int, int) or None
     """
     window_id = view.window().id()
+    window_callback = run_in_active_view(window_id)(callback)
 
     if window_id not in DAEMONS:
-        DAEMONS[window_id] = Daemon(view)
+        DAEMONS[window_id] = Daemon(settings=get_settings(view))
 
-    def summon_daemon():
-        DAEMONS[window_id].request(view, ask_type, callback, location)
+    if location is None:
+        location = view.sel()[0].begin()
+    current_line, current_column = view.rowcol(location)
 
-    if is_sublime_v2():
-        import thread
-        thread.start_new_thread(summon_daemon, tuple())
-    else:
-        sublime.set_timeout_async(summon_daemon, 0)
+    filename = view.file_name() or ''
+    # do not pass file content, if file saved
+    source = None if filename else view.substr(sublime.Region(0, view.size()))
+
+    def _summon_daemon():
+        answer = DAEMONS[window_id].request(
+            ask_type,
+            filename,
+            source,
+            current_line,
+            current_column
+        )
+        sublime.set_timeout(partial(window_callback, answer), 0)
+
+    sublime.set_timeout_async(_summon_daemon, 0)
 
 
 class Daemon(object):
 
-    def __init__(self, view):
-        self.window_id = view.window().id()
-        settings = get_settings(view)
+    def __init__(self, settings):
+        """Prepare to call daemon.
 
+        :type settings: dict
+        """
         python_virtualenv = settings.get('python_virtualenv')
-        if python_virtualenv:
-            python_interpreter = join(python_virtualenv, 'bin', 'python')
-
-        else:
-            python_interpreter = settings.get('python_interpreter')
-            if python_interpreter:
-                python_virtualenv = up(up(python_interpreter))
+        python_interpreter = settings.get('python_interpreter')
 
         logger.debug('Jedi Environment: {0}'.format(
             (python_virtualenv, python_interpreter))
         )
 
-        if python_virtualenv and python_interpreter:
-            self.env = Environment(python_virtualenv, python_interpreter)
+        if python_virtualenv:
+            self.env = environment.create_environment(python_virtualenv)
+        elif python_interpreter:
+            self.env = environment.create_environment(
+                environment._get_python_prefix(python_interpreter),
+            )
         else:
             self.env = jedi.get_default_environment()
 
+        self.sys_path = self.env.get_sys_path()
         # prepare the extra packages if any
         extra_packages = settings.get('extra_packages')
         if extra_packages:
-            self.sys_path = self.env.get_sys_path() + extra_packages
-        else:
-            self.sys_path = None
+            self.sys_path = extra_packages + self.sys_path
 
         # how to autocomplete arguments
         self.complete_funcargs = settings.get('complete_funcargs')
 
-    def request(self, view, request_type, callback, location=None):
+    def request(self, request_type, filename, source, line, column):
         """Send request to daemon process.
 
         :type view: sublime.View
@@ -86,42 +95,44 @@ class Daemon(object):
         :type location: type of (int, int) or None
         """
         logger.info('Sending request to daemon for "{0}"'.format(request_type))
-
-        if location is None:
-            location = view.sel()[0].begin()
-        current_line, current_column = view.rowcol(location)
-        source = view.substr(sublime.Region(0, view.size()))
+        logger.debug((request_type, filename, source, line, column))
 
         facade = JediFacade(
             env=self.env,
             complete_funcargs=self.complete_funcargs,
             source=source,
-            line=current_line + 1,
-            column=current_column,
-            filename=view.file_name() or '',
+            line=line + 1,
+            column=column,
+            filename=filename,
             sys_path=self.sys_path,
         )
 
         answer = facade.get(request_type)
-        if callback is not None:
-            delayed_callback = partial(
-                run_in_active_view,
-                self.window_id,
-                callback,
-                answer,
+        logger.debug('Answer: {0}'.format(answer))
+        return answer
+
+
+def run_in_active_view(window_id):
+    """Run function in active ST active view for binded window.
+
+    sublime.View instance would be passed as first parameter to function.
+    """
+    def _decorator(func):
+        @wraps(func)
+        def _wrapper(*args, **kwargs):
+            for window in sublime.windows():
+                if window.id() == window_id:
+                    return func(window.active_view(), *args, **kwargs)
+
+            logger.info(
+                'Unable to find a window where function must be called.'
             )
-            sublime.set_timeout(delayed_callback, 0)
-
-
-def run_in_active_view(window_id, callback, response):
-    for window in sublime.windows():
-        if window.id() == window_id:
-            callback(window.active_view(), response)
-            break
+        return _wrapper
+    return _decorator
 
 
 def get_settings(view):
-    """Get settings for daemon.
+    """Get plugin settings.
 
     :type view: sublime.View
     :rtype: dict
