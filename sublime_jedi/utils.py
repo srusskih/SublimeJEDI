@@ -49,15 +49,18 @@ class Daemon(object):
         self.window_id = view.window().id()
         settings = get_settings(view)
 
-        # infer `python_interpreter` and `python_virtualenv`
-        python_interpreter = settings.get('python_interpreter')
         python_virtualenv = settings.get('python_virtualenv')
-
-        if python_interpreter and not python_virtualenv:
-            python_virtualenv = up(up(python_interpreter))
-
-        if python_virtualenv and not python_interpreter:
+        if python_virtualenv:
             python_interpreter = join(python_virtualenv, 'bin', 'python')
+
+        else:
+            python_interpreter = settings.get('python_interpreter')
+            if python_interpreter:
+                python_virtualenv = up(up(python_interpreter))
+
+        logger.debug('Jedi Environment: {0}'.format(
+            (python_virtualenv, python_interpreter))
+        )
 
         if python_virtualenv and python_interpreter:
             self.env = Environment(python_virtualenv, python_interpreter)
