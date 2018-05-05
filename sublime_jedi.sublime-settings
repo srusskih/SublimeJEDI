@@ -1,5 +1,9 @@
 {
-    // Used to get the `PYTHONPATH`.
+    // You can set a path to your python virtualenv,
+    // for example `/home/user/.virtualenvs/myenv)`.
+    // Note: Interpreter path would be found automaticaly
+    "python_virtualenv": "",
+
     // You can set a path to your python interpreter,
     // for example `/home/user/.virtualenvs/myenv/bin/python)`.
     "python_interpreter": "",
