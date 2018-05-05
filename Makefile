@@ -16,8 +16,7 @@ dependencies:
 	$(call get_dependency,parso,https://github.com/davidhalter/parso,v0.2.0)
 
 clean:
-	rm -rf SublimeJEDI.sublime-package
-	find -name "*.pyc" -exec rm {} \;
+	find . -name '*.pyc' -delete
 
 # will build a sublime package
 build: clean

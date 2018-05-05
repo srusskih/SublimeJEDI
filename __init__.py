@@ -6,11 +6,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'dependencies'))
 
 try:
-    from sublime_jedi import *
+    from .sublime_jedi import *
 except ImportError:
-    logging.exception("Error during importing sublime_jedi package")
-    try:
-        from .sublime_jedi import *
-    except ImportError:
-        logging.exception("Error during importing .sublime_jedi package")
-        raise
+    logging.exception("Error during importing .sublime_jedi package")
+    raise
