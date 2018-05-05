@@ -1,6 +1,5 @@
-Sublime Jedi v0.11.1
+Sublime Jedi v0.11.2
 ====================
-
 
 !!! WARNING !!!
 ---------------
@@ -15,4 +14,3 @@ Changes
 * Added support for hanging indentation of args in the signature popup (issue #235)
 * Detect optional arguments by the presence of '...' or '*'
 * Upgrade Jedi to v0.11.1 (issue #233)
-
