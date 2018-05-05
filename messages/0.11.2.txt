@@ -5,7 +5,7 @@ Sublime Jedi v0.11.1
 !!! WARNING !!!
 ---------------
 
-v0.11.1 is the last version that support Python 2.6.x
+v0.11.2 is the last version that support Python 2.6.x and Sublime Text 2
 
 
 Changes
