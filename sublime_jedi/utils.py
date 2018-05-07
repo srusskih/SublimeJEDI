@@ -39,7 +39,7 @@ def ask_daemon(view, callback, ask_type, location=None):
 
     filename = view.file_name() or ''
     # do not pass file content, if file saved
-    source = None if filename else view.substr(sublime.Region(0, view.size()))
+    source = view.substr(sublime.Region(0, view.size()))
 
     def _summon_daemon():
         answer = DAEMONS[window_id].request(
@@ -69,7 +69,8 @@ class Daemon(object):
         )
 
         if python_virtualenv:
-            self.env = environment.create_environment(python_virtualenv)
+            self.env = environment.create_environment(python_virtualenv,
+                                                      safe=False)
         elif python_interpreter:
             self.env = environment.create_environment(
                 environment._get_python_prefix(python_interpreter),
@@ -87,13 +88,7 @@ class Daemon(object):
         self.complete_funcargs = settings.get('complete_funcargs')
 
     def request(self, request_type, filename, source, line, column):
-        """Send request to daemon process.
-
-        :type view: sublime.View
-        :type request_type: str
-        :type callback: callable
-        :type location: type of (int, int) or None
-        """
+        """Send request to daemon process."""
         logger.info('Sending request to daemon for "{0}"'.format(request_type))
         logger.debug((request_type, filename, source, line, column))
 
