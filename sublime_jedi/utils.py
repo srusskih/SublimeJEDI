@@ -146,6 +146,9 @@ def get_settings(view):
     complete_funcargs = get_settings_param(
         view, 'auto_complete_function_params', 'all')
 
+    enable_in_sublime_repl = get_settings_param(
+        view, 'enable_in_sublime_repl', False)
+
     first_folder = ''
     if view.window().folders():
         first_folder = os.path.split(view.window().folders()[0])[-1]
@@ -156,7 +159,8 @@ def get_settings(view):
         'python_virtualenv': python_virtualenv,
         'extra_packages': extra_packages,
         'project_name': project_name,
-        'complete_funcargs': complete_funcargs
+        'complete_funcargs': complete_funcargs,
+        'enable_in_sublime_repl': enable_in_sublime_repl,
     }
 
 

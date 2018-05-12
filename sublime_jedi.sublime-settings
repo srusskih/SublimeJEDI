@@ -37,5 +37,8 @@
     // Use hover popup to display the docstring of a function.
     // "true" - replace ST's goto defintion popup by jedi's docstring popup
     // "false" - use ST's default goto definition popup
-    "enable_tooltip": true
+    "enable_tooltip": true,
+
+    // SublimeREPL integration
+    "enable_in_sublime_repl": false
 }
