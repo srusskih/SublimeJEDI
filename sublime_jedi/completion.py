@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
-import functools
-
 import sublime
 import sublime_plugin
 
-from .utils import (ask_daemon,
-                    get_settings,
-                    is_python_scope,
-                    is_repl,
-                    is_sublime_v2)
 from .console_logging import getLogger
-from .settings import get_settings_param
+from .daemon import ask_daemon, ask_daemon_with_timeout
+from .utils import (get_settings,
+                    is_python_scope,
+                    is_repl,)
 
 logger = getLogger(__name__)
 FOLLOWING_CHARS = set(["\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"])
-PLUGIN_ONLY_COMPLETION = sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS
+PLUGIN_ONLY_COMPLETION = (sublime.INHIBIT_WORD_COMPLETIONS |
+                          sublime.INHIBIT_EXPLICIT_COMPLETIONS)
 
 
 class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
@@ -39,7 +36,10 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         #     return
 
         if get_settings(self.view)['complete_funcargs']:
-            ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
+            ask_daemon(self.view,
+                       self.show_template,
+                       'funcargs',
+                       self.view.sel()[0].end())
 
     @property
     def auto_match_enabled(self):
@@ -108,20 +108,28 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         view.run_command('insert_snippet', {"contents": template})
 
 
-class Autocomplete(sublime_plugin.EventListener):
+class Autocomplete(sublime_plugin.ViewEventListener):
     """Sublime Text autocompletion integration."""
 
-    completions = []
-    is_completion_ready = None
+    def __enabled(self):
+        settings = get_settings(self.view)
 
-    def on_query_completions(self, view, prefix, locations):
+        if is_repl(self.view) and not settings['enable_in_sublime_repl']:
+            logger.info("JEDI does not complete in SublimeREPL views.")
+            return False
+
+        if not is_python_scope(self.view, self.view.sel()[0].begin()):
+            logger.info('JEDI completes only in python scope.')
+            return False
+
+        return True
+
+    def on_query_completions(self, prefix, locations):
         """Sublime autocomplete event handler.
 
         Get completions depends on current cursor position and return
         them as list of ('possible completion', 'completion type')
 
-        :param view: `sublime.View` object
-        :type view: sublime.View
         :param prefix: string for completions
         :type prefix: basestring
         :param locations: offset from beginning
@@ -129,128 +137,55 @@ class Autocomplete(sublime_plugin.EventListener):
 
         :return: list of tuple(str, str)
         """
-        settings = get_settings(view)
+        if not self.__enabled():
+            return False
+        logger.info('JEDI completion triggered.')
 
-        if is_repl(view) and not settings.get('enable_in_sublime_repl', False):
-            logger.debug("JEDI does not complete in SublimeREPL views")
-            return
+        settings = get_settings(self.view)
+        only_jedi_completion = (
+            settings['sublime_completions_visibility'] in ('default', 'jedi')
+        )
 
-        if not is_python_scope(view, locations[0]):
-            logger.debug('JEDI completes only in python scope')
-            return
+        cplns = ask_daemon_with_timeout(self.view, 'autocomplete', locations[0])
+        logger.info("Completion completed.")
 
-        logger.info('JEDI completion triggered')
+        cplns = [tuple(x) for x in self._sort_completions(cplns)]
+        logger.debug("Completions: {0}".format(cplns))
 
-        completion_mode = self._get_completion_mode(view)
+        # disabled due to can't reproduce
+        # self._fix_tab_completion_issue()
 
-        if self.is_completion_ready:
-            logger.debug(
-                'JEDI has completion in daemon response {0}'.format(
-                    self.completions
-                )
+        if only_jedi_completion:
+            return cplns, PLUGIN_ONLY_COMPLETION
+        return cplns
+
+    def _sort_completions(self, completions):
+        """Sort completions by frequency in document."""
+        buffer = self.view.substr(sublime.Region(0, self.view.size()))
+
+        return sorted(
+            completions,
+            key=lambda x: (
+                -buffer.count(x[1]),  # frequency in the text
+                len(x[1]) - len(x[1].strip('_')),  # how many undescores
+                x[1]  # alphabetically
             )
+        )
 
-            self.is_completion_ready = None
+    def _fix_tab_completion_issue(self):
+        """Fix issue with tab completion & commit on tab.
 
-            if self.completions:
-                # sort completions by frequency in document
-                buffer = view.substr(sublime.Region(0, view.size()))
-                cplns = sorted(
-                    self.completions,
-                    key=lambda x: (
-                        -buffer.count(x[1]),  # frequency in the text
-                        len(x[1]) - len(x[1].strip('_')),  # how many undescores
-                        x[1]  # alphabetically
-                    )
-                )
-                cplns = [tuple(x) for x in cplns]
-                self.completions = []
-                if completion_mode in ('default', 'jedi'):
-                    return cplns, PLUGIN_ONLY_COMPLETION
-                return cplns
-
-            return
-
-        if self.is_completion_ready is None:
-            if completion_mode == 'all':
-                self.completions = self._get_default_completions(view, prefix, locations[0])
-
-            ask_daemon(view, self._show_completions, 'autocomplete', locations[0])
-            self.is_completion_ready = False
-
-        view.run_command("hide_auto_complete")
-        return
-
-    def _get_default_completions(self, view, prefix, location):
+        When you hit <tab> after completion commit,
+        completion pop-up will appears
+        and `\t`(tabulation) would be inserted
+        the fix detects such behavior and trying avoidt.
         """
-        Returns default sublime completion for current prefix
-        """
-        default_completions = list(set([
-            (completion + "\tDefault", completion)
-            for completion in list(view.extract_completions(prefix, location))
-            if len(completion) > 3
-        ]))
-
-        return default_completions
-
-    def _show_completions(self, view, completions):
-        """
-        TODO: check position
-        """
-        self.is_completion_ready = True
-
-        if completions:
-            self.completions = completions + self.completions
-
-        if self.completions:
-            view.run_command("hide_auto_complete")
-            sublime.set_timeout(functools.partial(self._show_popup, view), 0)
-
-    def _show_popup(self, view):
-        """
-        Show completion Pop-Up
-        """
-        if is_sublime_v2():
-           self._fix_sublime2_tab_completion_issue(view)
-
-        self._fix_tab_completion_issue(view)
-
-        view.run_command("auto_complete", {
-            'disable_auto_insert': True,
-            'api_completions_only': False,
-            'next_completion_if_showing': False,
-            'auto_complete_commit_on_tab': True,
-        })
-
-    def _fix_sublime2_tab_completion_issue(self, view):
-        """Fix ST2 issue with tab completion & commit on tab."""
         logger.debug("command history: " + str([
-            view.command_history(-1),
-            view.command_history(0),
-            view.command_history(1),
+            self.view.command_history(-1),
+            self.view.command_history(0),
+            self.view.command_history(1),
         ]))
-        last_command = view.command_history(0)
 
-        # when you type "os.<tab>" originaly it will insert `self.` snippet
-        # this detects such behavior and trying avoid it.
-        if (last_command[0] == 'insert_best_completion'):
-            view.run_command('undo')
-
-    def _fix_tab_completion_issue(self, view):
-        """Fix issue with tab completion & commit on tab."""
-        logger.debug("command history: " + str([
-            view.command_history(-1),
-            view.command_history(0),
-            view.command_history(1),
-        ]))
-        last_command = view.command_history(0)
-
-        # when you hit <tab> after completion commit, completion popup
-        # will appeares and `\t` would be inserted
-        # this detecs such behavior and trying avoid it.
+        last_command = self.view.command_history(0)
         if last_command == (u'insert', {'characters': u'\t'}, 1):
-            view.run_command('undo')
-
-    def _get_completion_mode(self, view):
-        return get_settings_param(view, 'sublime_completions_visibility',
-                                  'default')
+            self.view.run_command('undo')

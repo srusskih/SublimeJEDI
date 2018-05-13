@@ -3,7 +3,8 @@ import sublime
 import sublime_plugin
 from functools import partial
 
-from .utils import to_relative_path, ask_daemon, PythonCommandMixin
+from .utils import to_relative_path, PythonCommandMixin
+from .daemon import ask_daemon
 from .settings import get_settings_param
 
 

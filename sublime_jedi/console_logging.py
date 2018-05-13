@@ -1,4 +1,3 @@
-from __future__ import print_function
 import sys
 import functools
 import logging
@@ -16,9 +15,8 @@ def get_plugin_debug_level():
 
 
 class Logger:
-    """
-    Sublime Console Logger that takes plugin settings
-    """
+    """Sublime Console Logger that takes plugin settings."""
+
     def __init__(self, name):
         self.name = str(name)
 

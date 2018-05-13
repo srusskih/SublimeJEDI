@@ -1,248 +1,158 @@
 # -*- coding: utf-8 -*-
+import threading
+import queue
 
-import sys
-import json
-import logging
+from functools import wraps
+from collections import defaultdict
 
-import jedi  # noqa
+import jedi
+from jedi.api import environment
 
+import sublime
 
-class JsonFormatter(logging.Formatter):
-    def format(self, record):
-        output = logging.Formatter.format(self, record)
-        data = {
-            'logging': record.levelname.lower(),
-            'content': output
-        }
-        record = json.dumps(data)
-        return record
+from .facade import JediFacade
+from .console_logging import getLogger
+from .utils import get_settings
 
+logger = getLogger(__name__)
 
-def getLogger():
-    """ Build file logger """
-    log = logging.getLogger('Sublime Jedi Daemon')
-    log.setLevel(logging.DEBUG)
-    formatter = JsonFormatter('%(asctime)s: %(levelname)-8s: %(message)s')
-    hdlr = logging.StreamHandler(sys.stderr)
-    hdlr.setFormatter(formatter)
-    log.addHandler(hdlr)
-    return log
+DAEMONS = defaultdict(dict)  # per window
 
 
-logger = getLogger()
+def _prepare_request_data(view, location):
+    if location is None:
+        location = view.sel()[0].begin()
+    current_line, current_column = view.rowcol(location)
+
+    filename = view.file_name() or ''
+    source = view.substr(sublime.Region(0, view.size()))
+    return filename, source, current_line, current_column
 
 
-def format_completion(complete):
-    """ Returns a tuple of the string that would be visible in
-    the completion dialogue and the completion word
+def _get_daemon(view):
+    window_id = view.window().id()
+    if window_id not in DAEMONS:
+        DAEMONS[window_id] = Daemon(settings=get_settings(view))
+    return DAEMONS[window_id]
 
-    :type complete: jedi.api_classes.Completion
-    :rtype: (str, str)
+
+def ask_daemon_sync(view, ask_type, location=None):
+    """Jedi sync request shortcut.
+
+    :type view: sublime.View
+    :type ask_type: str
+    :type location: type of (int, int) or None
     """
-    display, insert = complete.name + '\t' + complete.type, complete.name
-    return display, insert
+    daemon = _get_daemon(view)
+    return daemon.request(ask_type, *_prepare_request_data(view, location))
 
 
-def get_function_parameters(call_signature, complete_all=True):
-    """  Return list function parameters, prepared for sublime completion.
-    Tuple contains parameter name and default value
+def ask_daemon_with_timeout(view, ask_type, location=None, timeout=3):
+    """Jedi sync request shortcut with timeout.
 
-    Parameters list excludes: self, *args and **kwargs parameters
-
-    :type call_signature: jedi.api.classes.CallSignature
-    :rtype: list of (str, str or None)
+    :type view: sublime.View
+    :type ask_type: str
+    :type location: type of (int, int) or None
+    :type timeout: int
     """
-    if not call_signature:
-        return []
+    daemon = _get_daemon(view)
+    request_data = _prepare_request_data(view, location)
+    answers = queue.Queue(1)
 
-    params = []
-    for param in call_signature.params:
-        # when you writing a callable object
-        # jedi tring to complete incompleted object
-        # and returns "empty" calldefinition
-        # in this case we have to skip it
-        if (not complete_all and
-                param.name == '...' or
-                '*' in param.description):
-            break
+    def _target():
+        answer = daemon.request(ask_type, *request_data)
+        answers.put(answer)
 
-        if not param.name or param.name in ('self', '...'):
-            continue
-
-        param_description = param.description.replace('param ', '')
-        if '=' in param_description:
-            default_value = param_description.rsplit('=', 1)[1].lstrip()
-            params.append((param.name, default_value))
-        else:
-            params.append((param.name, None))
-
-    return params
+    threading.Thread(target=_target).start()
+    return answers.get(timeout=timeout)
 
 
-class JediFacade:
+def ask_daemon(view, callback, ask_type, location=None):
+    """Jedi async request shortcut.
+
+    :type view: sublime.View
+    :type callback: callable
+    :type ask_type: str
+    :type location: type of (int, int) or None
     """
-    Facade to call Jedi API
+    window_id = view.window().id()
+
+    def _async_summon():
+        answer = ask_daemon_sync(view, ask_type, location)
+        run_in_active_view(window_id)(callback)(answer)
+
+    if callback:
+        sublime.set_timeout_async(_async_summon, 0)
 
 
-     Action       | Method
-    ===============================
-     autocomplete | get_autocomplete
-    -------------------------------
-     goto         | get_goto
-    -------------------------------
-     usages       | get_usages
-    -------------------------------
-     funcargs     | get_funcargs
-    --------------------------------
+def run_in_active_view(window_id):
+    """Run function in active ST active view for binded window.
 
-
+    sublime.View instance would be passed as first parameter to function.
     """
-    def __init__(
-            self, env, complete_funcargs, source, line, column, filename='',
-            encoding='utf-8', sys_path=None):
-        filename = filename or None
-        self.script = jedi.Script(
-            source=source,
-            line=line,
-            column=column,
-            path=filename,
-            encoding=encoding,
-            environment=env,
-            sys_path=sys_path,
+    def _decorator(func):
+        @wraps(func)
+        def _wrapper(*args, **kwargs):
+            for window in sublime.windows():
+                if window.id() == window_id:
+                    return func(window.active_view(), *args, **kwargs)
+
+            logger.info(
+                'Unable to find a window where function must be called.'
+            )
+        return _wrapper
+    return _decorator
+
+
+class Daemon:
+    """Jedi Requester."""
+
+    def __init__(self, settings):
+        """Prepare to call daemon.
+
+        :type settings: dict
+        """
+        python_virtualenv = settings.get('python_virtualenv')
+        python_interpreter = settings.get('python_interpreter')
+
+        logger.debug('Jedi Environment: {0}'.format(
+            (python_virtualenv, python_interpreter))
         )
-        self.auto_complete_function_params = complete_funcargs
-        self.is_funcargs_complete_enabled = bool(complete_funcargs)
 
-    def get(self, action):
-        """ Action dispatcher """
-        try:
-            return getattr(self, 'get_' + action)()
-        except:
-            logger.exception('`JediFacade.get_{0}` failed'.format(action))
+        if python_virtualenv:
+            self.env = environment.create_environment(python_virtualenv,
+                                                      safe=False)
+        elif python_interpreter:
+            self.env = environment.create_environment(
+                environment._get_python_prefix(python_interpreter),
+            )
+        else:
+            self.env = jedi.get_default_environment()
 
-    def get_goto(self):
-        """ Jedi "Go To Definition" """
-        return self._goto()
+        self.sys_path = self.env.get_sys_path()
+        # prepare the extra packages if any
+        extra_packages = settings.get('extra_packages')
+        if extra_packages:
+            self.sys_path = extra_packages + self.sys_path
 
-    def get_usages(self):
-        """ Jedi "Find Usage" """
-        return self._usages()
+        # how to autocomplete arguments
+        self.complete_funcargs = settings.get('complete_funcargs')
 
-    def get_funcargs(self):
-        """ complete callable object parameters with Jedi """
-        return self._complete_call_assigments()
+    def request(self, request_type, filename, source, line, column):
+        """Send request to daemon process."""
+        logger.info('Sending request to daemon for "{0}"'.format(request_type))
+        logger.debug((request_type, filename, line, column))
 
-    def get_autocomplete(self):
-        """ Jedi "completion" """
-        data = []
+        facade = JediFacade(
+            env=self.env,
+            complete_funcargs=self.complete_funcargs,
+            source=source,
+            line=line + 1,
+            column=column,
+            filename=filename,
+            sys_path=self.sys_path,
+        )
 
-        try:
-            data.extend(self._parameters_for_completion())
-        except:
-            logger.error("params completion failed")
-
-        try:
-            data.extend(self._completion() or [])
-        except:
-            logger.error("general completion failed")
-
-        return data
-
-    def get_docstring(self):
-        return self._docstring()
-
-    def get_signature(self):
-        return self._docstring(signature=1)
-
-    def _docstring(self, signature=0):
-        """ Jedi show doctring or signature
-
-        :rtype: str
-        """
-        defs = self.script.goto_definitions()
-        assert isinstance(defs, list)
-
-        if len(defs) > 0:
-            if signature:
-                calltip_signature = defs[0].docstring().split('\n\n')[0]
-                return calltip_signature.replace('\n', ' ').replace(' = ', '=')
-            else:
-                return defs[0].docstring()
-
-    def _parameters_for_completion(self):
-        """ Get function / class' constructor parameters completions list
-
-        :rtype: list of str
-        """
-        completions = []
-        try:
-            in_call = self.script.call_signatures()[0]
-        except IndexError:
-            in_call = None
-
-        parameters = get_function_parameters(in_call)
-
-        for parameter in parameters:
-            name, value = parameter
-
-            if value is None:
-                completions.append((name, '${1:%s}' % name))
-            else:
-                completions.append((name + '\t' + value,
-                                   '%s=${1:%s}' % (name, value)))
-        return completions
-
-    def _completion(self):
-        """ regular completions
-
-        :rtype: list of (str, str)
-        """
-        completions = self.script.completions()
-        return [format_completion(complete) for complete in completions]
-
-    def _goto(self):
-        """ Jedi "go to Definitions" functionality
-
-        :rtype: list of (str, int, int) or None
-        """
-        definitions = self.script.goto_assignments()
-        if all(d.type == 'import' for d in definitions):
-            # check if it an import string and if it is get definition
-            definitions = self.script.goto_definitions()
-        return [(i.module_path, i.line, i.column + 1)
-                for i in definitions if not i.in_builtin_module()]
-
-    def _usages(self):
-        """ Jedi "find usages" functionality
-
-        :rtype: list of (str, int, int)
-        """
-        usages = self.script.usages()
-        return [(i.module_path, i.line, i.column + 1)
-                for i in usages if not i.in_builtin_module()]
-
-    def _complete_call_assigments(self):
-        """ Get function or class parameters and build Sublime Snippet string
-        for completion
-
-        :rtype: str
-        """
-        completions = []
-        complete_all = self.auto_complete_function_params == 'all'
-
-        try:
-            call_definition = self.script.call_signatures()[0]
-        except IndexError:
-            call_definition = None
-
-        parameters = get_function_parameters(call_definition, complete_all)
-
-        for index, parameter in enumerate(parameters):
-            name, value = parameter
-
-            if value is None:
-                completions.append('${%d:%s}' % (index + 1, name))
-            elif complete_all:
-                completions.append('%s=${%d:%s}' % (name, index + 1, value))
-
-        return ", ".join(completions)
+        answer = facade.get(request_type)
+        logger.debug('Answer: {0}'.format(answer))
+        return answer
