@@ -2,6 +2,7 @@
 from itertools import chain
 
 import jedi
+from jedi.api.completion import Parameter
 
 from .console_logging import getLogger
 
@@ -37,15 +38,19 @@ def get_function_parameters(call_signature, with_keywords=True):
         logger.debug('Parameter: {0}'.format((
             type(param._name),
             param._name.get_kind(),
-            param._name.string_name
+            param._name.string_name,
+            param.description,
         )))
 
-        if (not with_keywords and
-                param.name == '...' or
-                '*' in param.description):
-            continue
+        # print call sign looks like: "value, ..., sep, end, file, flush"
+        # and all params after '...' are non required and not a keywords
+        if not with_keywords and param.name == '...':
+            break
 
-        if not param.name or param.name in ('self', '...'):
+        if (not param.name or
+                param.name in ('self', '...') or
+                param._name.get_kind() == Parameter.VAR_POSITIONAL or
+                param._name.get_kind() == Parameter.VAR_KEYWORD):
             continue
 
         param_description = param.description.replace('param ', '')
