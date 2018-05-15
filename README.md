@@ -1,10 +1,19 @@
 SublimeJEDI
 ============
 
-[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/srusskih/SublimeJEDI?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/srusskih/SublimeJEDI?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-[SublimeJEDI](https://github.com/srusskih/SublimeJEDI) is a [Sublime Text 2](http://www.sublimetext.com/) and Sublime Text 3 plugin
+[SublimeJEDI](https://github.com/srusskih/SublimeJEDI) is a [Sublime Text 3](http://www.sublimetext.com/) and [Sublime Text 2](http://www.sublimetext.com/2) and plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
+
+Python Vesion Support
+---------------------
+
+
+Sublime Jedi Plugin  | Branch   | Jedi version   | Python 2.6.x   | Python 2.7.x   | Python 3.x   | Sublime Text 2   | Sublime Text 3
+-------------------- | -------- | -------------- | -------------- | -------------- | ------------ | ---------------- | ----------------
+>= 0.12.0            | master   | 0.12.0         | ❌             | ✅             | ✅           | ❌               | ✅
+< 0.12.0             | st2      | 0.11.1         | ✅             | ✅             | ✅           | ✅               | ✅
 
 
 Installation
@@ -32,8 +41,8 @@ Settings
 By default **SublimeJEDI** will use default Python interpreter from the `PATH`.
 Also you can set different interpreter for each Sublime Project.
 
-To set project related Python interpreter you have to edit yours project config file.
-By default project config name is `<project name>.sublime-project`
+To set project related Python interpreter you have to edit yours project's settings file.
+By default file name look like `<project name>.sublime-project`
 
 You can set Python interpreter, and additional python package directories, using for example the following:
 
@@ -43,6 +52,7 @@ You can set Python interpreter, and additional python package directories, using
 
         "settings": {
             // ...
+            "python_virtualenv": "$project_path/../../virtual/",
             "python_interpreter": "$project_path/../../virtual/bin/python",
 
             "python_package_paths": [
@@ -51,10 +61,19 @@ You can set Python interpreter, and additional python package directories, using
             ]
         }
     }
+
+**NOTE**: You can configure `python_interpreter` and `python_virtualen` at the same time, no problem with that. If you configure `python_interpreter` alone, the `python_virtualen` will be inferred  so it will be 2 directories above `python_interpreter`. If you configure `python_virtualen` alone, the `python_interpreter` will be always where ever `python_virtualen` plus `'bin/python'`. If you don't configure any of this then the default Python environment of your system will be used.
+
 **NOTE**: Please note that Python will goes through the directories from `"python_package_paths"` to search for modules and files. In other words, each item in `"python_package_paths"` list is a directory with extra packages and modules, not a direct path to package or module.
 
 When setting paths, [Sublime Text Build System Variables](http://docs.sublimetext.info/en/latest/reference/build_systems.html#build-system-variables) and OS environment variables are automatically expanded.
 Note that using placeholders and substitutions, like in regular Sublime Text Build System paths is not supported.
+
+
+#### SublimeREPL integration
+
+By default completion for [SublimeREPL](https://github.com/wuub/SublimeREPL) turned off. If you want use autocompletion feature of SublimeJEDI in a repl, 
+please set `enable_in_sublime_repl: true` in `User/sublime_jedi.sublime-setting` or in your project setting.
 
 
 #### Autocomplete on DOT

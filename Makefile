@@ -12,12 +12,11 @@ dummy:
 dependencies:
 	rm -rf dependencies/
 	mkdir dependencies/
-	$(call get_dependency,jedi,https://github.com/davidhalter/jedi,v0.11.1)
-	$(call get_dependency,parso,https://github.com/davidhalter/parso,v0.1.1)
+	$(call get_dependency,jedi,https://github.com/davidhalter/jedi,v0.12.0)
+	$(call get_dependency,parso,https://github.com/davidhalter/parso,v0.2.0)
 
 clean:
-	rm -rf SublimeJEDI.sublime-package
-	find -name "*.pyc" -exec rm {} \;
+	find . -name '*.pyc' -delete
 
 # will build a sublime package
 build: clean

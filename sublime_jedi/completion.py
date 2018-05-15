@@ -109,15 +109,13 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 
 
 class Autocomplete(sublime_plugin.EventListener):
-    """
-    Sublime Text autocompletion integration
-    """
+    """Sublime Text autocompletion integration."""
 
     completions = []
     is_completion_ready = None
 
     def on_query_completions(self, view, prefix, locations):
-        """ Sublime autocomplete event handler
+        """Sublime autocomplete event handler.
 
         Get completions depends on current cursor position and return
         them as list of ('possible completion', 'completion type')
@@ -131,7 +129,9 @@ class Autocomplete(sublime_plugin.EventListener):
 
         :return: list of tuple(str, str)
         """
-        if is_repl(view):
+        settings = get_settings(view)
+
+        if is_repl(view) and not settings.get('enable_in_sublime_repl', False):
             logger.debug("JEDI does not complete in SublimeREPL views")
             return
 

@@ -1,18 +1,10 @@
 # -*- coding: utf-8 -*-
-import os
+
 import sys
 import json
 import logging
-from optparse import OptionParser
-
-# add dependencies to sys.path (jedi and parso)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../dependencies'))
 
 import jedi  # noqa
-
-
-is_funcargs_complete_enabled = True
-auto_complete_function_params = 'required'
 
 
 class JsonFormatter(logging.Formatter):
@@ -38,22 +30,6 @@ def getLogger():
 
 
 logger = getLogger()
-
-
-def write(data):
-    """  Write data to STDOUT """
-    if not isinstance(data, str):
-        data = json.dumps(data)
-
-    sys.stdout.write(data)
-
-    if not data.endswith('\n'):
-        sys.stdout.write('\n')
-
-    try:
-        sys.stdout.flush()
-    except IOError:
-        sys.exit()
 
 
 def format_completion(complete):
@@ -121,11 +97,21 @@ class JediFacade:
 
 
     """
-    def __init__(self, source, line, offset, filename='', encoding='utf-8'):
+    def __init__(
+            self, env, complete_funcargs, source, line, column, filename='',
+            encoding='utf-8', sys_path=None):
         filename = filename or None
         self.script = jedi.Script(
-            source, int(line), int(offset), filename, encoding
+            source=source,
+            line=line,
+            column=column,
+            path=filename,
+            encoding=encoding,
+            environment=env,
+            sys_path=sys_path,
         )
+        self.auto_complete_function_params = complete_funcargs
+        self.is_funcargs_complete_enabled = bool(complete_funcargs)
 
     def get(self, action):
         """ Action dispatcher """
@@ -242,7 +228,7 @@ class JediFacade:
         :rtype: str
         """
         completions = []
-        complete_all = auto_complete_function_params == 'all'
+        complete_all = self.auto_complete_function_params == 'all'
 
         try:
             call_definition = self.script.call_signatures()[0]
@@ -260,72 +246,3 @@ class JediFacade:
                 completions.append('%s=${%d:%s}' % (name, index + 1, value))
 
         return ", ".join(completions)
-
-
-def process_line(line):
-    data = json.loads(line.strip())
-    action_type = data['type']
-
-    script = JediFacade(
-        source=data['source'],
-        line=data['line'],
-        offset=data['offset'],
-        filename=data.get('filename', '')
-    )
-
-    out_data = {
-        'uuid': data.get('uuid'),
-        'type': action_type,
-        action_type: script.get(action_type)
-    }
-
-    write(out_data)
-
-
-if __name__ == '__main__':
-    parser = OptionParser()
-    parser.add_option(
-        "-p", "--project",
-        dest="project_name",
-        default='',
-        help="project name to store jedi's cache"
-    )
-    parser.add_option(
-        "-e", "--extra_folder",
-        dest="extra_folders",
-        default=[],
-        action="append",
-        help="extra folders to add to sys.path"
-    )
-    parser.add_option(
-        "-f", "--complete_function_params",
-        dest="function_params",
-        default='all',
-        help='function parameters completion type: "all", "required", or ""'
-    )
-
-    options, args = parser.parse_args()
-
-    is_funcargs_complete_enabled = bool(options.function_params)
-    auto_complete_function_params = options.function_params
-
-    logger.info(
-        'Daemon started. '
-        'extra folders - %s, '
-        'complete_function_params - %s',
-        options.extra_folders,
-        options.function_params,
-    )
-
-    # append extra paths to sys.path
-    for extra_folder in options.extra_folders:
-        if extra_folder not in sys.path:
-            sys.path.insert(0, extra_folder)
-
-    # call the Jedi
-    for line in iter(sys.stdin.readline, ''):
-        if line:
-            try:
-                process_line(line)
-            except Exception:
-                logger.exception('failed to process line')

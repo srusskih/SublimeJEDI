@@ -1,8 +1,12 @@
 {
-    // Used to get the `PYTHONPATH`.
+    // You can set a path to your python virtualenv,
+    // for example `/home/user/.virtualenvs/myenv)`.
+    // Note: Interpreter path would be found automaticaly
+    "python_virtualenv": "",
+
     // You can set a path to your python interpreter,
     // for example `/home/user/.virtualenvs/myenv/bin/python)`.
-    "python_interpreter": "python",
+    "python_interpreter": "",
 
     // Additional python package paths.
     "python_package_paths": [],
@@ -33,5 +37,8 @@
     // Use hover popup to display the docstring of a function.
     // "true" - replace ST's goto defintion popup by jedi's docstring popup
     // "false" - use ST's default goto definition popup
-    "enable_tooltip": true
+    "enable_tooltip": true,
+
+    // SublimeREPL integration
+    "enable_in_sublime_repl": false
 }

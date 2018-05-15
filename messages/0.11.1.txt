@@ -1,0 +1,18 @@
+Sublime Jedi v0.11.1
+====================
+
+
+!!! WARNING !!!
+---------------
+
+v0.11.1 is the last version that support Python 2.6.x
+
+
+Changes
+-------
+
+* Strip out leading spaces when autocompleting default arguments (issue #236)
+* Added support for hanging indentation of args in the signature popup (issue #235)
+* Detect optional arguments by the presence of '...' or '*'
+* Upgrade Jedi to v0.11.1 (issue #233)
+
