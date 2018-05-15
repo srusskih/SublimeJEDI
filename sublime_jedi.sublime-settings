@@ -11,6 +11,13 @@
     // Additional python package paths.
     "python_package_paths": [],
 
+    // When going to a definition
+    // true: Do you want this to go to where things are defined directly?
+    // false: Do you want to trace all the path where this symbol came from?
+    //        Like: go to the import in the current file, and then to the
+    //              definition
+    "follow_imports": true,
+
     // Which function arguments to insert in autocompletion:
     // "all" - all
     // "required" - those with no default value (that are required)

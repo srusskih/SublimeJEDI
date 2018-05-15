@@ -99,7 +99,7 @@ class JediFacade:
     """
     def __init__(
             self, env, complete_funcargs, source, line, column, filename='',
-            encoding='utf-8', sys_path=None):
+            encoding='utf-8', sys_path=None, follow_imports=False):
         filename = filename or None
         self.script = jedi.Script(
             source=source,
@@ -110,6 +110,7 @@ class JediFacade:
             environment=env,
             sys_path=sys_path,
         )
+        self.follow_imports = follow_imports
         self.auto_complete_function_params = complete_funcargs
         self.is_funcargs_complete_enabled = bool(complete_funcargs)
 
@@ -205,7 +206,9 @@ class JediFacade:
 
         :rtype: list of (str, int, int) or None
         """
-        definitions = self.script.goto_assignments()
+        definitions = self.script.goto_assignments(
+            follow_imports=self.follow_imports
+        )
         if all(d.type == 'import' for d in definitions):
             # check if it an import string and if it is get definition
             definitions = self.script.goto_definitions()
