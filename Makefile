@@ -21,3 +21,7 @@ clean:
 # will build a sublime package
 build: clean
 	zip -r SublimeJEDI.sublime-package `ls` -x .git SublimeJEDI.sublime-package *.pyc
+
+
+dev_install_mac:
+	ln -s "${PWD}" ~/Library/Application\ Support/Sublime\ Text\ 3/Packages/

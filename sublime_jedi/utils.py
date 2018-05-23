@@ -72,8 +72,9 @@ class Daemon(object):
             self.env = environment.create_environment(python_virtualenv,
                                                       safe=False)
         elif python_interpreter:
-            self.env = environment.create_environment(
+            self.env = environment.Environment(
                 environment._get_python_prefix(python_interpreter),
+                python_interpreter
             )
         else:
             self.env = jedi.get_default_environment()
