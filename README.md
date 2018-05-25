@@ -10,10 +10,10 @@ Python Vesion Support
 ---------------------
 
 
-Sublime Jedi Plugin  | Branch   | Jedi version   | Python 2.6.x   | Python 2.7.x   | Python 3.x   | Sublime Text 2   | Sublime Text 3
--------------------- | -------- | -------------- | -------------- | -------------- | ------------ | ---------------- | ----------------
->= 0.12.0            | master   | 0.12.0         | ❌             | ✅             | ✅           | ❌               | ✅
-< 0.12.0             | st2      | 0.11.1         | ✅             | ✅             | ✅           | ✅               | ✅
+| Sublime Jedi Plugin  | Branch   | Jedi version   | Python 2.6.x   | Python 2.7.x   | Python 3.x   | Sublime Text 2   | Sublime Text 3
+| -------------------- | -------- | -------------- | -------------- | -------------- | ------------ | ---------------- | ----------------
+| >= 0.12.0            | master   | 0.12.0         | ❌             | ✅             | ✅           | ❌               | ✅
+| < 0.12.0             | st2      | 0.11.1         | ✅             | ✅             | ✅           | ✅               | ✅
 
 
 Installation
