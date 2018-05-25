@@ -11,11 +11,10 @@
     // Additional python package paths.
     "python_package_paths": [],
 
-    // When going to a definition
-    // true: Do you want this to go to where things are defined directly?
-    // false: Do you want to trace all the path where this symbol came from?
-    //        Like: go to the import in the current file, and then to the
-    //              definition
+    // When executing "Go to definition"
+    // true: Will go to directly to the term definition or declaration
+    // false: Will follow the import path back to where it is is originally
+    //        defined
     "follow_imports": true,
 
     // Which function arguments to insert in autocompletion:
