@@ -90,7 +90,6 @@ class Daemon(object):
 
         # how to autocomplete arguments
         self.complete_funcargs = settings.get('complete_funcargs')
-        self.follow_imports = settings.get('follow_imports')
 
     def request(
             self, request_type, request_kwargs, filename, source, line,
@@ -107,7 +106,6 @@ class Daemon(object):
             column=column,
             filename=filename,
             sys_path=self.sys_path,
-            follow_imports=self.follow_imports
         )
 
         answer = facade.get(request_type, **request_kwargs)
@@ -157,8 +155,6 @@ def get_settings(view):
     enable_in_sublime_repl = get_settings_param(
         view, 'enable_in_sublime_repl', False)
 
-    follow_imports = get_settings_param(view, 'follow_imports', True)
-
     first_folder = ''
     if view.window().folders():
         first_folder = os.path.split(view.window().folders()[0])[-1]
@@ -171,7 +167,6 @@ def get_settings(view):
         'project_name': project_name,
         'complete_funcargs': complete_funcargs,
         'enable_in_sublime_repl': enable_in_sublime_repl,
-        'follow_imports': follow_imports,
     }
 
 

@@ -125,7 +125,13 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
     Go to object definition
     """
     def run(self, edit):
-        ask_daemon(self.view, self.handle_definitions, 'goto')
+        follow_imports = get_settings_param(self.view, 'follow_imports', True)
+        ask_daemon(
+            self.view,
+            self.handle_definitions,
+            'goto',
+            {'follow_imports': follow_imports},
+        )
 
     def handle_definitions(self, view, defns):
         if not defns:
