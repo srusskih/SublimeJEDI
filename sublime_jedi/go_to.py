@@ -130,7 +130,7 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             self.view,
             self.handle_definitions,
             'goto',
-            {'follow_imports': follow_imports},
+            ask_kwargs={'follow_imports': follow_imports},
         )
 
     def handle_definitions(self, view, defns):
