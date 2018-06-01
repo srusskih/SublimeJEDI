@@ -114,6 +114,7 @@ Now you can bind `CTRL + LeftMouseButton` by themself in this way:
         "press_command": "drag_select"
     }]
 
+**NOTE**: You can configure the behavior of this command by changing the setting `follow_improts`. If this setting is `True` (default behavior) you will travel directly to where the term was defined or declared. If you want to travel back step by step the import path of the term then set this to `False`.
 
 #### Find Related Names ("Find Usages")
 

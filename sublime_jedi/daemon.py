@@ -113,16 +113,16 @@ class JediFacade:
         self.auto_complete_function_params = complete_funcargs
         self.is_funcargs_complete_enabled = bool(complete_funcargs)
 
-    def get(self, action):
+    def get(self, _action, *args, **kwargs):
         """ Action dispatcher """
         try:
-            return getattr(self, 'get_' + action)()
+            return getattr(self, 'get_' + _action)(*args, **kwargs)
         except:
-            logger.exception('`JediFacade.get_{0}` failed'.format(action))
+            logger.exception('`JediFacade.get_{0}` failed'.format(_action))
 
-    def get_goto(self):
+    def get_goto(self, follow_imports=True):
         """ Jedi "Go To Definition" """
-        return self._goto()
+        return self._goto(follow_imports=follow_imports)
 
     def get_usages(self):
         """ Jedi "Find Usage" """
@@ -200,12 +200,14 @@ class JediFacade:
         completions = self.script.completions()
         return [format_completion(complete) for complete in completions]
 
-    def _goto(self):
+    def _goto(self, follow_imports):
         """ Jedi "go to Definitions" functionality
 
         :rtype: list of (str, int, int) or None
         """
-        definitions = self.script.goto_assignments()
+        definitions = self.script.goto_assignments(
+            follow_imports=follow_imports
+        )
         if all(d.type == 'import' for d in definitions):
             # check if it an import string and if it is get definition
             definitions = self.script.goto_definitions()

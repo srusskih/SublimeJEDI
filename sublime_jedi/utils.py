@@ -19,14 +19,16 @@ logger = getLogger(__name__)
 DAEMONS = defaultdict(dict)  # per window
 
 
-def ask_daemon(view, callback, ask_type, location=None):
+def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):
     """Daemon request shortcut.
 
     :type view: sublime.View
     :type callback: callable
     :type ask_type: str
+    :type ask_kwargs: dict
     :type location: type of (int, int) or None
     """
+    ask_kwargs = ask_kwargs or {}
     window_id = view.window().id()
     window_callback = run_in_active_view(window_id)(callback)
 
@@ -44,6 +46,7 @@ def ask_daemon(view, callback, ask_type, location=None):
     def _summon_daemon():
         answer = DAEMONS[window_id].request(
             ask_type,
+            ask_kwargs,
             filename,
             source,
             current_line,
@@ -88,7 +91,9 @@ class Daemon(object):
         # how to autocomplete arguments
         self.complete_funcargs = settings.get('complete_funcargs')
 
-    def request(self, request_type, filename, source, line, column):
+    def request(
+            self, request_type, request_kwargs, filename, source, line,
+            column):
         """Send request to daemon process."""
         logger.info('Sending request to daemon for "{0}"'.format(request_type))
         logger.debug((request_type, filename, source, line, column))
@@ -103,7 +108,7 @@ class Daemon(object):
             sys_path=self.sys_path,
         )
 
-        answer = facade.get(request_type)
+        answer = facade.get(request_type, **request_kwargs)
         logger.debug('Answer: {0}'.format(answer))
         return answer
 
