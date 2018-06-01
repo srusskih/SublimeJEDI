@@ -114,12 +114,12 @@ class JediFacade:
         self.auto_complete_function_params = complete_funcargs
         self.is_funcargs_complete_enabled = bool(complete_funcargs)
 
-    def get(self, action):
+    def get(self, _action, *args, **kwargs):
         """ Action dispatcher """
         try:
-            return getattr(self, 'get_' + action)()
+            return getattr(self, 'get_' + _action)(*args, **kwargs)
         except:
-            logger.exception('`JediFacade.get_{0}` failed'.format(action))
+            logger.exception('`JediFacade.get_{0}` failed'.format(_action))
 
     def get_goto(self):
         """ Jedi "Go To Definition" """
