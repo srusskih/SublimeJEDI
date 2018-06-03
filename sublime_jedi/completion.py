@@ -39,7 +39,12 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         #     return
 
         if get_settings(self.view)['complete_funcargs']:
-            ask_daemon(self.view, self.show_template, 'funcargs', self.view.sel()[0].end())
+            ask_daemon(
+                self.view,
+                self.show_template,
+                'funcargs',
+                location=self.view.sel()[0].end()
+            )
 
     @property
     def auto_match_enabled(self):
@@ -173,9 +178,16 @@ class Autocomplete(sublime_plugin.EventListener):
 
         if self.is_completion_ready is None:
             if completion_mode == 'all':
-                self.completions = self._get_default_completions(view, prefix, locations[0])
+                self.completions = self._get_default_completions(
+                    view, prefix, location=locations[0]
+                )
 
-            ask_daemon(view, self._show_completions, 'autocomplete', locations[0])
+            ask_daemon(
+                view,
+                self._show_completions,
+                'autocomplete',
+                location=locations[0]
+            )
             self.is_completion_ready = False
 
         view.run_command("hide_auto_complete")

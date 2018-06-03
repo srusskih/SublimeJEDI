@@ -104,4 +104,4 @@ class SublimeJediTooltip(sublime_plugin.EventListener):
         ask_daemon(view,
                    partial(show_docstring_tooltip, location=point),
                    'docstring',
-                   point)
+                   location=point)
