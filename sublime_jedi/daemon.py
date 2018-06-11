@@ -36,22 +36,32 @@ def _get_daemon(view):
     return DAEMONS[window_id]
 
 
-def ask_daemon_sync(view, ask_type, location=None):
+def ask_daemon_sync(view, ask_type, ask_kwargs, location=None):
     """Jedi sync request shortcut.
 
     :type view: sublime.View
     :type ask_type: str
+    :type ask_kwargs: dict or None
     :type location: type of (int, int) or None
     """
     daemon = _get_daemon(view)
-    return daemon.request(ask_type, *_prepare_request_data(view, location))
+    return daemon.request(
+        ask_type,
+        ask_kwargs or {},
+        *_prepare_request_data(view, location))
 
 
-def ask_daemon_with_timeout(view, ask_type, location=None, timeout=3):
+def ask_daemon_with_timeout(
+        view,
+        ask_type,
+        ask_kwargs=None,
+        location=None,
+        timeout=3):
     """Jedi sync request shortcut with timeout.
 
     :type view: sublime.View
     :type ask_type: str
+    :type ask_kwargs: dict or None
     :type location: type of (int, int) or None
     :type timeout: int
     """
@@ -60,25 +70,26 @@ def ask_daemon_with_timeout(view, ask_type, location=None, timeout=3):
     answers = queue.Queue(1)
 
     def _target():
-        answer = daemon.request(ask_type, *request_data)
+        answer = daemon.request(ask_type, ask_kwargs or {}, *request_data)
         answers.put(answer)
 
     threading.Thread(target=_target).start()
     return answers.get(timeout=timeout)
 
 
-def ask_daemon(view, callback, ask_type, location=None):
+def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):
     """Jedi async request shortcut.
 
     :type view: sublime.View
     :type callback: callable
     :type ask_type: str
+    :type ask_kwargs: dict or None
     :type location: type of (int, int) or None
     """
     window_id = view.window().id()
 
     def _async_summon():
-        answer = ask_daemon_sync(view, ask_type, location)
+        answer = ask_daemon_sync(view, ask_type, ask_kwargs, location)
         run_in_active_view(window_id)(callback)(answer)
 
     if callback:
@@ -138,10 +149,17 @@ class Daemon:
         # how to autocomplete arguments
         self.complete_funcargs = settings.get('complete_funcargs')
 
-    def request(self, request_type, filename, source, line, column):
+    def request(
+            self,
+            request_type,
+            request_kwargs,
+            filename,
+            source,
+            line,
+            column):
         """Send request to daemon process."""
         logger.info('Sending request to daemon for "{0}"'.format(request_type))
-        logger.debug((request_type, filename, line, column))
+        logger.debug((request_type, request_kwargs, filename, line, column))
 
         facade = JediFacade(
             env=self.env,
@@ -153,6 +171,6 @@ class Daemon:
             sys_path=self.sys_path,
         )
 
-        answer = facade.get(request_type)
+        answer = facade.get(request_type, request_kwargs)
         logger.debug('Answer: {0}'.format(answer))
         return answer

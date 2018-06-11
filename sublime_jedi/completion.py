@@ -148,7 +148,11 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             settings['sublime_completions_visibility'] in ('default', 'jedi')
         )
 
-        cplns = ask_daemon_with_timeout(self.view, 'autocomplete', locations[0])
+        cplns = ask_daemon_with_timeout(
+            self.view,
+            'autocomplete',
+            location=locations[0]
+        )
         logger.info("Completion completed.")
 
         cplns = [tuple(x) for x in self._sort_completions(cplns)]

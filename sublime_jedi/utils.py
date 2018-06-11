@@ -44,6 +44,8 @@ def get_settings(view):
         first_folder = os.path.split(view.window().folders()[0])[-1]
     project_name = get_settings_param(view, 'project_name', first_folder)
 
+    follow_imports = get_settings_param(view, 'follow_imports', True)
+
     return {
         'python_interpreter': python_interpreter,
         'python_virtualenv': python_virtualenv,
@@ -51,7 +53,8 @@ def get_settings(view):
         'project_name': project_name,
         'complete_funcargs': complete_funcargs,
         'enable_in_sublime_repl': enable_in_sublime_repl,
-        'sublime_completions_visibility': sublime_completions_visibility
+        'sublime_completions_visibility': sublime_completions_visibility,
+        'follow_imports': follow_imports,
     }
 
 

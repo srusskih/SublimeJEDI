@@ -104,25 +104,22 @@ class JediFacade:
         )
         self.auto_complete_function_params = complete_funcargs
 
-    def get(self, action):
-        """Action dispatcher
-
-        TODO: allow pass parameters to make it more dynamic.
-        """
+    def get(self, _action, *args, **kwargs):
+        """Action dispatcher."""
         try:
-            return getattr(self, 'get_' + action)()
+            return getattr(self, 'get_' + _action)(*args, **kwargs)
         except Exception:
-            logger.exception('`JediFacade.get_{0}` failed'.format(action))
+            logger.exception('`JediFacade.get_{0}` failed'.format(_action))
 
-    def get_goto(self):
+    def get_goto(self, follow_imports=True):
         """ Jedi "Go To Definition" """
-        return self._goto()
+        return self._goto(follow_imports=follow_imports)
 
-    def get_usages(self):
+    def get_usages(self, *args, **kwargs):
         """ Jedi "Find Usage" """
         return self._usages()
 
-    def get_funcargs(self):
+    def get_funcargs(self, *args, **kwargs):
         """Complete callable object parameters with Jedi."""
         complete_all = self.auto_complete_function_params == 'all'
         call_parameters = self._complete_call_assigments(
@@ -131,7 +128,7 @@ class JediFacade:
         )
         return ', '.join(p[1] for p in call_parameters)
 
-    def get_autocomplete(self):
+    def get_autocomplete(self, *args, **kwargs):
         """Jedi completion."""
         args = self._complete_call_assigments(with_keywords=True,
                                               with_values=False)
@@ -142,10 +139,10 @@ class JediFacade:
                   filter(lambda c: not c[0].endswith('\tparam'), completion))
         )
 
-    def get_docstring(self):
+    def get_docstring(self, *args, **kwargs):
         return self._docstring()
 
-    def get_signature(self):
+    def get_signature(self, *args, **kwargs):
         return self._docstring(signature=1)
 
     def _docstring(self, signature=0):
@@ -172,12 +169,14 @@ class JediFacade:
         for complete in completions:
             yield format_completion(complete)
 
-    def _goto(self):
+    def _goto(self, follow_imports):
         """Jedi "go to Definitions" functionality.
 
         :rtype: list of (str, int, int) or None
         """
-        definitions = self.script.goto_assignments()
+        definitions = self.script.goto_assignments(
+            follow_imports=follow_imports
+        )
         if all(d.type == 'import' for d in definitions):
             # check if it an import string and if it is get definition
             definitions = self.script.goto_definitions()
