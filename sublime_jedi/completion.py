@@ -36,10 +36,12 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         #     return
 
         if get_settings(self.view)['complete_funcargs']:
-            ask_daemon(self.view,
-                       self.show_template,
-                       'funcargs',
-                       self.view.sel()[0].end())
+            ask_daemon(
+                self.view,
+                self.show_template,
+                'funcargs',
+                location=self.view.sel()[0].end()
+            )
 
     @property
     def auto_match_enabled(self):
