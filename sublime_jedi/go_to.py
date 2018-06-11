@@ -5,6 +5,7 @@ from functools import partial
 
 from .utils import to_relative_path, PythonCommandMixin, get_settings
 from .daemon import ask_daemon
+from .settings import get_settings_param
 
 
 class BaseLookUpJediCommand(PythonCommandMixin):
