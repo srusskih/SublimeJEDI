@@ -3,133 +3,14 @@ from __future__ import print_function
 import os
 import json
 import re
-from functools import partial, wraps
-from collections import defaultdict
 
-import jedi
-from jedi.api import environment
 
 import sublime
 
-from .daemon import JediFacade
 from .console_logging import getLogger
 from .settings import get_settings_param
 
 logger = getLogger(__name__)
-DAEMONS = defaultdict(dict)  # per window
-
-
-def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):
-    """Daemon request shortcut.
-
-    :type view: sublime.View
-    :type callback: callable
-    :type ask_type: str
-    :type ask_kwargs: dict
-    :type location: type of (int, int) or None
-    """
-    ask_kwargs = ask_kwargs or {}
-    window_id = view.window().id()
-    window_callback = run_in_active_view(window_id)(callback)
-
-    if window_id not in DAEMONS:
-        DAEMONS[window_id] = Daemon(settings=get_settings(view))
-
-    if location is None:
-        location = view.sel()[0].begin()
-    current_line, current_column = view.rowcol(location)
-
-    filename = view.file_name() or ''
-    # do not pass file content, if file saved
-    source = view.substr(sublime.Region(0, view.size()))
-
-    def _summon_daemon():
-        answer = DAEMONS[window_id].request(
-            ask_type,
-            ask_kwargs,
-            filename,
-            source,
-            current_line,
-            current_column
-        )
-        sublime.set_timeout(partial(window_callback, answer), 0)
-
-    sublime.set_timeout_async(_summon_daemon, 0)
-
-
-class Daemon(object):
-
-    def __init__(self, settings):
-        """Prepare to call daemon.
-
-        :type settings: dict
-        """
-        python_virtualenv = settings.get('python_virtualenv')
-        python_interpreter = settings.get('python_interpreter')
-
-        logger.debug('Jedi Environment: {0}'.format(
-            (python_virtualenv, python_interpreter))
-        )
-
-        if python_virtualenv:
-            self.env = environment.create_environment(python_virtualenv,
-                                                      safe=False)
-        elif python_interpreter:
-            self.env = environment.Environment(
-                environment._get_python_prefix(python_interpreter),
-                python_interpreter
-            )
-        else:
-            self.env = jedi.get_default_environment()
-
-        self.sys_path = self.env.get_sys_path()
-        # prepare the extra packages if any
-        extra_packages = settings.get('extra_packages')
-        if extra_packages:
-            self.sys_path = extra_packages + self.sys_path
-
-        # how to autocomplete arguments
-        self.complete_funcargs = settings.get('complete_funcargs')
-
-    def request(
-            self, request_type, request_kwargs, filename, source, line,
-            column):
-        """Send request to daemon process."""
-        logger.info('Sending request to daemon for "{0}"'.format(request_type))
-        logger.debug((request_type, filename, source, line, column))
-
-        facade = JediFacade(
-            env=self.env,
-            complete_funcargs=self.complete_funcargs,
-            source=source,
-            line=line + 1,
-            column=column,
-            filename=filename,
-            sys_path=self.sys_path,
-        )
-
-        answer = facade.get(request_type, **request_kwargs)
-        logger.debug('Answer: {0}'.format(answer))
-        return answer
-
-
-def run_in_active_view(window_id):
-    """Run function in active ST active view for binded window.
-
-    sublime.View instance would be passed as first parameter to function.
-    """
-    def _decorator(func):
-        @wraps(func)
-        def _wrapper(*args, **kwargs):
-            for window in sublime.windows():
-                if window.id() == window_id:
-                    return func(window.active_view(), *args, **kwargs)
-
-            logger.info(
-                'Unable to find a window where function must be called.'
-            )
-        return _wrapper
-    return _decorator
 
 
 def get_settings(view):
@@ -155,10 +36,15 @@ def get_settings(view):
     enable_in_sublime_repl = get_settings_param(
         view, 'enable_in_sublime_repl', False)
 
+    sublime_completions_visibility = get_settings_param(
+        view, 'sublime_completions_visibility', 'default')
+
     first_folder = ''
     if view.window().folders():
         first_folder = os.path.split(view.window().folders()[0])[-1]
     project_name = get_settings_param(view, 'project_name', first_folder)
+
+    follow_imports = get_settings_param(view, 'follow_imports', True)
 
     return {
         'python_interpreter': python_interpreter,
@@ -167,6 +53,8 @@ def get_settings(view):
         'project_name': project_name,
         'complete_funcargs': complete_funcargs,
         'enable_in_sublime_repl': enable_in_sublime_repl,
+        'sublime_completions_visibility': sublime_completions_visibility,
+        'follow_imports': follow_imports,
     }
 
 
