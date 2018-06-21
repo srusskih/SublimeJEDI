@@ -4,25 +4,23 @@ from functools import partial
 import sublime
 import sublime_plugin
 
+
 from .console_logging import getLogger
-
-logger = getLogger(__name__)
-
+from .daemon import ask_daemon
 from .settings import get_plugin_settings
-from .utils import (
-    ask_daemon, is_python_scope, is_sublime_v2, PythonCommandMixin
-)
+from .utils import is_sublime_v2, PythonCommandMixin
 try:
     from .tooltips import show_docstring_tooltip
 except ImportError as e:
+    logger = getLogger(__name__)
     logger.debug('Unable to import tooltips: %s %s' % (type(e), e.message))
     logger.warning('Tooltips disabled for ST2.')
 
-
+logger = getLogger(__name__)
 
 
 class HelpMessageCommand(sublime_plugin.TextCommand):
-    """Command to insert docstring into Sublime output panel."""
+    """Command to insert doc-strings into Sublime output panel."""
 
     def run(self, edit, docstring):
         self.view.insert(edit, self.view.size(), docstring)
@@ -48,7 +46,7 @@ def show_docstring_panel(view, docstring):
 
 
 class SublimeJediDocstring(PythonCommandMixin, sublime_plugin.TextCommand):
-    """Show docstring."""
+    """Show doc-strings."""
 
     def run(self, edit):
         ask_daemon(self.view, self.render, 'docstring')

@@ -3,7 +3,8 @@ import sublime
 import sublime_plugin
 from functools import partial
 
-from .utils import to_relative_path, ask_daemon, PythonCommandMixin
+from .utils import to_relative_path, PythonCommandMixin, get_settings
+from .daemon import ask_daemon
 from .settings import get_settings_param
 
 
@@ -125,12 +126,14 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
     Go to object definition
     """
     def run(self, edit):
-        follow_imports = get_settings_param(self.view, 'follow_imports', True)
+        follow_imports = get_settings(self.view)['follow_imports']
         ask_daemon(
             self.view,
             self.handle_definitions,
             'goto',
-            ask_kwargs={'follow_imports': follow_imports},
+            ask_kwargs={
+                'follow_imports': follow_imports
+            },
         )
 
     def handle_definitions(self, view, defns):
