@@ -342,7 +342,7 @@ class BaseDefinition(object):
 
         followed = list(self._name.infer())
         if not followed or not hasattr(followed[0], 'py__call__'):
-            raise AttributeError()
+            raise AttributeError('There are no params defined on this.')
         context = followed[0]  # only check the first one.
 
         return [Definition(self._evaluator, n) for n in get_param_names(context)]
@@ -404,8 +404,9 @@ class Completion(BaseDefinition):
             append = '('
 
         if self._name.api_type == 'param' and self._stack is not None:
-            node_names = list(self._stack.get_node_names(self._evaluator.grammar._pgen_grammar))
-            if 'trailer' in node_names and 'argument' not in node_names:
+            nonterminals = [stack_node.nonterminal for stack_node in self._stack]
+            if 'trailer' in nonterminals and 'argument' not in nonterminals:
+                # TODO this doesn't work for nested calls.
                 append += '='
 
         name = self._name.string_name

@@ -2,7 +2,6 @@
 To ensure compatibility from Python ``2.7`` - ``3.x``, a module has been
 created. Clearly there is huge need to use conforming syntax.
 """
-import binascii
 import errno
 import sys
 import os
@@ -381,8 +380,12 @@ if is_py3:
 else:
     import Queue as queue
 
-
-import pickle
+try:
+    # Attempt to load the C implementation of pickle on Python 2 as it is way
+    # faster.
+    import cPickle as pickle
+except ImportError:
+    import pickle
 if sys.version_info[:2] == (3, 3):
     """
     Monkeypatch the unpickler in Python 3.3. This is needed, because the
@@ -443,53 +446,45 @@ if sys.version_info[:2] == (3, 3):
     pickle.loads = loads
 
 
-_PICKLE_PROTOCOL = 2
-is_windows = sys.platform == 'win32'
-
-# The Windows shell on Python 2 consumes all control characters (below 32) and expand on
-# all Python versions \n to \r\n.
-# pickle starting from protocol version 1 uses binary data, which could not be escaped by
-# any normal unicode encoder. Therefore, the only bytes encoder which doesn't produce
-# control characters is binascii.hexlify.
-
-
 def pickle_load(file):
-    if is_windows:
-        try:
-            data = file.readline()
-            data = binascii.unhexlify(data.strip())
-            if is_py3:
-                return pickle.loads(data, encoding='bytes')
-            else:
-                return pickle.loads(data)
-        # Python on Windows don't throw EOF errors for pipes. So reraise them with
-        # the correct type, which is cought upwards.
-        except OSError:
-            raise EOFError()
-    else:
+    try:
         if is_py3:
             return pickle.load(file, encoding='bytes')
-        else:
-            return pickle.load(file)
+        return pickle.load(file)
+    # Python on Windows don't throw EOF errors for pipes. So reraise them with
+    # the correct type, which is caught upwards.
+    except OSError:
+        if sys.platform == 'win32':
+            raise EOFError()
+        raise
 
 
-def pickle_dump(data, file):
-    if is_windows:
-        try:
-            data = pickle.dumps(data, protocol=_PICKLE_PROTOCOL)
-            data = binascii.hexlify(data)
-            file.write(data)
-            file.write(b'\n')
-            # On Python 3.3 flush throws sometimes an error even if the two file writes
-            # should done it already before. This could be also computer / speed depending.
-            file.flush()
-        # Python on Windows don't throw EPIPE errors for pipes. So reraise them with
-        # the correct type and error number.
-        except OSError:
-            raise IOError(errno.EPIPE, "Broken pipe")
-    else:
-        pickle.dump(data, file, protocol=_PICKLE_PROTOCOL)
+def pickle_dump(data, file, protocol):
+    try:
+        pickle.dump(data, file, protocol)
+        # On Python 3.3 flush throws sometimes an error even though the writing
+        # operation should be completed.
         file.flush()
+    # Python on Windows don't throw EPIPE errors for pipes. So reraise them with
+    # the correct type and error number.
+    except OSError:
+        if sys.platform == 'win32':
+            raise IOError(errno.EPIPE, "Broken pipe")
+        raise
+
+
+# Determine the highest protocol version compatible for a given list of Python
+# versions.
+def highest_pickle_protocol(python_versions):
+    protocol = 4
+    for version in python_versions:
+        if version[0] == 2:
+            # The minimum protocol version for the versions of Python that we
+            # support (2.7 and 3.3+) is 2.
+            return 2
+        if version[1] < 4:
+            protocol = 3
+    return protocol
 
 
 try:
@@ -513,3 +508,67 @@ class GeneralizedPopen(subprocess.Popen):
                 CREATE_NO_WINDOW = 0x08000000
             kwargs['creationflags'] = CREATE_NO_WINDOW
         super(GeneralizedPopen, self).__init__(*args, **kwargs)
+
+
+# shutil.which is not available on Python 2.7.
+def which(cmd, mode=os.F_OK | os.X_OK, path=None):
+    """Given a command, mode, and a PATH string, return the path which
+    conforms to the given mode on the PATH, or None if there is no such
+    file.
+
+    `mode` defaults to os.F_OK | os.X_OK. `path` defaults to the result
+    of os.environ.get("PATH"), or can be overridden with a custom search
+    path.
+
+    """
+    # Check that a given file can be accessed with the correct mode.
+    # Additionally check that `file` is not a directory, as on Windows
+    # directories pass the os.access check.
+    def _access_check(fn, mode):
+        return (os.path.exists(fn) and os.access(fn, mode)
+                and not os.path.isdir(fn))
+
+    # If we're given a path with a directory part, look it up directly rather
+    # than referring to PATH directories. This includes checking relative to the
+    # current directory, e.g. ./script
+    if os.path.dirname(cmd):
+        if _access_check(cmd, mode):
+            return cmd
+        return None
+
+    if path is None:
+        path = os.environ.get("PATH", os.defpath)
+    if not path:
+        return None
+    path = path.split(os.pathsep)
+
+    if sys.platform == "win32":
+        # The current directory takes precedence on Windows.
+        if not os.curdir in path:
+            path.insert(0, os.curdir)
+
+        # PATHEXT is necessary to check on Windows.
+        pathext = os.environ.get("PATHEXT", "").split(os.pathsep)
+        # See if the given file matches any of the expected path extensions.
+        # This will allow us to short circuit when given "python.exe".
+        # If it does match, only test that one, otherwise we have to try
+        # others.
+        if any(cmd.lower().endswith(ext.lower()) for ext in pathext):
+            files = [cmd]
+        else:
+            files = [cmd + ext for ext in pathext]
+    else:
+        # On other platforms you don't have things like PATHEXT to tell you
+        # what file suffixes are executable, so just pass on cmd as-is.
+        files = [cmd]
+
+    seen = set()
+    for dir in path:
+        normdir = os.path.normcase(dir)
+        if not normdir in seen:
+            seen.add(normdir)
+            for thefile in files:
+                name = os.path.join(dir, thefile)
+                if _access_check(name, mode):
+                    return name
+    return None
