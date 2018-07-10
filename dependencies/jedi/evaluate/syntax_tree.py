@@ -68,14 +68,8 @@ def eval_node(context, element):
     debug.dbg('eval_node %s@%s', element, element.start_pos)
     evaluator = context.evaluator
     typ = element.type
-    if typ in ('name', 'number', 'string', 'atom', 'strings'):
+    if typ in ('name', 'number', 'string', 'atom', 'strings', 'keyword'):
         return eval_atom(context, element)
-    elif typ == 'keyword':
-        # For False/True/None
-        if element.value in ('False', 'True', 'None'):
-            return ContextSet(compiled.builtin_from_name(evaluator, element.value))
-        # else: print e.g. could be evaluated like this in Python 2.7
-        return NO_CONTEXTS
     elif typ == 'lambdef':
         return ContextSet(FunctionContext(evaluator, context, element))
     elif typ == 'expr_stmt':
@@ -207,6 +201,18 @@ def eval_atom(context, atom):
             position=stmt.start_pos,
             search_global=True
         )
+    elif atom.type == 'keyword':
+        # For False/True/None
+        if atom.value in ('False', 'True', 'None'):
+            return ContextSet(compiled.builtin_from_name(context.evaluator, atom.value))
+        elif atom.value == 'print':
+            # print e.g. could be evaluated like this in Python 2.7
+            return NO_CONTEXTS
+        elif atom.value == 'yield':
+            # Contrary to yield from, yield can just appear alone to return a
+            # value when used with `.send()`.
+            return NO_CONTEXTS
+        assert False, 'Cannot evaluate the keyword %s' % atom
 
     elif isinstance(atom, tree.Literal):
         string = context.evaluator.compiled_subprocess.safe_literal_eval(atom.value)
