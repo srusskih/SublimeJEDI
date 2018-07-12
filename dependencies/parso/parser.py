@@ -147,7 +147,7 @@ class BaseParser(object):
             raise NotImplementedError("Error Recovery is not implemented")
         else:
             type_, value, start_pos, prefix = token
-            error_leaf = tree.ErrorLeaf('TODO %s' % type_, value, start_pos, prefix)
+            error_leaf = tree.ErrorLeaf(type_, value, start_pos, prefix)
             raise ParserSyntaxError('SyntaxError: invalid syntax', error_leaf)
 
     def convert_node(self, nonterminal, children):

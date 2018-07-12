@@ -13,7 +13,7 @@ dependencies:
 	rm -rf dependencies/
 	mkdir dependencies/
 	$(call get_dependency,jedi,https://github.com/davidhalter/jedi,v0.12.1)
-	$(call get_dependency,parso,https://github.com/davidhalter/parso,v0.3.0)
+	$(call get_dependency,parso,https://github.com/davidhalter/parso,v0.3.1)
 
 clean:
 	find . -name '*.pyc' -delete

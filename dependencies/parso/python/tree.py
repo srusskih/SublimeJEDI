@@ -537,7 +537,9 @@ def _create_params(parent, argslist_list):
             if child is None or child == ',':
                 param_children = children[start:end]
                 if param_children:  # Could as well be comma and then end.
-                    if param_children[0] == '*' and param_children[1] == ',' \
+                    if param_children[0] == '*' \
+                            and (len(param_children) == 1
+                                 or param_children[1] == ',') \
                             or check_python2_nested_param(param_children[0]):
                         for p in param_children:
                             p.parent = parent

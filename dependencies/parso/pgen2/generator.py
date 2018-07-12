@@ -286,7 +286,6 @@ def _make_transition(token_namespace, reserved_syntax_strings, label):
         # Either a keyword or an operator
         assert label[0] in ('"', "'"), label
         assert not label.startswith('"""') and not label.startswith("'''")
-        # TODO use literal_eval instead of a simple eval.
         value = literal_eval(label)
         try:
             return reserved_syntax_strings[value]
