@@ -1,1 +1,0 @@
-* Jedi update to 0.8.1

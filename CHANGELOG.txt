@@ -1,0 +1,157 @@
+Sublime Jedi v0.12.1
+====================
+
+
+Changes
+-------
+
+* fix issue with specific python interpreters, when sys.prefix could not be found properly (#250)
+
+Sublime Jedi v0.12.0
+====================
+
+
+!!! WARNING !!!
+---------------
+
+v0.11.1 is the last version that support Python 2.6.x
+v0.11.2 is the last version that support ST2
+
+
+Changes
+-------
+
+* Upgraded Jedi to 0.12.0 (#240)
+* Added support of virtualenv. See README for details.
+* Added sublime repl intergation. Now you can enable or disable completion with the plugin in SublimeREPL. See README for details.(#83)
+* Fixed completion when file are not saved
+
+Sublime Jedi v0.11.1
+====================
+
+
+!!! WARNING !!!
+---------------
+
+v0.11.1 is the last version that support Python 2.6.x
+
+
+Changes
+-------
+
+* Strip out leading spaces when autocompleting default arguments (issue #236)
+* Added support for hanging indentation of args in the signature popup (issue #235)
+* Detect optional arguments by the presence of '...' or '*'
+* Upgrade Jedi to v0.11.1 (issue #233)
+
+Sublime Jedi v0.10.1
+====================
+
+* Fix startup for ST2
+* Fix arguments completion for python3
+* Added aditional notes about extra packages
+* Increase docstring signature font-size and add tooltip styling guide
+
+Sublime Jedi v0.10.0
+====================
+
+* Improve order of suggestions in autocompletion by taking into account the current file.
+* Update README.md
+* Improve doc-string's tooltips.
+* Update jedi to 0.10.2
+
+Sublime Jedi v0.9.0
+===================
+
+* Added Jedi commands to Sublime Text Context menu.
+* Added option to show "Go To Definitions" in a split view.
+* Documentation (docstrings) appears in pop-up for ST3.
+* Updated behaviour for TAB completion for ST3. Now it can insert best completion on TAB.
+* Added Troubleshooting section to Readme.
+* Documentation command unavailable in non-python scope
+* Go to command unavailable in non-python scopes
+* Fixed find usages command: cant show file's content on another panel in transient mode
+* Fixed find usages command: don't move the view to second panel if its focused
+
+Sublime Jedi v0.8.3
+===================
+
+b2f2a85 Upgrading Jedi to 0.9.0
+49678be Improve clarity of comments on default settings.
+
+Sublime Jedi v0.8.2
+===================
+
+254625a fix issue #179. fix broken call signature processing
+1758f7f fix issue #180. strip ',' (comma) in the end of parameter name on complete
+ed4d273 fix #178. add ST2 backward capability in vars extendings
+* Jedi update to 0.8.1
+New Features
+------------
+
+ - Jedi updated to [0.8.0](https://github.com/davidhalter/jedi/blob/master/CHANGELOG.rst#080-2013-04-01)
+ - `$project_path` variable can be used in paths (interpreter path, extra packages paths) [PR #127](https://github.com/srusskih/SublimeJEDI/pull/127)
+
+Changes in 0.6.8
+================
+
+ - fixed logger (#95)
+ - fixed adding "self" after calling completion after "dot" (#87)
+ - fixed settings example (#94)
+ - fixed messages.json (#96)
+
+Changes in 0.6.7
+================
+
+ - fix parenthesis behavior (issue #91)
+ - run Jedi commands only in python scope
+
+Changes in 0.6.6
+================
+
+ - License changed on MIT (issue #78)
+ - Fixed paths to configuration files in Sublime menu (issue #80)
+ - Paths in "Find Usages" and "Go to Definitions" are (issue #81)
+ project root relative
+
+Changes in 0.6.5
+================
+
+ - fixed behavior of adding parentheses around highlighted text when "auto_match_enabled" enabled.
+ - turned off autocomplete in SublimeREPL views
+ - removed `Ctrl+Click` behavior, user have to override it by them self now. See https://github.com/srusskih/SublimeJEDI#jedi-goto--go-definition
+ - fixed Python 2.6 capibility
+ 
+Changes in 0.6.4
+================
+
+ - Fix plugin failing on when Jedi raise an exception
+ - Change logging info to console for more useful bug tracking
+ - Fix issue when SublimeJEDI ignores `"auto_match_enabled": false` (#65)
+ - Fix issue when SublimeJEDI hides snippets and text completion (#68)
+
+Changes in 0.6.3
+================
+
+Fix plugin installation with Sublime Package Control on ST3
+
+Changes in 0.6.2
+================
+
+Jedi uses python iterpreter that was specified in settings,
+instead of using Sublime Python 2.6. This allow completion works with
+libs like numpy.
+
+New Features
+------------
+
+ - Jedi updated to 0.6.0
+   https://github.com/davidhalter/jedi/blob/master/CHANGELOG.rst#060-2013-05-14
+ - Update functions arguments completion behavior
+
+
+Fixes
+-----
+
+ - Incorrect Go To behavioir
+ - Allow delaying param completion to when parenthesis is opened

@@ -1,7 +1,0 @@
-Changes in 0.6.4
-================
-
- - Fix plugin failing on when Jedi raise an exception
- - Change logging info to console for more useful bug tracking
- - Fix issue when SublimeJEDI ignores `"auto_match_enabled": false` (#65)
- - Fix issue when SublimeJEDI hides snippets and text completion (#68)

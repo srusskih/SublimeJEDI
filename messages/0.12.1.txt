@@ -1,8 +1,0 @@
-Sublime Jedi v0.12.1
-====================
-
-
-Changes
--------
-
-* fix issue with specific python interpreters, when sys.prefix could not be found properly (#250)
