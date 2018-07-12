@@ -448,16 +448,15 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
 
             pseudomatch = pseudo_token.match(line, pos)
             if not pseudomatch:                             # scan for tokens
-                if line.endswith('\n'):
-                    new_line = True
                 match = whitespace.match(line, pos)
                 pos = match.end()
                 yield PythonToken(
-                    ERRORTOKEN, line[pos:], (lnum, pos),
+                    ERRORTOKEN, line[pos], (lnum, pos),
                     additional_prefix + match.group(0)
                 )
                 additional_prefix = ''
-                break
+                pos += 1
+                continue
 
             prefix = additional_prefix + pseudomatch.group(1)
             additional_prefix = ''

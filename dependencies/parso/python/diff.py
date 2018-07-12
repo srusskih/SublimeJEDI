@@ -47,6 +47,14 @@ def _flows_finished(pgen_grammar, stack):
     return True
 
 
+def _func_or_class_has_suite(node):
+    if node.type == 'decorated':
+        node = node.children[-1]
+    if node.type in ('async_funcdef', 'async_stmt'):
+        node = node.children[-1]
+    return node.type in ('classdef', 'funcdef') and node.children[-1].type == 'suite'
+
+
 def suite_or_file_input_is_valid(pgen_grammar, stack):
     if not _flows_finished(pgen_grammar, stack):
         return False
@@ -511,7 +519,7 @@ class _NodesStack(object):
             # binary search.
             if _get_last_line(node) > until_line:
                 # We can split up functions and classes later.
-                if node.type in ('classdef', 'funcdef') and node.children[-1].type == 'suite':
+                if _func_or_class_has_suite(node):
                     new_nodes.append(node)
                 break
 
@@ -522,23 +530,25 @@ class _NodesStack(object):
 
         last_node = new_nodes[-1]
         line_offset_index = -1
-        if last_node.type in ('classdef', 'funcdef'):
-            suite = last_node.children[-1]
-            if suite.type == 'suite':
-                suite_tos = _NodesStackNode(suite)
-                # Don't need to pass line_offset here, it's already done by the
-                # parent.
-                suite_nodes, recursive_tos = self._copy_nodes(
-                    suite_tos, suite.children, until_line, line_offset)
-                if len(suite_nodes) < 2:
-                    # A suite only with newline is not valid.
-                    new_nodes.pop()
-                else:
-                    suite_tos.parent = tos
-                    new_tos = recursive_tos
-                    line_offset_index = -2
+        if _func_or_class_has_suite(last_node):
+            suite = last_node
+            while suite.type != 'suite':
+                suite = suite.children[-1]
 
-        elif (new_nodes[-1].type in ('error_leaf', 'error_node') or
+            suite_tos = _NodesStackNode(suite)
+            # Don't need to pass line_offset here, it's already done by the
+            # parent.
+            suite_nodes, recursive_tos = self._copy_nodes(
+                suite_tos, suite.children, until_line, line_offset)
+            if len(suite_nodes) < 2:
+                # A suite only with newline is not valid.
+                new_nodes.pop()
+            else:
+                suite_tos.parent = tos
+                new_tos = recursive_tos
+                line_offset_index = -2
+
+        elif (last_node.type in ('error_leaf', 'error_node') or
               _is_flow_node(new_nodes[-1])):
             # Error leafs/nodes don't have a defined start/end. Error
             # nodes might not end with a newline (e.g. if there's an
@@ -570,7 +580,7 @@ class _NodesStack(object):
             self._tos = _NodesStackNode(tree_node, self._tos)
             self._tos.add(list(tree_node.children))
             self._update_tos(tree_node.children[-1])
-        elif tree_node.type in ('classdef', 'funcdef'):
+        elif _func_or_class_has_suite(tree_node):
             self._update_tos(tree_node.children[-1])
 
     def close(self):
