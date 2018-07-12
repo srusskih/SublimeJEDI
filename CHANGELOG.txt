@@ -1,3 +1,19 @@
+Sublime Jedi v0.13.0
+====================
+
+
+Changes
+-------
+
+* Upgrade parso to v0.3.1 (#258)
+* Upgrade to jedi==0.12.1 (#256)
+* Update completion behavior. No more blinking on completion. You can turn
+on/off completion in you SublimeREPL. Argument completion improvements.(#244)
+* Add `follow_imports` option. When "go to definition" called, you can go to
+import point or go to definition point, this option is configurable. Check
+documentation for more info.(#246)
+
+
 Sublime Jedi v0.12.1
 ====================
 
