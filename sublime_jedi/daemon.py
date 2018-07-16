@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-import threading
-import queue
+from concurrent.futures import ThreadPoolExecutor
 
 from functools import wraps
 from collections import defaultdict
@@ -17,6 +16,7 @@ from .utils import get_settings
 logger = getLogger(__name__)
 
 DAEMONS = defaultdict(dict)  # per window
+REQUESTORS = defaultdict(dict)  # per window
 
 
 def _prepare_request_data(view, location):
@@ -34,6 +34,13 @@ def _get_daemon(view):
     if window_id not in DAEMONS:
         DAEMONS[window_id] = Daemon(settings=get_settings(view))
     return DAEMONS[window_id]
+
+
+def _get_requestor(view):
+    window_id = view.window().id()
+    if window_id not in REQUESTORS:
+        REQUESTORS[window_id] = ThreadPoolExecutor(max_workers=1)
+    return REQUESTORS[window_id]
 
 
 def ask_daemon_sync(view, ask_type, ask_kwargs, location=None):
@@ -66,15 +73,14 @@ def ask_daemon_with_timeout(
     :type timeout: int
     """
     daemon = _get_daemon(view)
+    requestor = _get_requestor(view)
     request_data = _prepare_request_data(view, location)
-    answers = queue.Queue(1)
 
     def _target():
-        answer = daemon.request(ask_type, ask_kwargs or {}, *request_data)
-        answers.put(answer)
+        return daemon.request(ask_type, ask_kwargs or {}, *request_data)
 
-    threading.Thread(target=_target).start()
-    return answers.get(timeout=timeout)
+    request = requestor.submit(_target)
+    return request.result(timeout=timeout)
 
 
 def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):
@@ -174,4 +180,5 @@ class Daemon:
 
         answer = facade.get(request_type, request_kwargs)
         logger.debug('Answer: {0}'.format(answer))
+
         return answer
