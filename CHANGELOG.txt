@@ -1,3 +1,13 @@
+Sublime Jedi v0.13.2
+====================
+
+
+Changes
+-------
+
+* fix issue with failing completion
+
+
 Sublime Jedi v0.13.0
 ====================
 
