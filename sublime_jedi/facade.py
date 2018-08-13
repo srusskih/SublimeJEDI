@@ -133,11 +133,7 @@ class JediFacade:
         args = self._complete_call_assigments(with_keywords=True,
                                               with_values=False)
         completion = self._completion()
-
-        return list(
-            chain(args,
-                  filter(lambda c: not c[0].endswith('\tparam'), completion))
-        )
+        return list(chain(args, completion))
 
     def get_docstring(self, *args, **kwargs):
         return self._docstring()
