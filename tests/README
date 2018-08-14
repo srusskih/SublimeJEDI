@@ -1,0 +1,6 @@
+How to run tests
+----------------
+
+1. Install "https://github.com/SublimeText/UnitTesting"
+2. "CMD+SHFT+p" -> "UnitTesting"
+3. Insert "Jedi - Python autocompletion" in input.
