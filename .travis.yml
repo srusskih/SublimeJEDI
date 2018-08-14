@@ -1,6 +1,6 @@
 env:
     global:
-        - PACKAGE="UnitTesting-example" # Package name
+        - PACKAGE="Jedi - Python autocompletion"
         - SUBLIME_TEXT_VERSION="3"
         # use UNITTESTING_TAG to specific tag of UnitTesting
         # - UNITTESTING_TAG="master"
@@ -28,7 +28,7 @@ install:
     # bootstrap the testing environment
     - sh travis.sh bootstrap
     # install Package Control and package denepdencies
-    # - sh travis.sh install_package_control
+    - sh travis.sh install_package_control
 
 script:
     # run tests with test coverage report
