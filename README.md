@@ -1,7 +1,7 @@
 SublimeJEDI
 ============
 
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/srusskih/SublimeJEDI?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.com/srusskih/SublimeJEDI.svg?branch=master)](https://travis-ci.com/srusskih/SublimeJEDI) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/srusskih/SublimeJEDI?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 [SublimeJEDI](https://github.com/srusskih/SublimeJEDI) is a [Sublime Text 3](http://www.sublimetext.com/) and [Sublime Text 2](http://www.sublimetext.com/2) and plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
