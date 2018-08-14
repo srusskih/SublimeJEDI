@@ -42,3 +42,20 @@ class ExpandPathTestCase(unittest.TestCase):
             '$project_path/envXXX',
         )
         self.assertEqual(result, '$project_path/envXXX')
+
+
+class UniqueIterator(unittest.TestCase):
+
+    def test_should_return_only_unique(self):
+        actual = utils.unique([1, 1, 3])
+
+        self.assertEqual(list(actual), [1, 3])
+
+    def test_should_return_only_unique_with_predicator(self):
+        actual = utils.unique([('a1\tparam', 'a1'),
+                               ('a2\tparam', 'a2'),
+                               ('a1\tparam', '${1:a1}')],
+                              lambda x: x[0])
+
+        self.assertEqual(list(actual), [('a1\tparam', 'a1'),
+                                        ('a2\tparam', 'a2')])

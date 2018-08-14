@@ -1,6 +1,5 @@
 import sys
 import unittest
-import jedi
 from jedi.api import environment
 
 
