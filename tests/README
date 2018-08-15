@@ -2,5 +2,19 @@ How to run tests
 ----------------
 
 1. Install "https://github.com/SublimeText/UnitTesting"
-2. "CMD+SHFT+p" -> "UnitTesting"
-3. Insert "Jedi - Python autocompletion" in input.
+
+2. Add next to .sublime-project:
+
+```
+"build_systems": [
+  {
+    "name": "Tests",
+    "target": "unit_testing",
+    "package": "Jedi - Python autocompletion"
+  }
+]
+```
+
+3. CMD+b (or Ctrl+b)
+
+See more documentation on https://github.com/SublimeText/UnitTesting

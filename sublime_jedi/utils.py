@@ -4,7 +4,6 @@ import os
 import json
 import re
 
-
 import sublime
 
 from .console_logging import getLogger
@@ -201,3 +200,14 @@ def _get_projects_from_session():
 
 def is_sublime_v2():
     return sublime.version().startswith('2')
+
+
+def unique(items, pred=lambda x: x):
+    stack = set()
+
+    for i in items:
+        calculated = pred(i)
+        if calculated in stack:
+            continue
+        stack.add(calculated)
+        yield i

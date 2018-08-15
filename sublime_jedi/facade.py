@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 from itertools import chain
+from operator import itemgetter
 
 import jedi
 from jedi.api.completion import Parameter
 
 from .console_logging import getLogger
+from .utils import unique
 
 logger = getLogger(__name__)
 
@@ -130,10 +132,12 @@ class JediFacade:
 
     def get_autocomplete(self, *args, **kwargs):
         """Jedi completion."""
-        args = self._complete_call_assigments(with_keywords=True,
-                                              with_values=False)
-        completion = self._completion()
-        return list(chain(args, completion))
+        completions = chain(
+            self._complete_call_assigments(with_keywords=True,
+                                           with_values=False),
+            self._completion()
+        )
+        return list(unique(completions, itemgetter(0)))
 
     def get_docstring(self, *args, **kwargs):
         return self._docstring()
