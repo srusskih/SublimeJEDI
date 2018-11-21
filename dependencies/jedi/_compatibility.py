@@ -16,8 +16,6 @@ except ImportError:
     pass
 
 is_py3 = sys.version_info[0] >= 3
-is_py33 = is_py3 and sys.version_info[1] >= 3
-is_py34 = is_py3 and sys.version_info[1] >= 4
 is_py35 = is_py3 and sys.version_info[1] >= 5
 py_version = int(str(sys.version_info[0]) + str(sys.version_info[1]))
 
@@ -34,24 +32,36 @@ class DummyFile(object):
         del self.loader
 
 
-def find_module_py34(string, path=None, full_name=None):
+def find_module_py34(string, path=None, full_name=None, is_global_search=True):
     spec = None
     loader = None
 
-    spec = importlib.machinery.PathFinder.find_spec(string, path)
-    if spec is not None:
-        # We try to disambiguate implicit namespace pkgs with non implicit namespace pkgs
-        if not spec.has_location:
-            full_name = string if not path else full_name
-            implicit_ns_info = ImplicitNSInfo(full_name, spec.submodule_search_locations._path)
-            return None, implicit_ns_info, False
+    for finder in sys.meta_path:
+        if is_global_search and finder != importlib.machinery.PathFinder:
+            p = None
+        else:
+            p = path
+        try:
+            find_spec = finder.find_spec
+        except AttributeError:
+            # These are old-school clases that still have a different API, just
+            # ignore those.
+            continue
 
-        # we have found the tail end of the dotted path
-        loader = spec.loader
+        spec = find_spec(string, p)
+        if spec is not None:
+            loader = spec.loader
+            if loader is None and not spec.has_location:
+                # This is a namespace package.
+                full_name = string if not path else full_name
+                implicit_ns_info = ImplicitNSInfo(full_name, spec.submodule_search_locations._path)
+                return None, implicit_ns_info, False
+            break
+
     return find_module_py33(string, path, loader)
 
 
-def find_module_py33(string, path=None, loader=None, full_name=None):
+def find_module_py33(string, path=None, loader=None, full_name=None, is_global_search=True):
     loader = loader or importlib.machinery.PathFinder.find_module(string, path)
 
     if loader is None and path is None:  # Fallback to find builtins
@@ -104,7 +114,7 @@ def find_module_py33(string, path=None, loader=None, full_name=None):
     return module_file, module_path, is_package
 
 
-def find_module_pre_py33(string, path=None, full_name=None):
+def find_module_pre_py34(string, path=None, full_name=None, is_global_search=True):
     # This import is here, because in other places it will raise a
     # DeprecationWarning.
     import imp
@@ -139,8 +149,7 @@ def find_module_pre_py33(string, path=None, full_name=None):
     raise ImportError("No module named {}".format(string))
 
 
-find_module = find_module_py33 if is_py33 else find_module_pre_py33
-find_module = find_module_py34 if is_py34 else find_module
+find_module = find_module_py34 if is_py3 else find_module_pre_py34
 find_module.__doc__ = """
 Provides information about a module.
 
@@ -207,6 +216,7 @@ def _iter_modules(paths, prefix=''):
                 yield importer, prefix + modname, ispkg
         # END COPY
 
+
 iter_modules = _iter_modules if py_version >= 34 else pkgutil.iter_modules
 
 
@@ -251,6 +261,7 @@ Usage::
     reraise(Exception, sys.exc_info()[2])
 
 """
+
 
 class Python3Method(object):
     def __init__(self, func):
@@ -312,10 +323,10 @@ def force_unicode(obj):
 try:
     import builtins  # module name in python 3
 except ImportError:
-    import __builtin__ as builtins
+    import __builtin__ as builtins  # noqa: F401
 
 
-import ast
+import ast  # noqa: F401
 
 
 def literal_eval(string):
@@ -325,7 +336,7 @@ def literal_eval(string):
 try:
     from itertools import zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest  # Python 2
+    from itertools import izip_longest as zip_longest  # Python 2  # noqa: F401
 
 try:
     FileNotFoundError = FileNotFoundError
@@ -355,6 +366,7 @@ def print_to_stderr(*args):
         eval("print(*args, file=sys.stderr)")
     else:
         print >> sys.stderr, args
+    sys.stderr.flush()
 
 
 def utf8_repr(func):
@@ -378,7 +390,7 @@ def utf8_repr(func):
 if is_py3:
     import queue
 else:
-    import Queue as queue
+    import Queue as queue  # noqa: F401
 
 try:
     # Attempt to load the C implementation of pickle on Python 2 as it is way
@@ -507,6 +519,9 @@ class GeneralizedPopen(subprocess.Popen):
             except AttributeError:
                 CREATE_NO_WINDOW = 0x08000000
             kwargs['creationflags'] = CREATE_NO_WINDOW
+        # The child process doesn't need file descriptors except 0, 1, 2.
+        # This is unix only.
+        kwargs['close_fds'] = 'posix' in sys.builtin_module_names
         super(GeneralizedPopen, self).__init__(*args, **kwargs)
 
 
@@ -544,7 +559,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
 
     if sys.platform == "win32":
         # The current directory takes precedence on Windows.
-        if not os.curdir in path:
+        if os.curdir not in path:
             path.insert(0, os.curdir)
 
         # PATHEXT is necessary to check on Windows.
@@ -565,7 +580,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
     seen = set()
     for dir in path:
         normdir = os.path.normcase(dir)
-        if not normdir in seen:
+        if normdir not in seen:
             seen.add(normdir)
             for thefile in files:
                 name = os.path.join(dir, thefile)
