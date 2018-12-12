@@ -55,7 +55,7 @@ class CompiledObject(Context):
             return FunctionContext(
                 self.evaluator,
                 parent_context=self.parent_context,
-                funcdef=self.tree_node
+                tree_node=self.tree_node
             ).py__call__(params)
         if self.access_handle.is_class():
             from jedi.evaluate.context import CompiledInstance
@@ -80,6 +80,10 @@ class CompiledObject(Context):
             create_from_access_path(self.evaluator, access)
             for access in self.access_handle.py__bases__()
         )
+
+    @CheckAttribute
+    def py__path__(self):
+        return self.access_handle.py__path__()
 
     def py__bool__(self):
         return self.access_handle.py__bool__()
@@ -443,8 +447,11 @@ def create_from_name(evaluator, compiled_object, name):
         pass
 
     access = compiled_object.access_handle.getattr(name, default=None)
+    parent_context = compiled_object
+    if parent_context.is_class():
+        parent_context = parent_context.parent_context
     return create_cached_compiled_object(
-        evaluator, access, parent_context=compiled_object, faked=faked
+        evaluator, access, parent_context=parent_context, faked=faked
     )
 
 

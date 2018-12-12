@@ -14,7 +14,7 @@ from jedi.evaluate import imports
 from jedi.evaluate import compiled
 from jedi.evaluate.imports import ImportName
 from jedi.evaluate.context import instance
-from jedi.evaluate.context import ClassContext, FunctionContext, FunctionExecutionContext
+from jedi.evaluate.context import ClassContext, FunctionExecutionContext
 from jedi.api.keywords import KeywordName
 
 
@@ -353,10 +353,7 @@ class BaseDefinition(object):
             return None
 
         if isinstance(context, FunctionExecutionContext):
-            # TODO the function context should be a part of the function
-            # execution context.
-            context = FunctionContext(
-                self._evaluator, context.parent_context, context.tree_node)
+            context = context.function_context
         return Definition(self._evaluator, context.name)
 
     def __repr__(self):
@@ -536,9 +533,9 @@ class Definition(BaseDefinition):
         # here.
         txt = definition.get_code(include_prefix=False)
         # Delete comments:
-        txt = re.sub('#[^\n]+\n', ' ', txt)
+        txt = re.sub(r'#[^\n]+\n', ' ', txt)
         # Delete multi spaces/newlines
-        txt = re.sub('\s+', ' ', txt).strip()
+        txt = re.sub(r'\s+', ' ', txt).strip()
         return txt
 
     @property
@@ -638,9 +635,18 @@ class CallSignature(Definition):
         """
         return self._bracket_start_pos
 
+    @property
+    def _params_str(self):
+        return ', '.join([p.description[6:]
+                          for p in self.params])
+
     def __repr__(self):
-        return '<%s: %s index %s>' % \
-            (type(self).__name__, self._name.string_name, self.index)
+        return '<%s: %s index=%r params=[%s]>' % (
+            type(self).__name__,
+            self._name.string_name,
+            self._index,
+            self._params_str,
+        )
 
 
 class _Help(object):

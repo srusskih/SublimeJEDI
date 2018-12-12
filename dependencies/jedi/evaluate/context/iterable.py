@@ -83,10 +83,6 @@ class CompForContext(TreeContext):
     def from_comp_for(cls, parent_context, comp_for):
         return cls(parent_context.evaluator, parent_context, comp_for)
 
-    def __init__(self, evaluator, parent_context, comp_for):
-        super(CompForContext, self).__init__(evaluator, parent_context)
-        self.tree_node = comp_for
-
     def get_node(self):
         return self.tree_node
 
@@ -350,21 +346,39 @@ class SequenceLiteralContext(Sequence):
             return []  # Direct closing bracket, doesn't contain items.
 
         if array_node.type == 'testlist_comp':
-            return array_node.children[::2]
+            # filter out (for now) pep 448 single-star unpacking
+            return [value for value in array_node.children[::2]
+                    if value.type != "star_expr"]
         elif array_node.type == 'dictorsetmaker':
             kv = []
             iterator = iter(array_node.children)
             for key in iterator:
-                op = next(iterator, None)
-                if op is None or op == ',':
-                    kv.append(key)  # A set.
-                else:
-                    assert op == ':'  # A dict.
-                    kv.append((key, next(iterator)))
+                if key == "**":
+                    # dict with pep 448 double-star unpacking
+                    # for now ignoring the values imported by **
+                    next(iterator)
                     next(iterator, None)  # Possible comma.
+                else:
+                    op = next(iterator, None)
+                    if op is None or op == ',':
+                        if key.type == "star_expr":
+                            # pep 448 single-star unpacking
+                            # for now ignoring values imported by *
+                            pass
+                        else:
+                            kv.append(key)  # A set.
+                    else:
+                        assert op == ':'  # A dict.
+                        kv.append((key, next(iterator)))
+                        next(iterator, None)  # Possible comma.
             return kv
         else:
-            return [array_node]
+            if array_node.type == "star_expr":
+                # pep 448 single-star unpacking
+                # for now ignoring values imported by *
+                return []
+            else:
+                return [array_node]
 
     def exact_key_items(self):
         """
@@ -634,12 +648,9 @@ def _check_array_additions(context, sequence):
     return added_types
 
 
-def get_dynamic_array_instance(instance):
+def get_dynamic_array_instance(instance, arguments):
     """Used for set() and list() instances."""
-    if not settings.dynamic_array_additions:
-        return instance.var_args
-
-    ai = _ArrayInstance(instance)
+    ai = _ArrayInstance(instance, arguments)
     from jedi.evaluate import arguments
     return arguments.ValuesArguments([ContextSet(ai)])
 
@@ -655,9 +666,9 @@ class _ArrayInstance(object):
     and therefore doesn't need filters, `py__bool__` and so on, because
     we don't use these operations in `builtins.py`.
     """
-    def __init__(self, instance):
+    def __init__(self, instance, var_args):
         self.instance = instance
-        self.var_args = instance.var_args
+        self.var_args = var_args
 
     def py__iter__(self):
         var_args = self.var_args

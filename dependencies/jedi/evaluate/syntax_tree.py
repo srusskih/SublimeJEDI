@@ -71,7 +71,7 @@ def eval_node(context, element):
     if typ in ('name', 'number', 'string', 'atom', 'strings', 'keyword'):
         return eval_atom(context, element)
     elif typ == 'lambdef':
-        return ContextSet(FunctionContext(evaluator, context, element))
+        return ContextSet(FunctionContext.from_context(context, element))
     elif typ == 'expr_stmt':
         return eval_expr_stmt(context, element)
     elif typ in ('power', 'atom_expr'):
@@ -255,7 +255,8 @@ def eval_atom(context, atom):
             array_node_c = array_node.children
         except AttributeError:
             array_node_c = []
-        if c[0] == '{' and (array_node == '}' or ':' in array_node_c):
+        if c[0] == '{' and (array_node == '}' or ':' in array_node_c or
+                            '**' in array_node_c):
             context = iterable.DictLiteralContext(context.evaluator, context, atom)
         else:
             context = iterable.SequenceLiteralContext(context.evaluator, context, atom)
@@ -270,7 +271,7 @@ def eval_expr_stmt(context, stmt, seek_name=None):
         # necessary.
         if not allowed and context.get_root_context() == context.evaluator.builtins_module:
             try:
-                instance = context.instance
+                instance = context.var_args.instance
             except AttributeError:
                 pass
             else:
@@ -580,14 +581,10 @@ def _apply_decorators(context, node):
         decoratee_context = ClassContext(
             context.evaluator,
             parent_context=context,
-            classdef=node
+            tree_node=node
         )
     else:
-        decoratee_context = FunctionContext(
-            context.evaluator,
-            parent_context=context,
-            funcdef=node
-        )
+        decoratee_context = FunctionContext.from_context(context, node)
     initial = values = ContextSet(decoratee_context)
     for dec in reversed(node.get_decorators()):
         debug.dbg('decorator: %s %s', dec, values)
