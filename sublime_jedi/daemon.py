@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 from functools import wraps
 from collections import defaultdict
@@ -80,7 +80,12 @@ def ask_daemon_with_timeout(
         return daemon.request(ask_type, ask_kwargs or {}, *request_data)
 
     request = requestor.submit(_target)
-    return request.result(timeout=timeout)
+    try:
+        return request.result(timeout=timeout)
+    except TimeoutError:
+        # no need to wait more
+        request.cancel()
+        raise
 
 
 def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):

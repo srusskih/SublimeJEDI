@@ -6,8 +6,7 @@ import sublime
 from .settings import get_plugin_settings
 
 
-def get_plugin_debug_level():
-    default = 'error'
+def get_plugin_debug_level(default='error'):
     settings = get_plugin_settings()
     level = settings.get('logging_level', default)
     level = level or default
@@ -63,4 +62,4 @@ class Logger:
         self.log(logging.WARN, msg)
 
 
-getLogger = Logger
+getLogger = logging.getLogger

@@ -238,16 +238,38 @@ Please note, if you are using [SublimeAllAutocomplete](https://github.com/alienh
 
 #### Logging
 
-To change logging level of the plugin - change `logging_level` value in settings.
+Plugin uses Python logging lib to log everything. It allow collect propper information in right order rather then `print()`-ing to sublime console.
+To make logging more usefull I'd suggest ST Plugin [Logging Control](https://packagecontrol.io/packages/Logging%20Control), it allows stream logs into file/console/etc. 
+On github page you can find great documenation how you can use it.
 
-Possible values: "debug", "info", "error"
+Here is *quickstart* config that I'm using for *DEBUG* purposes:
 
+```json
+{
+    "logging_enable_on_startup": false,
+    "logging_use_basicConfig": false,
+    "logging_root_level": "DEBUG",
+    "logging_console_enabled": true,
+    "logging_console_level": "INFO",     // Only print warning log messages in the console.
+    "logging_file_enabled": true,
+    "logging_file_level": "DEBUG",
+    "logging_file_datefmt": null,
+    "logging_file_fmt": "%(asctime)s %(levelname)-6s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s",
+    "logging_file_path": "/tmp/sublime_output.log",
+    "logging_file_rotating": false,
+    "logging_file_clear_on_reset": false
+}
+```
 
-    # User/sublime_jedi.sublime-settings
-    {
-        // ...
-		"logging_level": "error"
-    }
+By default, detailed (debug) loggin turned off and you would not see any messages in ST console, only exceptions.
+
+If you need get more information about the issue with the plugin:
+
+1. Install [Logging Control](https://packagecontrol.io/packages/Logging%20Control)
+2. Use *quickstart* config that was provided above.
+3. Enable logging. Ivoke "Command Pannel" (CMD+SHIFT+P for mac) and start typing “Logging”. Select the `"Logging: Enable logging"` command to enable logging.
+4. Reproduce the issue.
+5. Check the log file!
 
 
 Troubleshooting
