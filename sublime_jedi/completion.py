@@ -117,11 +117,11 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         settings = get_settings(self.view)
 
         if is_repl(self.view) and not settings['enable_in_sublime_repl']:
-            logger.info("JEDI does not complete in SublimeREPL views.")
+            logger.debug("JEDI does not complete in SublimeREPL views.")
             return False
 
         if not is_python_scope(self.view, self.view.sel()[0].begin()):
-            logger.info('JEDI completes only in python scope.')
+            logger.debug('JEDI completes only in python scope.')
             return False
 
         return True
@@ -151,7 +151,8 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         cplns = ask_daemon_with_timeout(
             self.view,
             'autocomplete',
-            location=locations[0]
+            location=locations[0],
+            timeout=settings['completion_timeout']
         )
         logger.info("Completion completed.")
 

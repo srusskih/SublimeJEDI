@@ -23,14 +23,14 @@
     // "" - none
     "auto_complete_function_params": "required",
 
-    // "debug", "error", "info", "warn"
-    "logging_level": "warn",
-
     // Which completions to show:
     // "all" - both jedi's and sublime's
     // "jedi" - only jedi's
     // "default" - only jedi's if it has something to show, otherwise sublime's
     "sublime_completions_visibility": "default",
+
+    // How long (in seconds) we should wait for a completion
+    "completion_timeout": 3,
 
     // how to open goto definition result with ability to show it transient
     // variation (preview only. it won't have a tab assigned it until modified):
