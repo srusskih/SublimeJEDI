@@ -11,7 +11,7 @@ _get_dependency:
 dependencies:
 	rm -rf dependencies/
 	mkdir dependencies/
-	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/jedi -e TAG=v0.13.1 -e TARGET=jedi
+	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/jedi -e TAG=v0.13.2 -e TARGET=jedi
 	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/parso -e TAG=v0.3.1 -e TARGET=parso
 	patch --dry-run -p0 < jedi_0.13.x.patch
 	patch -p0 < jedi_0.13.x.patch
