@@ -1,19 +1,20 @@
-define get_dependency =
-	git clone $(2) dep
-	cd dep; git checkout $(3)
-	mv dep/$(1) dependencies/
-	rm -rf dep
-endef
-
-
 dummy:
 	exit 0
 
+_get_dependency:
+	git clone $(REPO) dep
+	cd dep; git checkout $(TAG)
+	mv dep/$(TARGET) dependencies/
+	rm -rf dep
+
+.PHONY: dependencies
 dependencies:
 	rm -rf dependencies/
 	mkdir dependencies/
-	$(call get_dependency,jedi,https://github.com/davidhalter/jedi,v0.13.1)
-	$(call get_dependency,parso,https://github.com/davidhalter/parso,v0.3.1)
+	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/jedi -e TAG=v0.13.1 -e TARGET=jedi
+	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/parso -e TAG=v0.3.1 -e TARGET=parso
+	patch --dry-run -p0 < jedi_0.13.x.patch
+	patch -p0 < jedi_0.13.x.patch
 
 clean:
 	find . -name '*.pyc' -delete

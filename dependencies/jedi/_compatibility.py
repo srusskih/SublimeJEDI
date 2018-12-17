@@ -150,6 +150,7 @@ def find_module_pre_py34(string, path=None, full_name=None, is_global_search=Tru
 
 
 find_module = find_module_py34 if is_py3 else find_module_pre_py34
+find_module = find_module_py33 if py_version == 33 else find_module
 find_module.__doc__ = """
 Provides information about a module.
 

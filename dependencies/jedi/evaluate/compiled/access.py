@@ -5,8 +5,7 @@ from textwrap import dedent
 import operator as op
 from collections import namedtuple
 
-# note: backport of jedi==0.12.1 is_py34 decision
-from jedi._compatibility import unicode, is_py3, is_py35, builtins, \
+from jedi._compatibility import unicode, is_py3, py_version, builtins, \
     py_version, force_unicode, print_to_stderr
 from jedi.evaluate.compiled.getattr_static import getattr_static
 
@@ -34,8 +33,8 @@ if is_py3:
         types.MappingProxyType,
         types.SimpleNamespace,
     )
-    # note: backport of jedi==0.12.1 is_py34 decision
-    if is_py35:
+
+    if not py_version == 33:
         NOT_CLASS_TYPES += (types.DynamicClassAttribute,)
 
 
