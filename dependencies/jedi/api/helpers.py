@@ -105,14 +105,17 @@ def get_stack_at_position(grammar, code_lines, module_node, pos):
         # TODO This is for now not an official parso API that exists purely
         #   for Jedi.
         tokens = grammar._tokenize(code)
-        for token_ in tokens:
-            if token_.string == safeword:
+        for token in tokens:
+            if token.string == safeword:
                 raise EndMarkerReached()
-            elif token_.prefix.endswith(safeword):
+            elif token.prefix.endswith(safeword):
                 # This happens with comments.
                 raise EndMarkerReached()
+            elif token.string.endswith(safeword):
+                yield token  # Probably an f-string literal that was not finished.
+                raise EndMarkerReached()
             else:
-                yield token_
+                yield token
 
     # The code might be indedented, just remove it.
     code = dedent(_get_code_for_stack(code_lines, module_node, pos))
@@ -166,7 +169,8 @@ def _get_index_and_key(nodes, position):
 
     if nodes_before:
         last = nodes_before[-1]
-        if last.type == 'argument' and last.children[1].end_pos <= position:
+        if last.type == 'argument' and last.children[1] == '=' \
+                and last.children[1].end_pos <= position:
             # Checked if the argument
             key_str = last.children[0].value
         elif last == '=':
