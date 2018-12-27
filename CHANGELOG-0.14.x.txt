@@ -1,0 +1,4 @@
+Sublime Jedi v0.14.0
+====================
+
+* upgrade to jedi lib to v0.13.2
