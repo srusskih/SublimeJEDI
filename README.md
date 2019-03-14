@@ -210,7 +210,7 @@ Function parameters completion has 3 different behaviors:
             "auto_complete_function_params": ""
         }
 	
-[More info](https://github.com/srusskih/SublimeJEDI/wiki/What-is-%22auto_complete_function_params%22)
+[More info about `auto_complete_function_params`](https://github.com/srusskih/SublimeJEDI/wiki/What-is-%22auto_complete_function_params%22)
 
 #### Completion visibility
 
