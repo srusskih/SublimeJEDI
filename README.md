@@ -176,6 +176,7 @@ Exposed command is `sublime_jedi_signature`.
 
 SublimeJEDI allow fill up function parameters by [default](sublime_jedi.sublime-settings#12).
 Thanks to [@krya](https://github.com/krya), now you can turn it off.
+
 Function parameters completion has 3 different behaviors:
 
   - insert all function arguments on autocomplete
@@ -208,6 +209,8 @@ Function parameters completion has 3 different behaviors:
         {
             "auto_complete_function_params": ""
         }
+	
+[More info](https://github.com/srusskih/SublimeJEDI/wiki/What-is-%22auto_complete_function_params%22)
 
 #### Completion visibility
 
