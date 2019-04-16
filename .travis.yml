@@ -9,12 +9,9 @@ env:
 # https://docs.travis-ci.com/user/multi-os/#Python-example-(unsupported-languages)
 matrix:
     include:
-        - os: osx
+        - os: linux
           language: python
           python: 3.4
-        # - os: osx
-        #   language: generic
-
 
 before_install:
     - curl -OL https://raw.githubusercontent.com/SublimeText/UnitTesting/master/sbin/travis.sh
