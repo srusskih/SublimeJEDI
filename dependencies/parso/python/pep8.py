@@ -391,11 +391,11 @@ class PEP8Normalizer(ErrorFinder):
                 if value.lstrip('#'):
                     self.add_issue(part, 266, "Too many leading '#' for block comment.")
             elif self._on_newline:
-                if not re.match('#:? ', value) and not value == '#' \
+                if not re.match(r'#:? ', value) and not value == '#' \
                         and not (value.startswith('#!') and part.start_pos == (1, 0)):
                     self.add_issue(part, 265, "Block comment should start with '# '")
             else:
-                if not re.match('#:? [^ ]', value):
+                if not re.match(r'#:? [^ ]', value):
                     self.add_issue(part, 262, "Inline comment should start with '# '")
 
             self._reset_newlines(spacing, leaf, is_comment=True)
@@ -677,7 +677,7 @@ class PEP8Normalizer(ErrorFinder):
         elif typ == 'string':
             # Checking multiline strings
             for i, line in enumerate(leaf.value.splitlines()[1:]):
-                indentation = re.match('[ \t]*', line).group(0)
+                indentation = re.match(r'[ \t]*', line).group(0)
                 start_pos = leaf.line + i, len(indentation)
                 # TODO check multiline indentation.
         elif typ == 'endmarker':
