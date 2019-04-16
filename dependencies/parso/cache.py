@@ -18,7 +18,7 @@ from parso._compatibility import FileNotFoundError
 LOG = logging.getLogger(__name__)
 
 
-_PICKLE_VERSION = 30
+_PICKLE_VERSION = 31
 """
 Version number (integer) for file system cache.
 
@@ -45,6 +45,7 @@ we generate something similar.  See:
 http://docs.python.org/3/library/sys.html#sys.implementation
 """
 
+
 def _get_default_cache_path():
     if platform.system().lower() == 'windows':
         dir_ = os.path.join(os.getenv('LOCALAPPDATA') or '~', 'Parso', 'Parso')
@@ -53,6 +54,7 @@ def _get_default_cache_path():
     else:
         dir_ = os.path.join(os.getenv('XDG_CACHE_HOME') or '~/.cache', 'parso')
     return os.path.expanduser(dir_)
+
 
 _default_cache_path = _get_default_cache_path()
 """
@@ -76,21 +78,26 @@ class _NodeCacheItem(object):
         self.change_time = change_time
 
 
-def load_module(hashed_grammar, path, cache_path=None):
+def load_module(hashed_grammar, file_io, cache_path=None):
     """
     Returns a module or None, if it fails.
     """
     try:
-        p_time = os.path.getmtime(path)
+        p_time = file_io.get_last_modified()
     except FileNotFoundError:
         return None
 
     try:
-        module_cache_item = parser_cache[hashed_grammar][path]
+        module_cache_item = parser_cache[hashed_grammar][file_io.path]
         if p_time <= module_cache_item.change_time:
             return module_cache_item.node
     except KeyError:
-        return _load_from_file_system(hashed_grammar, path, p_time, cache_path=cache_path)
+        return _load_from_file_system(
+            hashed_grammar,
+            file_io.path,
+            p_time,
+            cache_path=cache_path
+        )
 
 
 def _load_from_file_system(hashed_grammar, path, p_time, cache_path=None):
@@ -121,9 +128,10 @@ def _load_from_file_system(hashed_grammar, path, p_time, cache_path=None):
         return module_cache_item.node
 
 
-def save_module(hashed_grammar, path, module, lines, pickling=True, cache_path=None):
+def save_module(hashed_grammar, file_io, module, lines, pickling=True, cache_path=None):
+    path = file_io.path
     try:
-        p_time = None if path is None else os.path.getmtime(path)
+        p_time = None if path is None else file_io.get_last_modified()
     except OSError:
         p_time = None
         pickling = False

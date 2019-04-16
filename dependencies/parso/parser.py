@@ -152,9 +152,12 @@ class BaseParser(object):
 
     def convert_node(self, nonterminal, children):
         try:
-            return self.node_map[nonterminal](children)
+            node = self.node_map[nonterminal](children)
         except KeyError:
-            return self.default_node(nonterminal, children)
+            node = self.default_node(nonterminal, children)
+        for c in children:
+            c.parent = node
+        return node
 
     def convert_leaf(self, type_, value, prefix, start_pos):
         try:

@@ -5,6 +5,20 @@ from ast import literal_eval
 
 from parso._compatibility import unicode, total_ordering
 
+# The following is a list in Python that are line breaks in str.splitlines, but
+# not in Python. In Python only \r (Carriage Return, 0xD) and \n (Line Feed,
+# 0xA) are allowed to split lines.
+_NON_LINE_BREAKS = (
+    u'\v',  # Vertical Tabulation 0xB
+    u'\f',  # Form Feed 0xC
+    u'\x1C',  # File Separator
+    u'\x1D',  # Group Separator
+    u'\x1E',  # Record Separator
+    u'\x85',  # Next Line (NEL - Equivalent to CR+LF.
+              # Used to mark end-of-line on some IBM mainframes.)
+    u'\u2028',  # Line Separator
+    u'\u2029',  # Paragraph Separator
+)
 
 Version = namedtuple('Version', 'major, minor, micro')
 
@@ -26,8 +40,13 @@ def split_lines(string, keepends=False):
         # We have to merge lines that were broken by form feed characters.
         merge = []
         for i, line in enumerate(lst):
-            if line.endswith('\f'):
-                merge.append(i)
+            try:
+                last_chr = line[-1]
+            except IndexError:
+                pass
+            else:
+                if last_chr in _NON_LINE_BREAKS:
+                    merge.append(i)
 
         for index in reversed(merge):
             try:
@@ -41,11 +60,11 @@ def split_lines(string, keepends=False):
         # The stdlib's implementation of the end is inconsistent when calling
         # it with/without keepends. One time there's an empty string in the
         # end, one time there's none.
-        if string.endswith('\n') or string == '':
+        if string.endswith('\n') or string.endswith('\r') or string == '':
             lst.append('')
         return lst
     else:
-        return re.split('\n|\r\n', string)
+        return re.split(r'\n|\r\n|\r', string)
 
 
 def python_bytes_to_unicode(source, encoding='utf-8', errors='strict'):
