@@ -2,6 +2,8 @@ env:
     global:
         - PACKAGE="Jedi - Python autocompletion"
         - SUBLIME_TEXT_VERSION="3"
+        - UT_URL=https://github.com/srusskih/UnitTesting
+        - UNITTESTING_TAG=master
         # use UNITTESTING_TAG to specific tag of UnitTesting
         # - UNITTESTING_TAG="master"
 
@@ -14,7 +16,8 @@ matrix:
           python: 3.4
 
 before_install:
-    - curl -OL https://raw.githubusercontent.com/SublimeText/UnitTesting/master/sbin/travis.sh
+    # - curl -OL https://raw.githubusercontent.com/SublimeText/UnitTesting/master/sbin/travis.sh
+    - curl -OL https://raw.githubusercontent.com/srusskih/UnitTesting/master/sbin/travis.sh
     # enable gui, see https://docs.travis-ci.com/user/gui-and-headless-browsers
     - if [ "$TRAVIS_OS_NAME" == "linux"  ]; then
             export DISPLAY=:99.0;
