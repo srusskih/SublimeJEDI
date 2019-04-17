@@ -100,6 +100,21 @@ set (additionally to the trigger above):
     }
 
 
+#### Autocomplete after only certain characters
+
+If you want Jedi auto-completion only after certain characters, you can use the `only_complete_after_regex` setting.
+
+For example, if you want Jedi auto-completion only after the `.` character but don't want to affect auto-completion from other packages, insert the following into `User/sublime_jedi.sublime-settings`:
+
+~~~json
+{
+  "only_complete_after_regex": "\\.",
+}
+~~~
+
+Using this setting in this way means you can remove `"auto_complete_selector": "-",` from `User/Python.sublime-settings`, so that the rest of your packages still trigger auto-completion after every keystroke.
+
+
 #### Goto / Go Definition
 
 Find function / variable / class definition
