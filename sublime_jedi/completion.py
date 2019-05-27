@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import re
+
 import sublime
 import sublime_plugin
 
@@ -148,12 +150,18 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             settings['sublime_completions_visibility'] in ('default', 'jedi')
         )
 
+        previous_char = self.view.substr(locations[0] - 1)
+        if settings['only_complete_after_regex']:
+            if not re.match(settings['only_complete_after_regex'], previous_char):
+                return False
+
         cplns = ask_daemon_with_timeout(
             self.view,
             'autocomplete',
             location=locations[0],
             timeout=settings['completion_timeout']
         )
+
         logger.info("Completion completed.")
 
         cplns = [tuple(x) for x in self._sort_completions(cplns)]

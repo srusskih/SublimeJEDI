@@ -38,6 +38,9 @@ def get_settings(view):
     sublime_completions_visibility = get_settings_param(
         view, 'sublime_completions_visibility', 'default')
 
+    only_complete_after_regex = get_settings_param(
+        view, 'only_complete_after_regex', '')
+
     first_folder = ''
     if view.window().folders():
         first_folder = os.path.split(view.window().folders()[0])[-1]
@@ -53,6 +56,7 @@ def get_settings(view):
         'sublime_completions_visibility': sublime_completions_visibility,
         'follow_imports': get_settings_param(view, 'follow_imports', True),
         'completion_timeout': get_settings_param(view, 'comletion_timeout', 3),
+        'only_complete_after_regex': only_complete_after_regex,
     }
 
 

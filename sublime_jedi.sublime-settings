@@ -46,5 +46,8 @@
     "enable_tooltip": true,
 
     // SublimeREPL integration
-    "enable_in_sublime_repl": false
+    "enable_in_sublime_repl": false,
+
+    // Only show completions after character that matches this regex
+    "only_complete_after_regex": ""
 }
