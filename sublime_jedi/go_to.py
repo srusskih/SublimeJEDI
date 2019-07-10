@@ -2,6 +2,7 @@
 import sublime
 import sublime_plugin
 from functools import partial
+import re
 
 from .utils import to_relative_path, PythonCommandMixin, get_settings
 from .daemon import ask_daemon
@@ -154,7 +155,50 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
     Find object usages
     """
     def run(self, edit):
-        ask_daemon(self.view, self._window_quick_panel_open_window, 'usages')
+        ask_daemon(self.view, self.handle_usages, 'usages')
+
+    def handle_usages(self, view, options) -> None:
+        if not options:
+            return
+
+        active_window = view.window()
+
+        # remember filenames
+        self.options = options
+
+        # remember current file location
+        self.point = self.view.sel()[0]
+
+        # expands selection to all of "focused" var
+        var = ""
+        _, col = view.rowcol(self.point.begin())
+        for match in re.finditer(r"[A-Za-z0-9_]+", view.substr(view.line(self.point.begin()))):
+            if match.start() <= col and match.end() >= col:
+                var = match.group()
+
+        def handle_rename(new_name):
+            print(var, new_name)
+
+        def handle_choose(idx):
+            if not var:
+                return
+            if idx == 0:
+                view.window().show_input_panel("New name:", var, handle_rename, None, None)
+                return
+            self._jump_to_in_window(idx - 1 if idx != -1 else idx)
+
+        def handle_highlight(idx):
+            if idx == 0:
+                return
+            partial(self._jump_to_in_window, transient=True)(idx - 1 if idx != -1 else idx)
+
+        # Show the user a selection of filenames
+        first_option = [["rename " + '"{}"'.format(var), "{} occurrences".format(len(options))]]
+        active_window.show_quick_panel(
+            first_option + [self.prepare_option(o) for o in options],
+            handle_choose,
+            on_highlight=handle_highlight)
+        self._window_quick_panel_open_window(view, options)
 
     def prepare_option(self, option):
         return [to_relative_path(option[0]),
