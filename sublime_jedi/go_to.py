@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+try:
+    from typing import Set, List, Tuple
+except Exception:
+    pass
+
 import sublime
 import sublime_plugin
 from functools import partial
@@ -152,9 +157,10 @@ class SublimeJediGoto(BaseLookUpJediCommand, sublime_plugin.TextCommand):
 
 class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
     """
-    Find object usages
+    Find object usages, and optionally rename objects.
     """
     def run(self, edit):
+        self.edit = edit
         ask_daemon(self.view, self.handle_usages, 'usages')
 
     def handle_usages(self, view, options) -> None:
@@ -176,8 +182,46 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             if match.start() <= col and match.end() >= col:
                 var = match.group()
 
-        def handle_rename(new_name):
-            print(var, new_name)
+        def handle_rename(new_name: str) -> None:
+            groups = []  # type: List[List[Tuple[str, int, int]]]
+            files = set()  # type: Set[str]
+
+            for option in options:
+                file = option[0]
+                if not file:  # can't replace text (or even show usages) in unsaved file
+                    continue
+                if file in files:
+                    groups[-1].append(option)
+                else:
+                    groups.append([option])
+                files.add(file)
+
+            for group in groups:
+                rename_in_file(group, group[0][0], new_name)
+
+        def rename_in_file(group, file, new_name):
+            # type: (List[Tuple[str, int, int]], str, str) -> None
+            with open(file) as f:
+                text = f.read()
+            original_text = text
+            offset = 0
+
+            for option in group:
+                assert text and var
+                _, row, col = option
+                point = text_point(original_text, row-1, col-1)
+
+                text = text[:point + offset] + new_name + text[point + offset + len(var):]
+                offset += len(new_name) - len(var)
+
+            with open(file, "w") as f:
+                f.write(text)
+
+        def text_point(text: str, row: int, col: int) -> int:
+            chars = 0
+            for line in text.splitlines()[:row]:
+                chars += len(line) + 1
+            return chars + col
 
         def handle_choose(idx):
             if not var:
