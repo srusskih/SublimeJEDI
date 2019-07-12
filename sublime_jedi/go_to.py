@@ -237,7 +237,14 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             partial(self._jump_to_in_window, transient=True)(idx - 1 if idx != -1 else idx)
 
         # Show the user a selection of filenames
-        first_option = [["rename " + '"{}"'.format(var), "{} occurrences".format(len(options))]]
+        files = set()  # type: Set[str]
+        for option in options:
+            files.add(option[0])
+        first_option = [[
+            "rename " + '"{}"'.format(var),
+            "{} occurrence{} in {} file{}".format(
+                len(options), 's' if len(options) != 1 else '', len(files), 's' if len(files) != 1 else '')
+        ]]
         active_window.show_quick_panel(
             first_option + [self.prepare_option(o) for o in options],
             handle_choose,
