@@ -48,6 +48,7 @@ from parso._compatibility import utf8_repr, unicode
 from parso.tree import Node, BaseNode, Leaf, ErrorNode, ErrorLeaf, \
     search_ancestor
 from parso.python.prefix import split_prefix
+from parso.utils import split_lines
 
 _FLOW_CONTAINERS = set(['if_stmt', 'while_stmt', 'for_stmt', 'try_stmt',
                         'with_stmt', 'async_stmt', 'suite'])
@@ -124,11 +125,13 @@ class PythonLeaf(PythonMixin, Leaf):
         #   indent error leafs somehow? No idea how, though.
         previous_leaf = self.get_previous_leaf()
         if previous_leaf is not None and previous_leaf.type == 'error_leaf' \
-                and previous_leaf.token_type in ('INDENT', 'ERROR_DEDENT'):
+                and previous_leaf.token_type in ('INDENT', 'DEDENT', 'ERROR_DEDENT'):
             previous_leaf = previous_leaf.get_previous_leaf()
 
-        if previous_leaf is None:
-            return self.line - self.prefix.count('\n'), 0  # It's the first leaf.
+        if previous_leaf is None:  # It's the first leaf.
+            lines = split_lines(self.prefix)
+            # + 1 is needed because split_lines always returns at least [''].
+            return self.line - len(lines) + 1, 0  # It's the first leaf.
         return previous_leaf.end_pos
 
 
@@ -166,7 +169,9 @@ class EndMarker(_LeafWithoutNewlines):
 
     @utf8_repr
     def __repr__(self):
-        return "<%s: prefix=%s>" % (type(self).__name__, repr(self.prefix))
+        return "<%s: prefix=%s end_pos=%s>" % (
+            type(self).__name__, repr(self.prefix), self.end_pos
+        )
 
 
 class Newline(PythonLeaf):
@@ -252,7 +257,7 @@ class String(Literal):
 
     @property
     def string_prefix(self):
-        return re.match('\w*(?=[\'"])', self.value).group(0)
+        return re.match(r'\w*(?=[\'"])', self.value).group(0)
 
     def _get_payload(self):
         match = re.search(
@@ -263,7 +268,7 @@ class String(Literal):
         return match.group(2)[:-len(match.group(1))]
 
 
-class FStringString(Leaf):
+class FStringString(PythonLeaf):
     """
     f-strings contain f-string expressions and normal python strings. These are
     the string parts of f-strings.
@@ -272,7 +277,7 @@ class FStringString(Leaf):
     __slots__ = ()
 
 
-class FStringStart(Leaf):
+class FStringStart(PythonLeaf):
     """
     f-strings contain f-string expressions and normal python strings. These are
     the string parts of f-strings.
@@ -281,7 +286,7 @@ class FStringStart(Leaf):
     __slots__ = ()
 
 
-class FStringEnd(Leaf):
+class FStringEnd(PythonLeaf):
     """
     f-strings contain f-string expressions and normal python strings. These are
     the string parts of f-strings.
@@ -964,7 +969,7 @@ class ImportName(Import):
 class KeywordStatement(PythonBaseNode):
     """
     For the following statements: `assert`, `del`, `global`, `nonlocal`,
-    `raise`, `return`, `yield`, `return`, `yield`.
+    `raise`, `return`, `yield`.
 
     `pass`, `continue` and `break` are not in there, because they are just
     simple keywords and the parser reduces it to a keyword.

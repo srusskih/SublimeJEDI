@@ -1,5 +1,7 @@
 from abc import abstractmethod, abstractproperty
+
 from parso._compatibility import utf8_repr, encoding, py_version
+from parso.utils import split_lines
 
 
 def search_ancestor(node, *node_types):
@@ -193,7 +195,9 @@ class Leaf(NodeOrLeaf):
     def get_start_pos_of_prefix(self):
         previous_leaf = self.get_previous_leaf()
         if previous_leaf is None:
-            return self.line - self.prefix.count('\n'), 0  # It's the first leaf.
+            lines = split_lines(self.prefix)
+            # + 1 is needed because split_lines always returns at least [''].
+            return self.line - len(lines) + 1, 0  # It's the first leaf.
         return previous_leaf.end_pos
 
     def get_first_leaf(self):
@@ -210,7 +214,7 @@ class Leaf(NodeOrLeaf):
 
     @property
     def end_pos(self):
-        lines = self.value.split('\n')
+        lines = split_lines(self.value)
         end_pos_line = self.line + len(lines) - 1
         # Check for multiline token
         if self.line == end_pos_line:
@@ -244,8 +248,6 @@ class BaseNode(NodeOrLeaf):
     type = None
 
     def __init__(self, children):
-        for c in children:
-            c.parent = self
         self.children = children
         """
         A list of :class:`NodeOrLeaf` child nodes.
@@ -318,7 +320,7 @@ class BaseNode(NodeOrLeaf):
 
     @utf8_repr
     def __repr__(self):
-        code = self.get_code().replace('\n', ' ').strip()
+        code = self.get_code().replace('\n', ' ').replace('\r', ' ').strip()
         if not py_version >= 30:
             code = code.encode(encoding, 'replace')
         return "<%s: %s@%s,%s>" % \

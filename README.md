@@ -10,7 +10,7 @@ Python Vesion Support
 ---------------------
 
 
-| Sublime Jedi Plugin  | Branch   | Jedi version   | Python 2.6.x   | Python 2.7.x   | Python 3.x   | Python 3.3   |Sublime Text 2   | Sublime Text 3
+| Sublime Jedi Plugin  | Branch   | Jedi version   | Python 2.6.x   | Python 2.7.x   | Python >3.3   | Python 3.3   |Sublime Text 2   | Sublime Text 3
 | -------------------- | -------- | -------------- | -------------- | -------------- | ------------ | ------------ |---------------- | ----------------
 | >= 0.14.0            | master   | >=0.13.2       | ❌             | ✅             | ✅           | ❌           |❌               | ✅
 | >= 0.12.0            | master   | >=0.12.0       | ❌             | ✅             | ✅           | ✅           |❌               | ✅
@@ -312,18 +312,18 @@ Some workarounds how to update completion rules and fix the issue:
 
 ##### Copy-Paste
 
-    1. Delete your Sublime Text Cache file `Cache/Python/Completion Rules.tmPreferences.cache`
-    2. Download [Completion Rules.tmPreferences.cache](https://raw.githubusercontent.com/srusskih/SublimeJEDI/master/Completion%20Rules.tmPreferences) to `User/Packages/Python/`
+1. Delete your Sublime Text Cache file `Cache/Python/Completion Rules.tmPreferences.cache`
+2. Download [Completion Rules.tmPreferences.cache](https://raw.githubusercontent.com/srusskih/SublimeJEDI/master/Completion%20Rules.tmPreferences) to `User/Packages/Python/`
 
 ##### There is package for this...
 
-    1. install Package https://packagecontrol.io/packages/PackageResourceViewer
-    2. cmd+shift+p (Command Panel)
-    2.1. type `PackageResourceViewer: Open Resource`
-    2.2. type `python` and select Python package
-    2.3. type `Completion Rules.tmPreferences`
-    2.4. remove `import` from the regexp.
-    2.5. save
+1. install Package https://packagecontrol.io/packages/PackageResourceViewer
+2. cmd+shift+p (Command Panel)
+3. type `PackageResourceViewer: Open Resource`
+4. type `python` and select Python package
+5. type `Completion Rules.tmPreferences`
+6. remove `import` from the regexp.
+7. save
 
 
 License

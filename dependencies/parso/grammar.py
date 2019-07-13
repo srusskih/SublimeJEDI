@@ -12,6 +12,7 @@ from parso.parser import BaseParser
 from parso.python.parser import Parser as PythonParser
 from parso.python.errors import ErrorFinderConfig
 from parso.python import pep8
+from parso.file_io import FileIO, KnownContentFileIO
 
 _loaded_grammars = {}
 
@@ -77,14 +78,14 @@ class Grammar(object):
 
     def _parse(self, code=None, error_recovery=True, path=None,
                start_symbol=None, cache=False, diff_cache=False,
-               cache_path=None, start_pos=(1, 0)):
+               cache_path=None, file_io=None, start_pos=(1, 0)):
         """
         Wanted python3.5 * operator and keyword only arguments. Therefore just
         wrap it all.
         start_pos here is just a parameter internally used. Might be public
         sometime in the future.
         """
-        if code is None and path is None:
+        if code is None and path is None and file_io is None:
             raise TypeError("Please provide either code or a path.")
 
         if start_symbol is None:
@@ -93,15 +94,19 @@ class Grammar(object):
         if error_recovery and start_symbol != 'file_input':
             raise NotImplementedError("This is currently not implemented.")
 
-        if cache and path is not None:
-            module_node = load_module(self._hashed, path, cache_path=cache_path)
+        if file_io is None:
+            if code is None:
+                file_io = FileIO(path)
+            else:
+                file_io = KnownContentFileIO(path, code)
+
+        if cache and file_io.path is not None:
+            module_node = load_module(self._hashed, file_io, cache_path=cache_path)
             if module_node is not None:
                 return module_node
 
         if code is None:
-            with open(path, 'rb') as f:
-                code = f.read()
-
+            code = file_io.read()
         code = python_bytes_to_unicode(code)
 
         lines = split_lines(code, keepends=True)
@@ -110,7 +115,7 @@ class Grammar(object):
                 raise TypeError("You have to define a diff parser to be able "
                                 "to use this option.")
             try:
-                module_cache_item = parser_cache[self._hashed][path]
+                module_cache_item = parser_cache[self._hashed][file_io.path]
             except KeyError:
                 pass
             else:
@@ -125,7 +130,7 @@ class Grammar(object):
                     old_lines=old_lines,
                     new_lines=lines
                 )
-                save_module(self._hashed, path, new_node, lines,
+                save_module(self._hashed, file_io, new_node, lines,
                             # Never pickle in pypy, it's slow as hell.
                             pickling=cache and not is_pypy,
                             cache_path=cache_path)
@@ -141,7 +146,7 @@ class Grammar(object):
         root_node = p.parse(tokens=tokens)
 
         if cache or diff_cache:
-            save_module(self._hashed, path, root_node, lines,
+            save_module(self._hashed, file_io, root_node, lines,
                         # Never pickle in pypy, it's slow as hell.
                         pickling=cache and not is_pypy,
                         cache_path=cache_path)
@@ -186,7 +191,7 @@ class Grammar(object):
         return normalizer.issues
 
     def __repr__(self):
-        nonterminals = self._pgen_grammar._nonterminal_to_dfas.keys()
+        nonterminals = self._pgen_grammar.nonterminal_to_dfas.keys()
         txt = ' '.join(list(nonterminals)[:3]) + ' ...'
         return '<%s:%s>' % (self.__class__.__name__, txt)
 
