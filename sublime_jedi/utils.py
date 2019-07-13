@@ -3,6 +3,7 @@ from __future__ import print_function
 import os
 import json
 import re
+from threading import Timer
 
 import sublime
 
@@ -214,3 +215,18 @@ def unique(items, pred=lambda x: x):
             continue
         stack.add(calculated)
         yield i
+
+
+def debounce(wait):
+    def decorator(fn):
+        def debounced(*args, **kwargs):
+            def call():
+                fn(*args, **kwargs)
+            try:
+                debounced.t.cancel()
+            except AttributeError:
+                pass
+            debounced.t = Timer(wait, call)
+            debounced.t.start()
+        return debounced
+    return decorator

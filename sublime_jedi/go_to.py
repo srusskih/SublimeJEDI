@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 try:
-    from typing import Set, List, Tuple
+    from typing import Set, List, Tuple, Any
 except Exception:
     pass
 
@@ -9,7 +9,7 @@ import sublime_plugin
 from functools import partial
 import re
 
-from .utils import to_relative_path, PythonCommandMixin, get_settings
+from .utils import to_relative_path, PythonCommandMixin, get_settings, is_python_scope, debounce
 from .daemon import ask_daemon
 from .settings import get_settings_param
 
@@ -176,11 +176,7 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
         self.point = self.view.sel()[0]
 
         # expands selection to all of "focused" var
-        var = ""
-        _, col = view.rowcol(self.point.begin())
-        for match in re.finditer(r"[A-Za-z0-9_]+", view.substr(view.line(self.point.begin()))):
-            if match.start() <= col and match.end() >= col:
-                var = match.group()
+        var = expand_selection(self.view, self.point)
 
         def handle_rename(new_name: str) -> None:
             groups = []  # type: List[List[Tuple[str, int, int]]]
@@ -254,3 +250,40 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
     def prepare_option(self, option):
         return [to_relative_path(option[0]),
                 "line: %d column: %d" % (option[1], option[2])]
+
+
+def expand_selection(view, point):
+    # type: (Any, Any) -> str
+    var = ""
+    _, col = view.rowcol(point.begin())
+    for match in re.finditer(r"[A-Za-z0-9_]+", view.substr(view.line(point.begin()))):
+        if match.start() <= col and match.end() >= col:
+            var = match.group()
+    return var
+
+
+class SublimeJediEventListener(sublime_plugin.EventListener):
+
+    def on_selection_modified_async(self, view) -> None:
+        if not is_python_scope(view, view.sel()[0].begin()):
+            return
+        highlight_usages(view)
+
+
+@debounce(0.35)
+def highlight_usages(view) -> None:
+    if not view.file_name():
+        return
+    ask_daemon(view, handle_highlight_usages, 'usages')
+
+
+def handle_highlight_usages(view, options):
+    # type: (Any, List[Tuple[str, int, int]]) -> None
+    var = expand_selection(view, view.sel()[0])
+    file_name = view.file_name()
+
+    if not options:
+        return
+    for option in options:
+        if option[0] == file_name:
+            print(var)
