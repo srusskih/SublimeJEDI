@@ -1,0 +1,21 @@
+[
+  {
+    "caption": "SublimeJedi: GoTo Definition",
+    "command": "sublime_jedi_goto"
+  },
+
+  {
+    "caption": "SublimeJedi: Find/Rename Usages",
+    "command": "sublime_jedi_find_usages"
+  },
+
+  {
+    "caption": "SublimeJedi: Show Docstring",
+    "command": "sublime_jedi_docstring"
+  },
+
+  {
+    "caption": "SublimeJedi: Show Signature",
+    "command": "sublime_jedi_signature"
+  }
+]

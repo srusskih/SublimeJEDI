@@ -139,6 +139,11 @@ Find function / method / variable / class usage, definition.
 
 Shortcut: `ALT+SHIFT+F`.
 
+There are two settings related to finding usages:
+
+- `highlight_usages_on_select`: highlights usages of symbol in file when symbol is selected (default `false`)
+- `highlight_usages_color`: color for highlighted symbols (default `"region.bluish"`)
+
 
 #### Show Python Docstring
 

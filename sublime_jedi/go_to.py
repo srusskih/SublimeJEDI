@@ -266,7 +266,7 @@ def text_point(text: str, row: int, col: int) -> int:
 class SublimeJediEventListener(sublime_plugin.EventListener):
 
     def on_selection_modified_async(self, view) -> None:
-        should_highlight = get_settings_param(view, 'highlight_usages_on_hover')
+        should_highlight = get_settings_param(view, 'highlight_usages_on_select')
         if not is_python_scope(view, view.sel()[0].begin()) or not view.file_name() or not should_highlight:
             return
         highlight_usages(view)
@@ -294,5 +294,7 @@ def handle_highlight_usages(view, options):
         view.erase_regions('sublime-jedi-usages')
         return
 
-    view.add_regions("sublime-jedi-usages", regions, "constant.numeric",
+    highlight_color = get_settings_param(view, 'highlight_usages_color')
+
+    view.add_regions("sublime-jedi-usages", regions, highlight_color or "region.bluish",
                      flags=sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE)
