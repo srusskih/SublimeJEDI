@@ -175,8 +175,8 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
         # remember current file location
         self.point = self.view.sel()[0]
 
-        # expands selection to all of "focused" var
-        var = expand_selection(self.view, self.point)
+        # expands selection to all of "focused" symbol
+        name = expand_selection(self.view, self.point)
 
         def handle_rename(new_name: str) -> None:
             groups = []  # type: List[List[Tuple[str, int, int]]]
@@ -203,27 +203,21 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             offset = 0
 
             for option in group:
-                assert text and var
+                assert text and name
                 _, row, col = option
                 point = text_point(original_text, row-1, col-1)
 
-                text = text[:point + offset] + new_name + text[point + offset + len(var):]
-                offset += len(new_name) - len(var)
+                text = text[:point + offset] + new_name + text[point + offset + len(name):]
+                offset += len(new_name) - len(name)
 
             with open(file, "w") as f:
                 f.write(text)
 
-        def text_point(text: str, row: int, col: int) -> int:
-            chars = 0
-            for line in text.splitlines()[:row]:
-                chars += len(line) + 1
-            return chars + col
-
         def handle_choose(idx):
-            if not var:
+            if not name:
                 return
             if idx == 0:
-                view.window().show_input_panel("New name:", var, handle_rename, None, None)
+                view.window().show_input_panel("New name:", name, handle_rename, None, None)
                 return
             self._jump_to_in_window(idx - 1 if idx != -1 else idx)
 
@@ -237,7 +231,7 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
         for option in options:
             files.add(option[0])
         first_option = [[
-            "rename " + '"{}"'.format(var),
+            "rename " + '"{}"'.format(name),
             "{} occurrence{} in {} file{}".format(
                 len(options), 's' if len(options) != 1 else '', len(files), 's' if len(files) != 1 else '')
         ]]
@@ -254,12 +248,19 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
 
 def expand_selection(view, point):
     # type: (Any, Any) -> str
-    var = ""
+    name = ""
     _, col = view.rowcol(point.begin())
     for match in re.finditer(r"[A-Za-z0-9_]+", view.substr(view.line(point.begin()))):
         if match.start() <= col and match.end() >= col:
-            var = match.group()
-    return var
+            name = match.group()
+    return name
+
+
+def text_point(text: str, row: int, col: int) -> int:
+    chars = 0
+    for line in text.splitlines()[:row]:
+        chars += len(line) + 1
+    return chars + col
 
 
 class SublimeJediEventListener(sublime_plugin.EventListener):
@@ -278,11 +279,20 @@ def highlight_usages(view) -> None:
 
 def handle_highlight_usages(view, options):
     # type: (Any, List[Tuple[str, int, int]]) -> None
-    var = expand_selection(view, view.sel()[0])
+    name = expand_selection(view, view.sel()[0])
     file_name = view.file_name()
 
-    if not options:
+    def get_region(o):
+        # type: (Tuple[str, int, int]) -> Any
+        _, row, col = o
+        point = view.text_point(row-1, col-1)
+        return sublime.Region(point, point + len(name))
+
+    regions = [get_region(o) for o in options if o[0] == file_name]
+
+    if not regions:
+        view.erase_regions('sublime-jedi-usages')
         return
-    for option in options:
-        if option[0] == file_name:
-            print(var)
+
+    view.add_regions("sublime-jedi-usages", regions, "constant.numeric",
+                     flags=sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE)
