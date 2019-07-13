@@ -265,15 +265,14 @@ def expand_selection(view, point):
 class SublimeJediEventListener(sublime_plugin.EventListener):
 
     def on_selection_modified_async(self, view) -> None:
-        if not is_python_scope(view, view.sel()[0].begin()):
+        should_highlight = get_settings_param(view, 'highlight_usages_on_hover')
+        if not is_python_scope(view, view.sel()[0].begin()) or not view.file_name() or not should_highlight:
             return
         highlight_usages(view)
 
 
 @debounce(0.35)
 def highlight_usages(view) -> None:
-    if not view.file_name():
-        return
     ask_daemon(view, handle_highlight_usages, 'usages')
 
 
