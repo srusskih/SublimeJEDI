@@ -195,9 +195,9 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             for group in groups:
                 rename_in_file(group, group[0][0], new_name)
 
-        def rename_in_file(group, file, new_name):
+        def rename_in_file(group, file_, new_name):
             # type: (List[Tuple[str, int, int]], str, str) -> None
-            with open(file) as f:
+            with open(file_) as f:
                 text = f.read()
             original_text = text
             offset = 0
@@ -210,7 +210,7 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
                 text = text[:point + offset] + new_name + text[point + offset + len(name):]
                 offset += len(new_name) - len(name)
 
-            with open(file, "w") as f:
+            with open(file_, "w") as f:
                 f.write(text)
 
         def handle_choose(idx):
@@ -224,14 +224,12 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
         def handle_highlight(idx):
             if idx == 0:
                 return
-            partial(self._jump_to_in_window, transient=True)(idx - 1 if idx != -1 else idx)
+            self._jump_to_in_window(idx - 1 if idx != -1 else idx, transient=True)
 
         # Show the user a selection of filenames
-        files = set()  # type: Set[str]
-        for option in options:
-            files.add(option[0])
+        files = {option[0] for option in options}  # type: Set[str]
         first_option = [[
-            "rename " + '"{}"'.format(name),
+            'rename "{}"'.format(name),
             "{} occurrence{} in {} file{}".format(
                 len(options), 's' if len(options) != 1 else '', len(files), 's' if len(files) != 1 else '')
         ]]
@@ -239,7 +237,6 @@ class SublimeJediFindUsages(BaseLookUpJediCommand, sublime_plugin.TextCommand):
             first_option + [self.prepare_option(o) for o in options],
             handle_choose,
             on_highlight=handle_highlight)
-        self._window_quick_panel_open_window(view, options)
 
     def prepare_option(self, option):
         return [to_relative_path(option[0]),
@@ -257,6 +254,10 @@ def expand_selection(view, point):
 
 
 def text_point(text: str, row: int, col: int) -> int:
+    """
+    Return the integer offset for the char at 0-indexed row and col in text.
+    Similar to View.text_point, but doesn't require loading the view first.
+    """
     chars = 0
     for line in text.splitlines()[:row]:
         chars += len(line) + 1
