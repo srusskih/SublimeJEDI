@@ -49,5 +49,13 @@
     "enable_in_sublime_repl": false,
 
     // Only show completions after character that matches this regex
-    "only_complete_after_regex": ""
+    "only_complete_after_regex": "",
+
+    // Highlight symbol usages in current view on select
+    "highlight_usages_on_select": false,
+
+    // Highlight color for symbol usages: an empty string for the default color, or one of
+    // "region.redish", "region.orangish", "region.yellowish", "region.greenish",
+    // "region.bluish", "region.purplish", "region.pinkish", "region.blackish"
+    "highlight_usages_color": "region.bluish"
 }
