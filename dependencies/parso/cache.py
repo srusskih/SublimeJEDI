@@ -18,7 +18,7 @@ from parso._compatibility import FileNotFoundError
 LOG = logging.getLogger(__name__)
 
 
-_PICKLE_VERSION = 31
+_PICKLE_VERSION = 32
 """
 Version number (integer) for file system cache.
 
@@ -82,9 +82,8 @@ def load_module(hashed_grammar, file_io, cache_path=None):
     """
     Returns a module or None, if it fails.
     """
-    try:
-        p_time = file_io.get_last_modified()
-    except FileNotFoundError:
+    p_time = file_io.get_last_modified()
+    if p_time is None:
         return None
 
     try:

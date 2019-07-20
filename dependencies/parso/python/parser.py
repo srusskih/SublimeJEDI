@@ -39,13 +39,13 @@ class Parser(BaseParser):
         'for_stmt': tree.ForStmt,
         'while_stmt': tree.WhileStmt,
         'try_stmt': tree.TryStmt,
-        'comp_for': tree.CompFor,
+        'sync_comp_for': tree.SyncCompFor,
         # Not sure if this is the best idea, but IMO it's the easiest way to
         # avoid extreme amounts of work around the subtle difference of 2/3
         # grammar in list comoprehensions.
-        'list_for': tree.CompFor,
+        'list_for': tree.SyncCompFor,
         # Same here. This just exists in Python 2.6.
-        'gen_for': tree.CompFor,
+        'gen_for': tree.SyncCompFor,
         'decorator': tree.Decorator,
         'lambdef': tree.Lambda,
         'old_lambdef': tree.Lambda,

@@ -107,7 +107,7 @@ atom: ('(' [yield_expr|testlist_comp] ')' |
        NAME | NUMBER | strings)
 strings: STRING+
 listmaker: test ( list_for | (',' test)* [','] )
-testlist_comp: test ( comp_for | (',' test)* [','] )
+testlist_comp: test ( sync_comp_for | (',' test)* [','] )
 lambdef: 'lambda' [varargslist] ':' test
 trailer: '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME
 subscriptlist: subscript (',' subscript)* [',']
@@ -115,8 +115,8 @@ subscript: '.' '.' '.' | test | [test] ':' [test] [sliceop]
 sliceop: ':' [test]
 exprlist: expr (',' expr)* [',']
 testlist: test (',' test)* [',']
-dictorsetmaker: ( (test ':' test (comp_for | (',' test ':' test)* [','])) |
-                  (test (comp_for | (',' test)* [','])) )
+dictorsetmaker: ( (test ':' test (sync_comp_for | (',' test ':' test)* [','])) |
+                  (test (sync_comp_for | (',' test)* [','])) )
 
 classdef: 'class' NAME ['(' [testlist] ')'] ':' suite
 
@@ -125,14 +125,14 @@ arglist: (argument ',')* (argument [',']
                          |'**' test)
 # The reason that keywords are test nodes instead of NAME is that using NAME
 # results in an ambiguity. ast.c makes sure it's a NAME.
-argument: test [comp_for] | test '=' test
+argument: test [sync_comp_for] | test '=' test
 
 list_iter: list_for | list_if
 list_for: 'for' exprlist 'in' testlist_safe [list_iter]
 list_if: 'if' old_test [list_iter]
 
-comp_iter: comp_for | comp_if
-comp_for: 'for' exprlist 'in' or_test [comp_iter]
+comp_iter: sync_comp_for | comp_if
+sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
 comp_if: 'if' old_test [comp_iter]
 
 testlist1: test (',' test)*

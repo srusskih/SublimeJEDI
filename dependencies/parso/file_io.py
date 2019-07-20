@@ -14,10 +14,13 @@ class FileIO(object):
 
     def get_last_modified(self):
         """
-        Returns float - timestamp
-        Might raise FileNotFoundError
+        Returns float - timestamp or None, if path doesn't exist.
         """
-        return os.path.getmtime(self.path)
+        try:
+            return os.path.getmtime(self.path)
+        except OSError:
+            # Might raise FileNotFoundError, OSError for Python 2
+            return None
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self.path)

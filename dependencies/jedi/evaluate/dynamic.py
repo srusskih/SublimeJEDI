@@ -99,10 +99,11 @@ def search_params(evaluator, execution_context, funcdef):
             )
             if function_executions:
                 zipped_params = zip(*list(
-                    function_execution.get_executed_params()
+                    function_execution.get_executed_params_and_issues()[0]
                     for function_execution in function_executions
                 ))
-                params = [DynamicExecutedParams(evaluator, executed_params) for executed_params in zipped_params]
+                params = [DynamicExecutedParams(evaluator, executed_params)
+                          for executed_params in zipped_params]
                 # Evaluate the ExecutedParams to types.
             else:
                 return create_default_params(execution_context, funcdef)
@@ -122,7 +123,7 @@ def _search_function_executions(evaluator, module_context, funcdef, string_name)
     compare_node = funcdef
     if string_name == '__init__':
         cls = get_parent_scope(funcdef)
-        if isinstance(cls, tree.Class):
+        if cls.type == 'classdef':
             string_name = cls.name.value
             compare_node = cls
 
@@ -208,7 +209,7 @@ def _check_name_for_execution(evaluator, context, compare_node, name, trailer):
             # Here we're trying to find decorators by checking the first
             # parameter. It's not very generic though. Should find a better
             # solution that also applies to nested decorators.
-            params = value.parent_context.get_executed_params()
+            params, _ = value.parent_context.get_executed_params_and_issues()
             if len(params) != 1:
                 continue
             values = params[0].infer()

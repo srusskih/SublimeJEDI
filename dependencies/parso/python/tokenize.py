@@ -23,6 +23,9 @@ from parso._compatibility import py_version
 from parso.utils import split_lines
 
 
+# Maximum code point of Unicode 6.0: 0x10ffff (1,114,111)
+MAX_UNICODE = '\U0010ffff'
+
 STRING = PythonTokenTypes.STRING
 NAME = PythonTokenTypes.NAME
 NUMBER = PythonTokenTypes.NUMBER
@@ -51,8 +54,13 @@ if py_version >= 30:
     # Python 3 has str.isidentifier() to check if a char is a valid identifier
     is_identifier = str.isidentifier
 else:
-    namechars = string.ascii_letters + '_'
-    is_identifier = lambda s: s in namechars
+    # Python 2 doesn't, but it's not that important anymore and if you tokenize
+    # Python 2 code with this, it's still ok. It's just that parsing Python 3
+    # code with this function is not 100% correct.
+    # This just means that Python 2 code matches a few identifiers too much,
+    # but that doesn't really matter.
+    def is_identifier(s):
+        return True
 
 
 def group(*choices, **kwargs):
@@ -118,8 +126,10 @@ def _get_token_collection(version_info):
         return result
 
 
-fstring_string_single_line = _compile(r'(?:[^{}\r\n]+|\{\{|\}\})+')
+fstring_string_single_line = _compile(r'(?:\{\{|\}\}|\\(?:\r\n?|\n)|[^{}\r\n])+')
 fstring_string_multi_line = _compile(r'(?:[^{}]+|\{\{|\}\})+')
+fstring_format_spec_single_line = _compile(r'(?:\\(?:\r\n?|\n)|[^{}\r\n])+')
+fstring_format_spec_multi_line = _compile(r'[^{}]+')
 
 
 def _create_token_collection(version_info):
@@ -128,7 +138,16 @@ def _create_token_collection(version_info):
     Whitespace = r'[ \f\t]*'
     whitespace = _compile(Whitespace)
     Comment = r'#[^\r\n]*'
-    Name = r'\w+'
+    # Python 2 is pretty much not working properly anymore, we just ignore
+    # parsing unicode properly, which is fine, I guess.
+    if version_info[0] == 2:
+        Name = r'([A-Za-z_0-9]+)'
+    elif sys.version_info[0] == 2:
+        # Unfortunately the regex engine cannot deal with the regex below, so
+        # just use this one.
+        Name = r'(\w+)'
+    else:
+        Name = u'([A-Za-z_0-9\u0080-' + MAX_UNICODE + ']+)'
 
     if version_info >= (3, 6):
         Hexnumber = r'0[xX](?:_?[0-9a-fA-F])+'
@@ -151,6 +170,8 @@ def _create_token_collection(version_info):
             Octnumber = '0[oO]?[0-7]+'
         Decnumber = r'(?:0+|[1-9][0-9]*)'
         Intnumber = group(Hexnumber, Binnumber, Octnumber, Decnumber)
+        if version_info[0] < 3:
+            Intnumber += '[lL]?'
         Exponent = r'[eE][-+]?[0-9]+'
         Pointfloat = group(r'[0-9]+\.[0-9]*', r'\.[0-9]+') + maybe(Exponent)
         Expfloat = r'[0-9]+' + Exponent
@@ -186,9 +207,13 @@ def _create_token_collection(version_info):
 
     Bracket = '[][(){}]'
 
-    special_args = [r'\r\n?', r'\n', r'[:;.,@]']
+    special_args = [r'\r\n?', r'\n', r'[;.,@]']
     if version_info >= (3, 0):
         special_args.insert(0, r'\.\.\.')
+    if version_info >= (3, 8):
+        special_args.insert(0, ":=?")
+    else:
+        special_args.insert(0, ":")
     Special = group(*special_args)
 
     Funny = group(Operator, Bracket, Special)
@@ -281,7 +306,10 @@ class FStringNode(object):
         return len(self.quote) == 3
 
     def is_in_expr(self):
-        return (self.parentheses_count - self.format_spec_count) > 0
+        return self.parentheses_count > self.format_spec_count
+
+    def is_in_format_spec(self):
+        return not self.is_in_expr() and self.format_spec_count
 
 
 def _close_fstring_if_necessary(fstring_stack, string, start_pos, additional_prefix):
@@ -303,10 +331,18 @@ def _close_fstring_if_necessary(fstring_stack, string, start_pos, additional_pre
 def _find_fstring_string(endpats, fstring_stack, line, lnum, pos):
     tos = fstring_stack[-1]
     allow_multiline = tos.allow_multiline()
-    if allow_multiline:
-        match = fstring_string_multi_line.match(line, pos)
+    if tos.is_in_format_spec():
+        if allow_multiline:
+            regex = fstring_format_spec_multi_line
+        else:
+            regex = fstring_format_spec_single_line
     else:
-        match = fstring_string_single_line.match(line, pos)
+        if allow_multiline:
+            regex = fstring_string_multi_line
+        else:
+            regex = fstring_string_single_line
+
+    match = regex.match(line, pos)
     if match is None:
         return tos.previous_lines, pos
 
@@ -321,7 +357,9 @@ def _find_fstring_string(endpats, fstring_stack, line, lnum, pos):
 
     new_pos = pos
     new_pos += len(string)
-    if allow_multiline and (string.endswith('\n') or string.endswith('\r')):
+    # even if allow_multiline is False, we still need to check for trailing
+    # newlines, because a single-line f-string can contain line continuations
+    if string.endswith('\n') or string.endswith('\r'):
         tos.previous_lines += string
         string = ''
     else:
@@ -491,6 +529,24 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
             if (initial in numchars or                      # ordinary number
                     (initial == '.' and token != '.' and token != '...')):
                 yield PythonToken(NUMBER, token, spos, prefix)
+            elif pseudomatch.group(3) is not None:            # ordinary name
+                if token in always_break_tokens:
+                    fstring_stack[:] = []
+                    paren_level = 0
+                    # We only want to dedent if the token is on a new line.
+                    if re.match(r'[ \f\t]*$', line[:start]):
+                        while True:
+                            indent = indents.pop()
+                            if indent > start:
+                                yield PythonToken(DEDENT, '', spos, '')
+                            else:
+                                indents.append(indent)
+                                break
+                if is_identifier(token):
+                    yield PythonToken(NAME, token, spos, prefix)
+                else:
+                    for t in _split_illegal_unicode_name(token, spos, prefix):
+                        yield t  # yield from Python 2
             elif initial in '\r\n':
                 if any(not f.allow_multiline() for f in fstring_stack):
                     # Would use fstring_stack.clear, but that's not available
@@ -545,20 +601,6 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
             elif token in fstring_pattern_map:  # The start of an fstring.
                 fstring_stack.append(FStringNode(fstring_pattern_map[token]))
                 yield PythonToken(FSTRING_START, token, spos, prefix)
-            elif is_identifier(initial):                      # ordinary name
-                if token in always_break_tokens:
-                    fstring_stack[:] = []
-                    paren_level = 0
-                    # We only want to dedent if the token is on a new line.
-                    if re.match(r'[ \f\t]*$', line[:start]):
-                        while True:
-                            indent = indents.pop()
-                            if indent > start:
-                                yield PythonToken(DEDENT, '', spos, '')
-                            else:
-                                indents.append(indent)
-                                break
-                yield PythonToken(NAME, token, spos, prefix)
             elif initial == '\\' and line[start:] in ('\\\n', '\\\r\n', '\\\r'):  # continued stmt
                 additional_prefix += prefix + line[start:]
                 break
@@ -575,7 +617,8 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                         if paren_level:
                             paren_level -= 1
                 elif token == ':' and fstring_stack \
-                        and fstring_stack[-1].parentheses_count == 1:
+                        and fstring_stack[-1].parentheses_count \
+                        - fstring_stack[-1].format_spec_count == 1:
                     fstring_stack[-1].format_spec_count += 1
 
                 yield PythonToken(OP, token, spos, prefix)
@@ -591,6 +634,39 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
     for indent in indents[1:]:
         yield PythonToken(DEDENT, '', end_pos, '')
     yield PythonToken(ENDMARKER, '', end_pos, additional_prefix)
+
+
+def _split_illegal_unicode_name(token, start_pos, prefix):
+    def create_token():
+        return PythonToken(ERRORTOKEN if is_illegal else NAME, found, pos, prefix)
+
+    found = ''
+    is_illegal = False
+    pos = start_pos
+    for i, char in enumerate(token):
+        if is_illegal:
+            if is_identifier(char):
+                yield create_token()
+                found = char
+                is_illegal = False
+                prefix = ''
+                pos = start_pos[0], start_pos[1] + i
+            else:
+                found += char
+        else:
+            new_found = found + char
+            if is_identifier(new_found):
+                found = new_found
+            else:
+                if found:
+                    yield create_token()
+                    prefix = ''
+                    pos = start_pos[0], start_pos[1] + i
+                found = char
+                is_illegal = True
+
+    if found:
+        yield create_token()
 
 
 if __name__ == "__main__":

@@ -953,20 +953,17 @@ class _CheckAssignmentRule(SyntaxRule):
             self.add_issue(node, message=message)
 
 
-@ErrorFinder.register_rule(type='comp_for')
 @ErrorFinder.register_rule(type='sync_comp_for')
 class _CompForRule(_CheckAssignmentRule):
     message = "asynchronous comprehension outside of an asynchronous function"
 
     def is_issue(self, node):
-        # Some of the nodes here are already used, so no else if
-        if node.type != 'comp_for' or self._normalizer.version < (3, 8):
-            # comp_for was replaced by sync_comp_for in Python 3.8.
-            expr_list = node.children[1 + int(node.children[0] == 'async')]
-            if expr_list.type != 'expr_list':  # Already handled.
-                self._check_assignment(expr_list)
+        expr_list = node.children[1]
+        print(expr_list)
+        if expr_list.type != 'expr_list':  # Already handled.
+            self._check_assignment(expr_list)
 
-        return node.children[0] == 'async' \
+        return node.parent.children[0] == 'async' \
             and not self._normalizer.context.is_async_funcdef()
 
 

@@ -1,12 +1,34 @@
 from jedi._compatibility import unicode
 from jedi.evaluate.compiled.context import CompiledObject, CompiledName, \
-    CompiledObjectFilter, CompiledContextName, create_from_access_path, \
-    create_from_name
+    CompiledObjectFilter, CompiledContextName, create_from_access_path
+from jedi.evaluate.base_context import ContextWrapper
 
 
 def builtin_from_name(evaluator, string):
-    builtins = evaluator.builtins_module
-    return create_from_name(evaluator, builtins, string)
+    typing_builtins_module = evaluator.builtins_module
+    if string in ('None', 'True', 'False'):
+        builtins, = typing_builtins_module.non_stub_context_set
+        filter_ = next(builtins.get_filters())
+    else:
+        filter_ = next(typing_builtins_module.get_filters())
+    name, = filter_.get(string)
+    context, = name.infer()
+    return context
+
+
+class CompiledValue(ContextWrapper):
+    def __init__(self, instance, compiled_obj):
+        super(CompiledValue, self).__init__(instance)
+        self._compiled_obj = compiled_obj
+
+    def __getattribute__(self, name):
+        if name in ('get_safe_value', 'execute_operation', 'access_handle',
+                    'negate', 'py__bool__', 'is_compiled'):
+            return getattr(self._compiled_obj, name)
+        return super(CompiledValue, self).__getattribute__(name)
+
+    def __repr__(self):
+        return '<%s: %s>' % (self.__class__.__name__, self._compiled_obj)
 
 
 def create_simple_object(evaluator, obj):
@@ -14,18 +36,13 @@ def create_simple_object(evaluator, obj):
     Only allows creations of objects that are easily picklable across Python
     versions.
     """
-    assert isinstance(obj, (int, float, str, bytes, unicode, slice, complex))
-    return create_from_access_path(
+    assert type(obj) in (int, float, str, bytes, unicode, slice, complex, bool), obj
+    compiled_obj = create_from_access_path(
         evaluator,
         evaluator.compiled_subprocess.create_simple_object(obj)
     )
-
-
-def get_special_object(evaluator, identifier):
-    return create_from_access_path(
-        evaluator,
-        evaluator.compiled_subprocess.get_special_object(identifier)
-    )
+    instance, = builtin_from_name(evaluator, compiled_obj.name.string_name).execute_evaluated()
+    return CompiledValue(instance, compiled_obj)
 
 
 def get_string_context_set(evaluator):

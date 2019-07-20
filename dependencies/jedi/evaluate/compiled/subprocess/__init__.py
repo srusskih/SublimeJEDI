@@ -12,7 +12,6 @@ import sys
 import subprocess
 import socket
 import errno
-import weakref
 import traceback
 from functools import partial
 from threading import Thread
@@ -22,7 +21,7 @@ except ImportError:
     from Queue import Queue, Empty  # python 2.7
 
 from jedi._compatibility import queue, is_py3, force_unicode, \
-    pickle_dump, pickle_load, GeneralizedPopen, print_to_stderr
+    pickle_dump, pickle_load, GeneralizedPopen, weakref
 from jedi import debug
 from jedi.cache import memoize_method
 from jedi.evaluate.compiled.subprocess import functions
@@ -37,7 +36,6 @@ _MAIN_PATH = os.path.join(os.path.dirname(__file__), '__main__.py')
 def _enqueue_output(out, queue):
     for line in iter(out.readline, b''):
         queue.put(line)
-    out.close()
 
 
 def _add_stderr_to_debug(stderr_queue):
@@ -54,6 +52,22 @@ def _add_stderr_to_debug(stderr_queue):
 
 def _get_function(name):
     return getattr(functions, name)
+
+
+def _cleanup_process(process, thread):
+    try:
+        process.kill()
+        process.wait()
+    except OSError:
+        # Raised if the process is already killed.
+        pass
+    thread.join()
+    for stream in [process.stdin, process.stdout, process.stderr]:
+        try:
+            stream.close()
+        except OSError:
+            # Raised if the stream is broken.
+            pass
 
 
 class _EvaluatorProcess(object):
@@ -145,6 +159,7 @@ class CompiledSubprocess(object):
     def __init__(self, executable):
         self._executable = executable
         self._evaluator_deletion_queue = queue.deque()
+        self._cleanup_callable = lambda: None
 
     def __repr__(self):
         pid = os.getpid()
@@ -156,9 +171,8 @@ class CompiledSubprocess(object):
             pid,
         )
 
-    @property
     @memoize_method
-    def _process(self):
+    def _get_process(self):
         debug.dbg('Start environment subprocess %s', self._executable)
         parso_path = sys.modules['parso'].__file__
         args = (
@@ -183,6 +197,12 @@ class CompiledSubprocess(object):
         )
         t.daemon = True
         t.start()
+        # Ensure the subprocess is properly cleaned up when the object
+        # is garbage collected.
+        self._cleanup_callable = weakref.finalize(self,
+                                                  _cleanup_process,
+                                                  process,
+                                                  t)
         return process
 
     def run(self, evaluator, function, args=(), kwargs={}):
@@ -203,18 +223,7 @@ class CompiledSubprocess(object):
 
     def _kill(self):
         self.is_crashed = True
-        try:
-            self._process.kill()
-            self._process.wait()
-        except (AttributeError, TypeError):
-            # If the Python process is terminating, it will remove some modules
-            # earlier than others and in general it's unclear how to deal with
-            # that so we just ignore the exceptions here.
-            pass
-
-    def __del__(self):
-        if not self.is_crashed:
-            self._kill()
+        self._cleanup_callable()
 
     def _send(self, evaluator_id, function, args=(), kwargs={}):
         if self.is_crashed:
@@ -226,7 +235,7 @@ class CompiledSubprocess(object):
 
         data = evaluator_id, function, args, kwargs
         try:
-            pickle_dump(data, self._process.stdin, self._pickle_protocol)
+            pickle_dump(data, self._get_process().stdin, self._pickle_protocol)
         except (socket.error, IOError) as e:
             # Once Python2 will be removed we can just use `BrokenPipeError`.
             # Also, somehow in windows it returns EINVAL instead of EPIPE if
@@ -239,10 +248,10 @@ class CompiledSubprocess(object):
                                 % self._executable)
 
         try:
-            is_exception, traceback, result = pickle_load(self._process.stdout)
+            is_exception, traceback, result = pickle_load(self._get_process().stdout)
         except EOFError as eof_error:
             try:
-                stderr = self._process.stderr.read().decode('utf-8', 'replace')
+                stderr = self._get_process().stderr.read().decode('utf-8', 'replace')
             except Exception as exc:
                 stderr = '<empty/not available (%r)>' % exc
             self._kill()

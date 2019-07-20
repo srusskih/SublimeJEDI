@@ -43,6 +43,10 @@ Parser Tree Classes
 """
 
 import re
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 
 from parso._compatibility import utf8_repr, unicode
 from parso.tree import Node, BaseNode, Leaf, ErrorNode, ErrorLeaf, \
@@ -55,7 +59,7 @@ _FLOW_CONTAINERS = set(['if_stmt', 'while_stmt', 'for_stmt', 'try_stmt',
 _RETURN_STMT_CONTAINERS = set(['suite', 'simple_stmt']) | _FLOW_CONTAINERS
 _FUNC_CONTAINERS = set(['suite', 'simple_stmt', 'decorated']) | _FLOW_CONTAINERS
 _GET_DEFINITION_TYPES = set([
-    'expr_stmt', 'comp_for', 'with_stmt', 'for_stmt', 'import_name',
+    'expr_stmt', 'sync_comp_for', 'with_stmt', 'for_stmt', 'import_name',
     'import_from', 'param'
 ])
 _IMPORTS = set(['import_name', 'import_from'])
@@ -442,7 +446,7 @@ class Module(Scope):
                         recurse(child)
 
             recurse(self)
-            self._used_names = dct
+            self._used_names = UsedNamesMapping(dct)
         return self._used_names
 
 
@@ -466,6 +470,9 @@ class ClassOrFunc(Scope):
         :rtype: list of :class:`Decorator`
         """
         decorated = self.parent
+        if decorated.type == 'async_funcdef':
+            decorated = decorated.parent
+
         if decorated.type == 'decorated':
             if decorated.children[0].type == 'decorators':
                 return decorated.children[0].children
@@ -545,7 +552,8 @@ def _create_params(parent, argslist_list):
                     if param_children[0] == '*' \
                             and (len(param_children) == 1
                                  or param_children[1] == ',') \
-                            or check_python2_nested_param(param_children[0]):
+                            or check_python2_nested_param(param_children[0]) \
+                            or param_children[0] == '/':
                         for p in param_children:
                             p.parent = parent
                         new_children += param_children
@@ -1158,6 +1166,13 @@ class Param(PythonBaseNode):
                 index -= 2
         except ValueError:
             pass
+        try:
+            keyword_only_index = self.parent.children.index('/')
+            if index > keyword_only_index:
+                # Skip the ` /, `
+                index -= 2
+        except ValueError:
+            pass
         return index - 1
 
     def get_parent_function(self):
@@ -1189,8 +1204,8 @@ class Param(PythonBaseNode):
         return '<%s: %s>' % (type(self).__name__, str(self._tfpdef()) + default)
 
 
-class CompFor(PythonBaseNode):
-    type = 'comp_for'
+class SyncCompFor(PythonBaseNode):
+    type = 'sync_comp_for'
     __slots__ = ()
 
     def get_defined_names(self):
@@ -1198,4 +1213,33 @@ class CompFor(PythonBaseNode):
         Returns the a list of `Name` that the comprehension defines.
         """
         # allow async for
-        return _defined_names(self.children[self.children.index('for') + 1])
+        return _defined_names(self.children[1])
+
+
+# This is simply here so an older Jedi version can work with this new parso
+# version. Can be deleted in the next release.
+CompFor = SyncCompFor
+
+
+class UsedNamesMapping(Mapping):
+    """
+    This class exists for the sole purpose of creating an immutable dict.
+    """
+    def __init__(self, dct):
+        self._dict = dct
+
+    def __getitem__(self, key):
+        return self._dict[key]
+
+    def __len__(self):
+        return len(self._dict)
+
+    def __iter__(self):
+        return iter(self._dict)
+
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other):
+        # Comparing these dicts does not make sense.
+        return self is other

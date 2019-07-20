@@ -8,7 +8,8 @@ from textwrap import dedent
 from parso.python.parser import Parser
 from parso.python import tree
 
-from jedi._compatibility import u
+from jedi._compatibility import u, Parameter
+from jedi.evaluate.base_context import NO_CONTEXTS
 from jedi.evaluate.syntax_tree import eval_atom
 from jedi.evaluate.helpers import evaluate_call_of_leaf
 from jedi.evaluate.compiled import get_string_context_set
@@ -20,7 +21,7 @@ CompletionParts = namedtuple('CompletionParts', ['path', 'has_dot', 'name'])
 
 def sorted_definitions(defs):
     # Note: `or ''` below is required because `module_path` could be
-    return sorted(defs, key=lambda x: (x.module_path or '', x.line or 0, x.column or 0))
+    return sorted(defs, key=lambda x: (x.module_path or '', x.line or 0, x.column or 0, x.name))
 
 
 def get_on_completion_name(module_node, lines, position):
@@ -143,21 +144,154 @@ def evaluate_goto_definition(evaluator, context, leaf):
         return evaluator.goto_definitions(context, leaf)
 
     parent = leaf.parent
+    definitions = NO_CONTEXTS
     if parent.type == 'atom':
-        return context.eval_node(leaf.parent)
+        # e.g. `(a + b)`
+        definitions = context.eval_node(leaf.parent)
     elif parent.type == 'trailer':
-        return evaluate_call_of_leaf(context, leaf)
+        # e.g. `a()`
+        definitions = evaluate_call_of_leaf(context, leaf)
     elif isinstance(leaf, tree.Literal):
+        # e.g. `"foo"` or `1.0`
         return eval_atom(context, leaf)
     elif leaf.type in ('fstring_string', 'fstring_start', 'fstring_end'):
         return get_string_context_set(evaluator)
-    return []
+    return definitions
 
 
-CallSignatureDetails = namedtuple(
-    'CallSignatureDetails',
-    ['bracket_leaf', 'call_index', 'keyword_name_str']
-)
+class CallDetails(object):
+    def __init__(self, bracket_leaf, children, position):
+        ['bracket_leaf', 'call_index', 'keyword_name_str']
+        self.bracket_leaf = bracket_leaf
+        self._children = children
+        self._position = position
+
+    @property
+    def index(self):
+        return _get_index_and_key(self._children, self._position)[0]
+
+    @property
+    def keyword_name_str(self):
+        return _get_index_and_key(self._children, self._position)[1]
+
+    def calculate_index(self, param_names):
+        positional_count = 0
+        used_names = set()
+        star_count = -1
+        args = list(_iter_arguments(self._children, self._position))
+        if not args:
+            if param_names:
+                return 0
+            else:
+                return None
+
+        is_kwarg = False
+        for i, (star_count, key_start, had_equal) in enumerate(args):
+            is_kwarg |= had_equal | (star_count == 2)
+            if star_count:
+                pass  # For now do nothing, we don't know what's in there here.
+            else:
+                if i + 1 != len(args):  # Not last
+                    if had_equal:
+                        used_names.add(key_start)
+                    else:
+                        positional_count += 1
+
+        for i, param_name in enumerate(param_names):
+            kind = param_name.get_kind()
+
+            if not is_kwarg:
+                if kind == Parameter.VAR_POSITIONAL:
+                    return i
+                if kind in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.POSITIONAL_ONLY):
+                    if i == positional_count:
+                        return i
+
+            if key_start is not None and not star_count == 1 or star_count == 2:
+                if param_name.string_name not in used_names \
+                        and (kind == Parameter.KEYWORD_ONLY
+                             or kind == Parameter.POSITIONAL_OR_KEYWORD
+                             and positional_count <= i):
+                    if star_count:
+                        return i
+                    if had_equal:
+                        if param_name.string_name == key_start:
+                            return i
+                    else:
+                        if param_name.string_name.startswith(key_start):
+                            return i
+
+                if kind == Parameter.VAR_KEYWORD:
+                    return i
+        return None
+
+
+def _iter_arguments(nodes, position):
+    def remove_after_pos(name):
+        if name.type != 'name':
+            return None
+        return name.value[:position[1] - name.start_pos[1]]
+
+    # Returns Generator[Tuple[star_count, Optional[key_start: str], had_equal]]
+    nodes_before = [c for c in nodes if c.start_pos < position]
+    if nodes_before[-1].type == 'arglist':
+        for x in _iter_arguments(nodes_before[-1].children, position):
+            yield x  # Python 2 :(
+        return
+
+    previous_node_yielded = False
+    stars_seen = 0
+    for i, node in enumerate(nodes_before):
+        if node.type == 'argument':
+            previous_node_yielded = True
+            first = node.children[0]
+            second = node.children[1]
+            if second == '=':
+                if second.start_pos < position:
+                    yield 0, first.value, True
+                else:
+                    yield 0, remove_after_pos(first), False
+            elif first in ('*', '**'):
+                yield len(first.value), remove_after_pos(second), False
+            else:
+                # Must be a Comprehension
+                first_leaf = node.get_first_leaf()
+                if first_leaf.type == 'name' and first_leaf.start_pos >= position:
+                    yield 0, remove_after_pos(first_leaf), False
+                else:
+                    yield 0, None, False
+            stars_seen = 0
+        elif node.type in ('testlist', 'testlist_star_expr'):  # testlist is Python 2
+            for n in node.children[::2]:
+                if n.type == 'star_expr':
+                    stars_seen = 1
+                    n = n.children[1]
+                yield stars_seen, remove_after_pos(n), False
+                stars_seen = 0
+            # The count of children is even if there's a comma at the end.
+            previous_node_yielded = bool(len(node.children) % 2)
+        elif isinstance(node, tree.PythonLeaf) and node.value == ',':
+            if not previous_node_yielded:
+                yield stars_seen, '', False
+                stars_seen = 0
+            previous_node_yielded = False
+        elif isinstance(node, tree.PythonLeaf) and node.value in ('*', '**'):
+            stars_seen = len(node.value)
+        elif node == '=' and nodes_before[-1]:
+            previous_node_yielded = True
+            before = nodes_before[i - 1]
+            if before.type == 'name':
+                yield 0, before.value, True
+            else:
+                yield 0, None, False
+            # Just ignore the star that is probably a syntax error.
+            stars_seen = 0
+
+    if not previous_node_yielded:
+        if nodes_before[-1].type == 'name':
+            yield stars_seen, remove_after_pos(nodes_before[-1]), False
+        else:
+            yield stars_seen, '', False
 
 
 def _get_index_and_key(nodes, position):
@@ -166,23 +300,22 @@ def _get_index_and_key(nodes, position):
     """
     nodes_before = [c for c in nodes if c.start_pos < position]
     if nodes_before[-1].type == 'arglist':
-        nodes_before = [c for c in nodes_before[-1].children if c.start_pos < position]
+        return _get_index_and_key(nodes_before[-1].children, position)
 
     key_str = None
 
-    if nodes_before:
-        last = nodes_before[-1]
-        if last.type == 'argument' and last.children[1] == '=' \
-                and last.children[1].end_pos <= position:
-            # Checked if the argument
-            key_str = last.children[0].value
-        elif last == '=':
-            key_str = nodes_before[-2].value
+    last = nodes_before[-1]
+    if last.type == 'argument' and last.children[1] == '=' \
+            and last.children[1].end_pos <= position:
+        # Checked if the argument
+        key_str = last.children[0].value
+    elif last == '=':
+        key_str = nodes_before[-2].value
 
     return nodes_before.count(','), key_str
 
 
-def _get_call_signature_details_from_error_node(node, position):
+def _get_call_signature_details_from_error_node(node, additional_children, position):
     for index, element in reversed(list(enumerate(node.children))):
         # `index > 0` means that it's a trailer and not an atom.
         if element == '(' and element.end_pos <= position and index > 0:
@@ -193,10 +326,7 @@ def _get_call_signature_details_from_error_node(node, position):
             if name is None:
                 continue
             if name.type == 'name' or name.parent.type in ('trailer', 'atom'):
-                return CallSignatureDetails(
-                    element,
-                    *_get_index_and_key(children, position)
-                )
+                return CallDetails(element, children + additional_children, position)
 
 
 def get_call_signature_details(module, position):
@@ -208,6 +338,7 @@ def get_call_signature_details(module, position):
             return None
 
     if leaf == ')':
+        # TODO is this ok?
         if leaf.end_pos == position:
             leaf = leaf.get_next_leaf()
 
@@ -220,18 +351,25 @@ def get_call_signature_details(module, position):
             # makes it feel strange to have a call signature.
             return None
 
-        for n in node.children[::-1]:
-            if n.start_pos < position and n.type == 'error_node':
-                result = _get_call_signature_details_from_error_node(n, position)
-                if result is not None:
-                    return result
+        additional_children = []
+        for n in reversed(node.children):
+            if n.start_pos < position:
+                if n.type == 'error_node':
+                    result = _get_call_signature_details_from_error_node(
+                        n, additional_children, position
+                    )
+                    if result is not None:
+                        return result
+
+                    additional_children[0:0] = n.children
+                    continue
+                additional_children.insert(0, n)
 
         if node.type == 'trailer' and node.children[0] == '(':
             leaf = node.get_previous_leaf()
             if leaf is None:
                 return None
-            return CallSignatureDetails(
-                node.children[0], *_get_index_and_key(node.children, position))
+            return CallDetails(node.children[0], node.children, position)
 
         node = node.parent
 
@@ -256,5 +394,5 @@ def cache_call_signatures(evaluator, context, bracket_leaf, code_lines, user_pos
     yield evaluate_goto_definition(
         evaluator,
         context,
-        bracket_leaf.get_previous_leaf()
+        bracket_leaf.get_previous_leaf(),
     )

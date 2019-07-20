@@ -2,7 +2,10 @@
 To ensure compatibility from Python ``2.7`` - ``3.x``, a module has been
 created. Clearly there is huge need to use conforming syntax.
 """
+from __future__ import print_function
+import atexit
 import errno
+import functools
 import sys
 import os
 import re
@@ -10,10 +13,14 @@ import pkgutil
 import warnings
 import inspect
 import subprocess
+import weakref
 try:
     import importlib
 except ImportError:
     pass
+from zipimport import zipimporter
+
+from jedi.file_io import KnownContentFileIO, ZipFileIO
 
 is_py3 = sys.version_info[0] >= 3
 is_py35 = is_py3 and sys.version_info[1] >= 5
@@ -55,7 +62,7 @@ def find_module_py34(string, path=None, full_name=None, is_global_search=True):
                 # This is a namespace package.
                 full_name = string if not path else full_name
                 implicit_ns_info = ImplicitNSInfo(full_name, spec.submodule_search_locations._path)
-                return None, implicit_ns_info, False
+                return implicit_ns_info, True
             break
 
     return find_module_py33(string, path, loader)
@@ -81,47 +88,81 @@ def find_module_py33(string, path=None, loader=None, full_name=None, is_global_s
     if loader is None:
         raise ImportError("Couldn't find a loader for {}".format(string))
 
+    return _from_loader(loader, string)
+
+
+def _from_loader(loader, string):
+    is_package = loader.is_package(string)
     try:
-        is_package = loader.is_package(string)
-        if is_package:
-            if hasattr(loader, 'path'):
-                module_path = os.path.dirname(loader.path)
-            else:
-                # At least zipimporter does not have path attribute
-                module_path = os.path.dirname(loader.get_filename(string))
-            if hasattr(loader, 'archive'):
-                module_file = DummyFile(loader, string)
-            else:
-                module_file = None
-        else:
-            module_path = loader.get_filename(string)
-            module_file = DummyFile(loader, string)
+        get_filename = loader.get_filename
     except AttributeError:
-        # ExtensionLoader has not attribute get_filename, instead it has a
-        # path attribute that we can use to retrieve the module path
-        try:
-            module_path = loader.path
-            module_file = DummyFile(loader, string)
-        except AttributeError:
-            module_path = string
-            module_file = None
-        finally:
-            is_package = False
+        return None, is_package
+    else:
+        module_path = cast_path(get_filename(string))
 
-    if hasattr(loader, 'archive'):
-        module_path = loader.archive
+    # To avoid unicode and read bytes, "overwrite" loader.get_source if
+    # possible.
+    f = type(loader).get_source
+    if is_py3 and f is not importlib.machinery.SourceFileLoader.get_source:
+        # Unfortunately we are reading unicode here, not bytes.
+        # It seems hard to get bytes, because the zip importer
+        # logic just unpacks the zip file and returns a file descriptor
+        # that we cannot as easily access. Therefore we just read it as
+        # a string in the cases where get_source was overwritten.
+        code = loader.get_source(string)
+    else:
+        code = _get_source(loader, string)
 
-    return module_file, module_path, is_package
+    if code is None:
+        return None, is_package
+    if isinstance(loader, zipimporter):
+        return ZipFileIO(module_path, code, cast_path(loader.archive)), is_package
+
+    return KnownContentFileIO(module_path, code), is_package
 
 
-def find_module_pre_py34(string, path=None, full_name=None, is_global_search=True):
+def _get_source(loader, fullname):
+    """
+    This method is here as a replacement for SourceLoader.get_source. That
+    method returns unicode, but we prefer bytes.
+    """
+    path = loader.get_filename(fullname)
+    try:
+        return loader.get_data(path)
+    except OSError:
+        raise ImportError('source not available through get_data()',
+                          name=fullname)
+
+
+def find_module_pre_py3(string, path=None, full_name=None, is_global_search=True):
     # This import is here, because in other places it will raise a
     # DeprecationWarning.
     import imp
     try:
         module_file, module_path, description = imp.find_module(string, path)
         module_type = description[2]
-        return module_file, module_path, module_type is imp.PKG_DIRECTORY
+        is_package = module_type is imp.PKG_DIRECTORY
+        if is_package:
+            # In Python 2 directory package imports are returned as folder
+            # paths, not __init__.py paths.
+            p = os.path.join(module_path, '__init__.py')
+            try:
+                module_file = open(p)
+                module_path = p
+            except FileNotFoundError:
+                pass
+        elif module_type != imp.PY_SOURCE:
+            if module_file is not None:
+                module_file.close()
+            module_file = None
+
+        if module_file is None:
+            code = None
+            return None, is_package
+
+        with module_file:
+            code = module_file.read()
+        return KnownContentFileIO(cast_path(module_path), code), is_package
     except ImportError:
         pass
 
@@ -130,27 +171,13 @@ def find_module_pre_py34(string, path=None, full_name=None, is_global_search=Tru
     for item in path:
         loader = pkgutil.get_importer(item)
         if loader:
-            try:
-                loader = loader.find_module(string)
-                if loader:
-                    is_package = loader.is_package(string)
-                    is_archive = hasattr(loader, 'archive')
-                    module_path = loader.get_filename(string)
-                    if is_package:
-                        module_path = os.path.dirname(module_path)
-                    if is_archive:
-                        module_path = loader.archive
-                    file = None
-                    if not is_package or is_archive:
-                        file = DummyFile(loader, string)
-                    return file, module_path, is_package
-            except ImportError:
-                pass
+            loader = loader.find_module(string)
+            if loader is not None:
+                return _from_loader(loader, string)
     raise ImportError("No module named {}".format(string))
 
 
-find_module = find_module_py34 if is_py3 else find_module_pre_py34
-find_module = find_module_py33 if py_version == 33 else find_module
+find_module = find_module_py33 if is_py3 else find_module_pre_py3
 find_module.__doc__ = """
 Provides information about a module.
 
@@ -264,17 +291,6 @@ Usage::
 """
 
 
-class Python3Method(object):
-    def __init__(self, func):
-        self.func = func
-
-    def __get__(self, obj, objtype):
-        if obj is None:
-            return lambda *args, **kwargs: self.func(*args, **kwargs)
-        else:
-            return lambda *args, **kwargs: self.func(obj, *args, **kwargs)
-
-
 def use_metaclass(meta, *bases):
     """ Create a class with a metaclass. """
     if not bases:
@@ -345,9 +361,9 @@ except NameError:
     FileNotFoundError = IOError
 
 try:
-    NotADirectoryError = NotADirectoryError
+    IsADirectoryError = IsADirectoryError
 except NameError:
-    NotADirectoryError = IOError
+    IsADirectoryError = IOError
 
 try:
     PermissionError = PermissionError
@@ -365,14 +381,6 @@ def no_unicode_pprint(dct):
     import pprint
     s = pprint.pformat(dct)
     print(re.sub("u'", "'", s))
-
-
-def print_to_stderr(*args):
-    if is_py3:
-        eval("print(*args, file=sys.stderr)")
-    else:
-        print >> sys.stderr, args
-    sys.stderr.flush()
 
 
 def utf8_repr(func):
@@ -477,8 +485,24 @@ def pickle_load(file):
         raise
 
 
+def _python2_dct_keys_to_unicode(data):
+    """
+    Python 2 stores object __dict__ entries as bytes, not unicode, correct it
+    here. Python 2 can deal with both, Python 3 expects unicode.
+    """
+    if isinstance(data, tuple):
+        return tuple(_python2_dct_keys_to_unicode(x) for x in data)
+    elif isinstance(data, list):
+        return list(_python2_dct_keys_to_unicode(x) for x in data)
+    elif hasattr(data, '__dict__') and type(data.__dict__) == dict:
+        data.__dict__ = {unicode(k): v for k, v in data.__dict__.items()}
+    return data
+
+
 def pickle_dump(data, file, protocol):
     try:
+        if not is_py3:
+            data = _python2_dct_keys_to_unicode(data)
         pickle.dump(data, file, protocol)
         # On Python 3.3 flush throws sometimes an error even though the writing
         # operation should be completed.
@@ -593,3 +617,49 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
                 if _access_check(name, mode):
                     return name
     return None
+
+
+if py_version < 34:
+    # Simplified backport of Python 3 weakref.finalize:
+    # https://github.com/python/cpython/blob/ded4737989316653469763230036b04513cb62b3/Lib/weakref.py#L502-L662
+    class finalize(object):
+        """Class for finalization of weakrefable objects.
+
+        finalize(obj, func, *args, **kwargs) returns a callable finalizer
+        object which will be called when obj is garbage collected. The
+        first time the finalizer is called it evaluates func(*arg, **kwargs)
+        and returns the result. After this the finalizer is dead, and
+        calling it just returns None.
+
+        When the program exits any remaining finalizers will be run.
+        """
+
+        # Finalizer objects don't have any state of their own.
+        # This ensures that they cannot be part of a ref-cycle.
+        __slots__ = ()
+        _registry = {}
+
+        def __init__(self, obj, func, *args, **kwargs):
+            info = functools.partial(func, *args, **kwargs)
+            info.weakref = weakref.ref(obj, self)
+            self._registry[self] = info
+
+        def __call__(self):
+            """Return func(*args, **kwargs) if alive."""
+            info = self._registry.pop(self, None)
+            if info:
+                return info()
+
+        @classmethod
+        def _exitfunc(cls):
+            if not cls._registry:
+                return
+            for finalizer in list(cls._registry):
+                try:
+                    finalizer()
+                except Exception:
+                    sys.excepthook(*sys.exc_info())
+                assert finalizer not in cls._registry
+
+    atexit.register(finalize._exitfunc)
+    weakref.finalize = finalize
