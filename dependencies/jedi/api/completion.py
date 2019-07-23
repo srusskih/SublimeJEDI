@@ -9,8 +9,9 @@ from jedi.api import classes
 from jedi.api import helpers
 from jedi.evaluate import imports
 from jedi.api import keywords
-from jedi.evaluate.helpers import evaluate_call_of_leaf
+from jedi.evaluate.helpers import evaluate_call_of_leaf, parse_dotted_names
 from jedi.evaluate.filters import get_global_filters
+from jedi.evaluate.gradual.conversion import convert_contexts
 from jedi.parser_utils import get_statement_of_position
 
 
@@ -170,7 +171,10 @@ class Completion:
                         elif type_ == 'for_stmt':
                             allowed_transitions.append('else')
 
-        completion_names = list(self._get_keyword_completion_names(allowed_transitions))
+        completion_names = []
+        current_line = self._code_lines[self._position[0] - 1][:self._position[1]]
+        if not current_line or current_line[-1] in ' \t.;':
+            completion_names += self._get_keyword_completion_names(allowed_transitions)
 
         if any(t in allowed_transitions for t in (PythonTokenTypes.NAME,
                                                   PythonTokenTypes.INDENT)):
@@ -178,14 +182,19 @@ class Completion:
 
             nonterminals = [stack_node.nonterminal for stack_node in stack]
 
-            nodes = [node for stack_node in stack for node in stack_node.nodes]
+            nodes = []
+            for stack_node in stack:
+                if stack_node.dfa.from_rule == 'small_stmt':
+                    nodes = []
+                else:
+                    nodes += stack_node.nodes
 
             if nodes and nodes[-1] in ('as', 'def', 'class'):
                 # No completions for ``with x as foo`` and ``import x as foo``.
                 # Also true for defining names as a class or function.
                 return list(self._get_class_context_completions(is_function=True))
             elif "import_stmt" in nonterminals:
-                level, names = self._parse_dotted_names(nodes, "import_from" in nonterminals)
+                level, names = parse_dotted_names(nodes, "import_from" in nonterminals)
 
                 only_modules = not ("import_from" in nonterminals and 'import' in nodes)
                 completion_names += self._get_importer_names(
@@ -233,32 +242,21 @@ class Completion:
         )
         contexts = evaluate_call_of_leaf(evaluation_context, previous_leaf)
         completion_names = []
-        debug.dbg('trailer completion contexts: %s', contexts)
+        debug.dbg('trailer completion contexts: %s', contexts, color='MAGENTA')
         for context in contexts:
             for filter in context.get_filters(
-                    search_global=False, origin_scope=user_context.tree_node):
+                    search_global=False,
+                    origin_scope=user_context.tree_node):
                 completion_names += filter.values()
-        return completion_names
 
-    def _parse_dotted_names(self, nodes, is_import_from):
-        level = 0
-        names = []
-        for node in nodes[1:]:
-            if node in ('.', '...'):
-                if not names:
-                    level += len(node.value)
-            elif node.type == 'dotted_name':
-                names += node.children[::2]
-            elif node.type == 'name':
-                names.append(node)
-            elif node == ',':
-                if not is_import_from:
-                    names = []
-            else:
-                # Here if the keyword `import` comes along it stops checking
-                # for names.
-                break
-        return level, names
+        python_contexts = convert_contexts(contexts)
+        for c in python_contexts:
+            if c not in contexts:
+                for filter in c.get_filters(
+                        search_global=False,
+                        origin_scope=user_context.tree_node):
+                    completion_names += filter.values()
+        return completion_names
 
     def _get_importer_names(self, names, level=0, only_modules=True):
         names = [n.value for n in names]
@@ -288,5 +286,6 @@ class Completion:
         next(filters)
         for filter in filters:
             for name in filter.values():
+                # TODO we should probably check here for properties
                 if (name.api_type == 'function') == is_function:
                     yield name

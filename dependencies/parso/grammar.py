@@ -57,7 +57,8 @@ class Grammar(object):
         :param str path: The path to the file you want to open. Only needed for caching.
         :param bool cache: Keeps a copy of the parser tree in RAM and on disk
             if a path is given. Returns the cached trees if the corresponding
-            files on disk have not changed.
+            files on disk have not changed. Note that this stores pickle files
+            on your file system (e.g. for Linux in ``~/.cache/parso/``).
         :param bool diff_cache: Diffs the cached python module against the new
             code and tries to parse only the parts that have changed. Returns
             the same (changed) module that is found in cache. Using this option
