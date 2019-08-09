@@ -1,0 +1,5 @@
+Sublime Jedi v0.16.0
+====================
+
+* New Features: Rename all occurrences of symbol, and automatically highlight all occurrences of symbol
+* Upgrade jedi 0.14.1

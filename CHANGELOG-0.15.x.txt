@@ -1,5 +1,0 @@
-Sublime Jedi v0.15.0
-====================
-
-* Adds `only_complete_after_regex` setting
-* Upgrade jedi to 0.13.3 and parso to 0.4.0

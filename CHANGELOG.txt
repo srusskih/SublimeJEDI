@@ -1,3 +1,17 @@
+Sublime Jedi v0.15.0
+====================
+
+* Adds `only_complete_after_regex` setting
+* Upgrade jedi to 0.13.3 and parso to 0.4.0
+
+
+Sublime Jedi v0.14.0
+====================
+
+* upgrade to jedi lib to v0.13.2
+* Python 3.3 support discontinues by jedi lib.
+
+
 Sublime Jedi v0.13.4
 ====================
 
