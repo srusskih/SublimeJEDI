@@ -177,7 +177,7 @@ def find_module_pre_py3(string, path=None, full_name=None, is_global_search=True
     raise ImportError("No module named {}".format(string))
 
 
-find_module = find_module_py33 if is_py3 else find_module_pre_py3
+find_module = find_module_py34 if is_py3 else find_module_pre_py3
 find_module.__doc__ = """
 Provides information about a module.
 
@@ -619,7 +619,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
     return None
 
 
-if py_version < 34:
+if not is_py3:
     # Simplified backport of Python 3 weakref.finalize:
     # https://github.com/python/cpython/blob/ded4737989316653469763230036b04513cb62b3/Lib/weakref.py#L502-L662
     class finalize(object):

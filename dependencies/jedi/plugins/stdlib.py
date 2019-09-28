@@ -10,10 +10,11 @@ the standard library. The usual way to understand the standard library is the
 compiled module that returns the types for C-builtins.
 """
 import parso
+import os
 
-from jedi._compatibility import force_unicode
-from jedi.plugins.base import BasePlugin
+from jedi._compatibility import force_unicode, Parameter
 from jedi import debug
+from jedi.evaluate.utils import safe_property
 from jedi.evaluate.helpers import get_str_or_none
 from jedi.evaluate.arguments import ValuesArguments, \
     repack_with_argument_clinic, AbstractArguments, TreeArgumentsWrapper
@@ -24,11 +25,16 @@ from jedi.evaluate.base_context import ContextualizedNode, \
     NO_CONTEXTS, ContextSet, ContextWrapper, LazyContextWrapper
 from jedi.evaluate.context import ClassContext, ModuleContext, \
     FunctionExecutionContext
+from jedi.evaluate.context.klass import ClassMixin
+from jedi.evaluate.context.function import FunctionMixin
 from jedi.evaluate.context import iterable
 from jedi.evaluate.lazy_context import LazyTreeContext, LazyKnownContext, \
     LazyKnownContexts
+from jedi.evaluate.names import ContextName, BaseTreeParamName
 from jedi.evaluate.syntax_tree import is_string
-from jedi.evaluate.filters import AttributeOverwrite, publish_method
+from jedi.evaluate.filters import AttributeOverwrite, publish_method, \
+    ParserTreeFilter, DictFilter
+from jedi.evaluate.signature import AbstractSignature, SignatureWrapper
 
 
 # Copied from Python 3.6's stdlib.
@@ -98,45 +104,48 @@ _NAMEDTUPLE_FIELD_TEMPLATE = '''\
 '''
 
 
-class StdlibPlugin(BasePlugin):
-    def execute(self, callback):
-        def wrapper(context, arguments):
-            try:
-                obj_name = context.name.string_name
-            except AttributeError:
-                pass
-            else:
-                if context.parent_context == self._evaluator.builtins_module:
-                    module_name = 'builtins'
-                elif context.parent_context is not None and context.parent_context.is_module():
-                    module_name = context.parent_context.py__name__()
-                else:
-                    return callback(context, arguments=arguments)
-
-                if isinstance(context, BoundMethod):
-                    if module_name == 'builtins':
-                        if context.py__name__() == '__get__':
-                            if context.class_context.py__name__() == 'property':
-                                return builtins_property(
-                                    context,
-                                    arguments=arguments
-                                )
-                        elif context.py__name__() in ('deleter', 'getter', 'setter'):
-                            if context.class_context.py__name__() == 'property':
-                                return ContextSet([context.instance])
-
-                    return callback(context, arguments=arguments)
-
-                # for now we just support builtin functions.
-                try:
-                    func = _implemented[module_name][obj_name]
-                except KeyError:
-                    pass
-                else:
-                    return func(context, arguments=arguments)
+def execute(callback):
+    def wrapper(context, arguments):
+        def call():
             return callback(context, arguments=arguments)
 
-        return wrapper
+        try:
+            obj_name = context.name.string_name
+        except AttributeError:
+            pass
+        else:
+            if context.parent_context == context.evaluator.builtins_module:
+                module_name = 'builtins'
+            elif context.parent_context is not None and context.parent_context.is_module():
+                module_name = context.parent_context.py__name__()
+            else:
+                return call()
+
+            if isinstance(context, BoundMethod):
+                if module_name == 'builtins':
+                    if context.py__name__() == '__get__':
+                        if context.class_context.py__name__() == 'property':
+                            return builtins_property(
+                                context,
+                                arguments=arguments,
+                                callback=call,
+                            )
+                    elif context.py__name__() in ('deleter', 'getter', 'setter'):
+                        if context.class_context.py__name__() == 'property':
+                            return ContextSet([context.instance])
+
+                return call()
+
+            # for now we just support builtin functions.
+            try:
+                func = _implemented[module_name][obj_name]
+            except KeyError:
+                pass
+            else:
+                return func(context, arguments=arguments, callback=call)
+        return call()
+
+    return wrapper
 
 
 def _follow_param(evaluator, arguments, index):
@@ -149,15 +158,18 @@ def _follow_param(evaluator, arguments, index):
 
 
 def argument_clinic(string, want_obj=False, want_context=False,
-                    want_arguments=False, want_evaluator=False):
+                    want_arguments=False, want_evaluator=False,
+                    want_callback=False):
     """
     Works like Argument Clinic (PEP 436), to validate function params.
     """
 
     def f(func):
-        @repack_with_argument_clinic(string, keep_arguments_param=True)
+        @repack_with_argument_clinic(string, keep_arguments_param=True,
+                                     keep_callback_param=True)
         def wrapper(obj, *args, **kwargs):
             arguments = kwargs.pop('arguments')
+            callback = kwargs.pop('callback')
             assert not kwargs  # Python 2...
             debug.dbg('builtin start %s' % obj, color='MAGENTA')
             result = NO_CONTEXTS
@@ -169,6 +181,8 @@ def argument_clinic(string, want_obj=False, want_context=False,
                 kwargs['evaluator'] = obj.evaluator
             if want_arguments:
                 kwargs['arguments'] = arguments
+            if want_callback:
+                kwargs['callback'] = callback
             result = func(*args, **kwargs)
             debug.dbg('builtin end: %s', result, color='MAGENTA')
             return result
@@ -378,6 +392,9 @@ class ClassMethodGet(AttributeOverwrite, ContextWrapper):
         self._class = klass
         self._function = function
 
+    def get_signatures(self):
+        return self._function.get_signatures()
+
     def get_object(self):
         return self._wrapped_context
 
@@ -405,7 +422,7 @@ def builtins_classmethod(functions, obj, arguments):
     )
 
 
-def collections_namedtuple(obj, arguments):
+def collections_namedtuple(obj, arguments, callback):
     """
     Implementation of the namedtuple function.
 
@@ -428,14 +445,16 @@ def collections_namedtuple(obj, arguments):
     if not param_contexts:
         return NO_CONTEXTS
     _fields = list(param_contexts)[0]
-    if isinstance(_fields, compiled.CompiledValue):
-        fields = force_unicode(_fields.get_safe_value()).replace(',', ' ').split()
+    string = get_str_or_none(_fields)
+    if string is not None:
+        fields = force_unicode(string).replace(',', ' ').split()
     elif isinstance(_fields, iterable.Sequence):
         fields = [
-            force_unicode(v.get_safe_value())
+            force_unicode(get_str_or_none(v))
             for lazy_context in _fields.py__iter__()
-            for v in lazy_context.infer() if is_string(v)
+            for v in lazy_context.infer()
         ]
+        fields = [f for f in fields if f is not None]
     else:
         return NO_CONTEXTS
 
@@ -471,15 +490,47 @@ class PartialObject(object):
     def __getattr__(self, name):
         return getattr(self._actual_context, name)
 
-    def py__call__(self, arguments):
-        key, lazy_context = next(self._arguments.unpack(), (None, None))
+    def _get_function(self, unpacked_arguments):
+        key, lazy_context = next(unpacked_arguments, (None, None))
         if key is not None or lazy_context is None:
             debug.warning("Partial should have a proper function %s", self._arguments)
+            return None
+        return lazy_context.infer()
+
+    def get_signatures(self):
+        unpacked_arguments = self._arguments.unpack()
+        func = self._get_function(unpacked_arguments)
+        if func is None:
+            return []
+
+        arg_count = 0
+        keys = set()
+        for key, _ in unpacked_arguments:
+            if key is None:
+                arg_count += 1
+            else:
+                keys.add(key)
+        return [PartialSignature(s, arg_count, keys) for s in func.get_signatures()]
+
+    def py__call__(self, arguments):
+        func = self._get_function(self._arguments.unpack())
+        if func is None:
             return NO_CONTEXTS
 
-        return lazy_context.infer().execute(
+        return func.execute(
             MergedPartialArguments(self._arguments, arguments)
         )
+
+
+class PartialSignature(SignatureWrapper):
+    def __init__(self, wrapped_signature, skipped_arg_count, skipped_arg_set):
+        super(PartialSignature, self).__init__(wrapped_signature)
+        self._skipped_arg_count = skipped_arg_count
+        self._skipped_arg_set = skipped_arg_set
+
+    def get_param_names(self, resolve_stars=False):
+        names = self._wrapped_signature.get_param_names()[self._skipped_arg_count:]
+        return [n for n in names if n.string_name not in self._skipped_arg_set]
 
 
 class MergedPartialArguments(AbstractArguments):
@@ -498,7 +549,7 @@ class MergedPartialArguments(AbstractArguments):
             yield key_lazy_context
 
 
-def functools_partial(obj, arguments):
+def functools_partial(obj, arguments, callback):
     return ContextSet(
         PartialObject(instance, arguments)
         for instance in obj.py__call__(arguments)
@@ -517,6 +568,66 @@ def _random_choice(sequences):
         for sequence in sequences
         for lazy_context in sequence.py__iter__()
     )
+
+
+def _dataclass(obj, arguments, callback):
+    for c in _follow_param(obj.evaluator, arguments, 0):
+        if c.is_class():
+            return ContextSet([DataclassWrapper(c)])
+        else:
+            return ContextSet([obj])
+    return NO_CONTEXTS
+
+
+class DataclassWrapper(ContextWrapper, ClassMixin):
+    def get_signatures(self):
+        param_names = []
+        for cls in reversed(list(self.py__mro__())):
+            if isinstance(cls, DataclassWrapper):
+                filter_ = cls.get_global_filter()
+                # .values ordering is not guaranteed, at least not in
+                # Python < 3.6, when dicts where not ordered, which is an
+                # implementation detail anyway.
+                for name in sorted(filter_.values(), key=lambda name: name.start_pos):
+                    d = name.tree_name.get_definition()
+                    annassign = d.children[1]
+                    if d.type == 'expr_stmt' and annassign.type == 'annassign':
+                        if len(annassign.children) < 4:
+                            default = None
+                        else:
+                            default = annassign.children[3]
+                        param_names.append(DataclassParamName(
+                            parent_context=cls.parent_context,
+                            tree_name=name.tree_name,
+                            annotation_node=annassign.children[1],
+                            default_node=default,
+                        ))
+        return [DataclassSignature(cls, param_names)]
+
+
+class DataclassSignature(AbstractSignature):
+    def __init__(self, context, param_names):
+        super(DataclassSignature, self).__init__(context)
+        self._param_names = param_names
+
+    def get_param_names(self, resolve_stars=False):
+        return self._param_names
+
+
+class DataclassParamName(BaseTreeParamName):
+    def __init__(self, parent_context, tree_name, annotation_node, default_node):
+        super(DataclassParamName, self).__init__(parent_context, tree_name)
+        self.annotation_node = annotation_node
+        self.default_node = default_node
+
+    def get_kind(self):
+        return Parameter.POSITIONAL_OR_KEYWORD
+
+    def infer(self):
+        if self.annotation_node is None:
+            return NO_CONTEXTS
+        else:
+            return self.parent_context.eval_node(self.annotation_node)
 
 
 class ItemGetterCallable(ContextWrapper):
@@ -544,12 +655,77 @@ class ItemGetterCallable(ContextWrapper):
         return context_set
 
 
+@argument_clinic('func, /')
+def _functools_wraps(funcs):
+    return ContextSet(WrapsCallable(func) for func in funcs)
+
+
+class WrapsCallable(ContextWrapper):
+    # XXX this is not the correct wrapped context, it should be a weird
+    #     partials object, but it doesn't matter, because it's always used as a
+    #     decorator anyway.
+    @repack_with_argument_clinic('func, /')
+    def py__call__(self, funcs):
+        return ContextSet({Wrapped(func, self._wrapped_context) for func in funcs})
+
+
+class Wrapped(ContextWrapper, FunctionMixin):
+    def __init__(self, func, original_function):
+        super(Wrapped, self).__init__(func)
+        self._original_function = original_function
+
+    @property
+    def name(self):
+        return self._original_function.name
+
+    def get_signature_functions(self):
+        return [self]
+
+
 @argument_clinic('*args, /', want_obj=True, want_arguments=True)
 def _operator_itemgetter(args_context_set, obj, arguments):
     return ContextSet([
         ItemGetterCallable(instance, args_context_set)
         for instance in obj.py__call__(arguments)
     ])
+
+
+def _create_string_input_function(func):
+    @argument_clinic('string, /', want_obj=True, want_arguments=True)
+    def wrapper(strings, obj, arguments):
+        def iterate():
+            for context in strings:
+                s = get_str_or_none(context)
+                if s is not None:
+                    s = func(s)
+                    yield compiled.create_simple_object(context.evaluator, s)
+        contexts = ContextSet(iterate())
+        if contexts:
+            return contexts
+        return obj.py__call__(arguments)
+    return wrapper
+
+
+@argument_clinic('*args, /', want_callback=True)
+def _os_path_join(args_set, callback):
+    if len(args_set) == 1:
+        string = u''
+        sequence, = args_set
+        is_first = True
+        for lazy_context in sequence.py__iter__():
+            string_contexts = lazy_context.infer()
+            if len(string_contexts) != 1:
+                break
+            s = get_str_or_none(next(iter(string_contexts)))
+            if s is None:
+                break
+            if not is_first:
+                string += os.path.sep
+            string += force_unicode(s)
+            is_first = False
+        else:
+            return ContextSet([compiled.create_simple_object(sequence.evaluator, string)])
+    return callback()
 
 
 _implemented = {
@@ -569,15 +745,15 @@ _implemented = {
         'deepcopy': _return_first_param,
     },
     'json': {
-        'load': lambda obj, arguments: NO_CONTEXTS,
-        'loads': lambda obj, arguments: NO_CONTEXTS,
+        'load': lambda obj, arguments, callback: NO_CONTEXTS,
+        'loads': lambda obj, arguments, callback: NO_CONTEXTS,
     },
     'collections': {
         'namedtuple': collections_namedtuple,
     },
     'functools': {
         'partial': functools_partial,
-        'wraps': _return_first_param,
+        'wraps': _functools_wraps,
     },
     '_weakref': {
         'proxy': _return_first_param,
@@ -597,10 +773,63 @@ _implemented = {
         # The _alias function just leads to some annoying type inference.
         # Therefore, just make it return nothing, which leads to the stubs
         # being used instead. This only matters for 3.7+.
-        '_alias': lambda obj, arguments: NO_CONTEXTS,
+        '_alias': lambda obj, arguments, callback: NO_CONTEXTS,
     },
     'dataclasses': {
         # For now this works at least better than Jedi trying to understand it.
-        'dataclass': lambda obj, arguments: NO_CONTEXTS,
+        'dataclass': _dataclass
     },
+    'os.path': {
+        'dirname': _create_string_input_function(os.path.dirname),
+        'abspath': _create_string_input_function(os.path.abspath),
+        'relpath': _create_string_input_function(os.path.relpath),
+        'join': _os_path_join,
+    }
 }
+
+
+def get_metaclass_filters(func):
+    def wrapper(cls, metaclasses):
+        for metaclass in metaclasses:
+            if metaclass.py__name__() == 'EnumMeta' \
+                    and metaclass.get_root_context().py__name__() == 'enum':
+                filter_ = ParserTreeFilter(cls.evaluator, context=cls)
+                return [DictFilter({
+                    name.string_name: EnumInstance(cls, name).name for name in filter_.values()
+                })]
+        return func(cls, metaclasses)
+    return wrapper
+
+
+class EnumInstance(LazyContextWrapper):
+    def __init__(self, cls, name):
+        self.evaluator = cls.evaluator
+        self._cls = cls  # Corresponds to super().__self__
+        self._name = name
+        self.tree_node = self._name.tree_name
+
+    @safe_property
+    def name(self):
+        return ContextName(self, self._name.tree_name)
+
+    def _get_wrapped_context(self):
+        obj, = self._cls.execute_evaluated()
+        return obj
+
+    def get_filters(self, search_global=False, position=None, origin_scope=None):
+        yield DictFilter(dict(
+            name=compiled.create_simple_object(self.evaluator, self._name.string_name).name,
+            value=self._name,
+        ))
+        for f in self._get_wrapped_context().get_filters():
+            yield f
+
+
+def tree_name_to_contexts(func):
+    def wrapper(evaluator, context, tree_name):
+        if tree_name.value == 'sep' and context.is_module() and context.py__name__() == 'os.path':
+            return ContextSet({
+                compiled.create_simple_object(evaluator, os.path.sep),
+            })
+        return func(evaluator, context, tree_name)
+    return wrapper

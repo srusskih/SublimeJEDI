@@ -264,6 +264,9 @@ class CompiledObject(Context):
     def negate(self):
         return create_from_access_path(self.evaluator, self.access_handle.negate())
 
+    def get_metaclasses(self):
+        return NO_CONTEXTS
+
 
 class CompiledName(AbstractNameDefinition):
     def __init__(self, evaluator, parent_context, name):
@@ -316,9 +319,6 @@ class SignatureParamName(ParamNameInterface, AbstractNameDefinition):
 
     def get_kind(self):
         return getattr(Parameter, self._signature_param.kind_name)
-
-    def is_keyword_param(self):
-        return self._signature_param
 
     def infer(self):
         p = self._signature_param
@@ -377,14 +377,14 @@ class CompiledObjectFilter(AbstractFilter):
 
     def __init__(self, evaluator, compiled_object, is_instance=False):
         self._evaluator = evaluator
-        self._compiled_object = compiled_object
+        self.compiled_object = compiled_object
         self.is_instance = is_instance
 
     def get(self, name):
         return self._get(
             name,
-            lambda: self._compiled_object.access_handle.is_allowed_getattr(name),
-            lambda: self._compiled_object.access_handle.dir(),
+            lambda: self.compiled_object.access_handle.is_allowed_getattr(name),
+            lambda: self.compiled_object.access_handle.dir(),
             check_has_attribute=True
         )
 
@@ -399,7 +399,7 @@ class CompiledObjectFilter(AbstractFilter):
         # Always use unicode objects in Python 2 from here.
         name = force_unicode(name)
 
-        if is_descriptor or not has_attribute:
+        if (is_descriptor and not self._evaluator.allow_descriptor_getattr) or not has_attribute:
             return [self._get_cached_name(name, is_empty=True)]
 
         if self.is_instance and name not in dir_callback():
@@ -416,7 +416,7 @@ class CompiledObjectFilter(AbstractFilter):
     def values(self):
         from jedi.evaluate.compiled import builtin_from_name
         names = []
-        needs_type_completions, dir_infos = self._compiled_object.access_handle.get_dir_infos()
+        needs_type_completions, dir_infos = self.compiled_object.access_handle.get_dir_infos()
         for name in dir_infos:
             names += self._get(
                 name,
@@ -431,10 +431,10 @@ class CompiledObjectFilter(AbstractFilter):
         return names
 
     def _create_name(self, name):
-        return self.name_class(self._evaluator, self._compiled_object, name)
+        return self.name_class(self._evaluator, self.compiled_object, name)
 
     def __repr__(self):
-        return "<%s: %s>" % (self.__class__.__name__, self._compiled_object)
+        return "<%s: %s>" % (self.__class__.__name__, self.compiled_object)
 
 
 docstr_defaults = {

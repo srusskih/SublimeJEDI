@@ -1,7 +1,7 @@
 import pydoc
 
 from jedi.evaluate.utils import ignored
-from jedi.evaluate.names import AbstractNameDefinition
+from jedi.evaluate.names import AbstractArbitraryName
 
 try:
     from pydoc_data import topics as pydoc_topics
@@ -19,14 +19,8 @@ def get_operator(evaluator, string, pos):
     return Keyword(evaluator, string, pos)
 
 
-class KeywordName(AbstractNameDefinition):
+class KeywordName(AbstractArbitraryName):
     api_type = u'keyword'
-    is_context_name = False
-
-    def __init__(self, evaluator, name):
-        self.evaluator = evaluator
-        self.string_name = name
-        self.parent_context = evaluator.builtins_module
 
     def infer(self):
         return [Keyword(self.evaluator, self.string_name, (0, 0))]

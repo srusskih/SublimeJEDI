@@ -26,6 +26,8 @@ from jedi.evaluate.compiled.access import COMPARISON_OPERATORS
 from jedi.evaluate.cache import evaluator_method_cache
 from jedi.evaluate.gradual.stub_context import VersionInfo
 from jedi.evaluate.gradual import annotation
+from jedi.evaluate.context.decorator import Decoratee
+from jedi.plugins import plugin_manager
 
 
 def _limit_context_infers(func):
@@ -148,28 +150,28 @@ def eval_node(context, element):
         return eval_or_test(context, element)
 
 
-def eval_trailer(context, base_contexts, trailer):
+def eval_trailer(context, atom_contexts, trailer):
     trailer_op, node = trailer.children[:2]
     if node == ')':  # `arglist` is optional.
         node = None
 
     if trailer_op == '[':
         trailer_op, node, _ = trailer.children
-        return base_contexts.get_item(
+        return atom_contexts.get_item(
             eval_subscript_list(context.evaluator, context, node),
             ContextualizedNode(context, trailer)
         )
     else:
-        debug.dbg('eval_trailer: %s in %s', trailer, base_contexts)
+        debug.dbg('eval_trailer: %s in %s', trailer, atom_contexts)
         if trailer_op == '.':
-            return base_contexts.py__getattribute__(
+            return atom_contexts.py__getattribute__(
                 name_context=context,
                 name_or_str=node
             )
         else:
             assert trailer_op == '(', 'trailer_op is actually %s' % trailer_op
             args = arguments.TreeArguments(context.evaluator, context, node, trailer)
-            return base_contexts.execute(args)
+            return atom_contexts.execute(args)
 
 
 def eval_atom(context, atom):
@@ -544,6 +546,7 @@ def _remove_statements(evaluator, context, stmt, name):
     return eval_expr_stmt(context, stmt, seek_name=name)
 
 
+@plugin_manager.decorate()
 def tree_name_to_contexts(evaluator, context, tree_name):
     context_set = NO_CONTEXTS
     module_node = context.get_root_context().tree_node
@@ -666,6 +669,8 @@ def _apply_decorators(context, node):
                 return initial
 
         debug.dbg('decorator end %s', values, color="MAGENTA")
+    if values != initial:
+        return ContextSet([Decoratee(c, decoratee_context) for c in values])
     return values
 
 
