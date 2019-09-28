@@ -33,8 +33,10 @@ if is_py3:
     NOT_CLASS_TYPES += (
         types.MappingProxyType,
         types.SimpleNamespace,
-        types.DynamicClassAttribute,
     )
+
+    if py_version >= 34:
+        NOT_CLASS_TYPES += (types.DynamicClassAttribute,)
 
 
 # Those types don't exist in typing.
