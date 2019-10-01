@@ -3,7 +3,7 @@ from abc import abstractmethod
 from parso.tree import search_ancestor
 
 from jedi._compatibility import Parameter
-from jedi.evaluate.base_context import ContextSet
+from jedi.evaluate.base_context import ContextSet, NO_CONTEXTS
 from jedi.cache import memoize_method
 
 
@@ -56,6 +56,23 @@ class AbstractNameDefinition(object):
     @property
     def api_type(self):
         return self.parent_context.api_type
+
+
+class AbstractArbitraryName(AbstractNameDefinition):
+    """
+    When you e.g. want to complete dicts keys, you probably want to complete
+    string literals, which is not really a name, but for Jedi we use this
+    concept of Name for completions as well.
+    """
+    is_context_name = False
+
+    def __init__(self, evaluator, string):
+        self.evaluator = evaluator
+        self.string_name = string
+        self.parent_context = evaluator.builtins_module
+
+    def infer(self):
+        return NO_CONTEXTS
 
 
 class AbstractTreeName(AbstractNameDefinition):
@@ -150,8 +167,18 @@ class TreeNameDefinition(AbstractTreeName):
         return self._API_TYPES.get(definition.type, 'statement')
 
 
-class ParamNameInterface(object):
-    api_type = u'param'
+class _ParamMixin(object):
+    def maybe_positional_argument(self, include_star=True):
+        options = [Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD]
+        if include_star:
+            options.append(Parameter.VAR_POSITIONAL)
+        return self.get_kind() in options
+
+    def maybe_keyword_argument(self, include_stars=True):
+        options = [Parameter.KEYWORD_ONLY, Parameter.POSITIONAL_OR_KEYWORD]
+        if include_stars:
+            options.append(Parameter.VAR_KEYWORD)
+        return self.get_kind() in options
 
     def _kind_string(self):
         kind = self.get_kind()
@@ -161,20 +188,73 @@ class ParamNameInterface(object):
             return '**'
         return ''
 
+
+class ParamNameInterface(_ParamMixin):
+    api_type = u'param'
+
     def get_kind(self):
         raise NotImplementedError
 
     def to_string(self):
         raise NotImplementedError
 
+    def get_param(self):
+        # TODO document better where this is used and when. Currently it has
+        #      very limited use, but is still in use. It's currently not even
+        #      clear what values would be allowed.
+        return None
 
-class ParamName(ParamNameInterface, AbstractTreeName):
-    def __init__(self, parent_context, tree_name):
-        self.parent_context = parent_context
-        self.tree_name = tree_name
+    @property
+    def star_count(self):
+        kind = self.get_kind()
+        if kind == Parameter.VAR_POSITIONAL:
+            return 1
+        if kind == Parameter.VAR_KEYWORD:
+            return 2
+        return 0
 
+
+class BaseTreeParamName(ParamNameInterface, AbstractTreeName):
+    annotation_node = None
+    default_node = None
+
+    def to_string(self):
+        output = self._kind_string() + self.string_name
+        annotation = self.annotation_node
+        default = self.default_node
+        if annotation is not None:
+            output += ': ' + annotation.get_code(include_prefix=False)
+        if default is not None:
+            output += '=' + default.get_code(include_prefix=False)
+        return output
+
+
+class ParamName(BaseTreeParamName):
     def _get_param_node(self):
         return search_ancestor(self.tree_name, 'param')
+
+    @property
+    def annotation_node(self):
+        return self._get_param_node().annotation
+
+    def infer_annotation(self, execute_annotation=True):
+        node = self.annotation_node
+        if node is None:
+            return NO_CONTEXTS
+        contexts = self.parent_context.parent_context.eval_node(node)
+        if execute_annotation:
+            contexts = contexts.execute_annotation()
+        return contexts
+
+    def infer_default(self):
+        node = self.default_node
+        if node is None:
+            return NO_CONTEXTS
+        return self.parent_context.parent_context.eval_node(node)
+
+    @property
+    def default_node(self):
+        return self._get_param_node().default
 
     @property
     def string_name(self):
@@ -213,15 +293,6 @@ class ParamName(ParamNameInterface, AbstractTreeName):
                         param_appeared = True
         return Parameter.POSITIONAL_OR_KEYWORD
 
-    def to_string(self):
-        output = self._kind_string() + self.string_name
-        param_node = self._get_param_node()
-        if param_node.annotation is not None:
-            output += ': ' + param_node.annotation.get_code(include_prefix=False)
-        if param_node.default is not None:
-            output += '=' + param_node.default.get_code(include_prefix=False)
-        return output
-
     def infer(self):
         return self.get_param().infer()
 
@@ -229,6 +300,17 @@ class ParamName(ParamNameInterface, AbstractTreeName):
         params, _ = self.parent_context.get_executed_params_and_issues()
         param_node = search_ancestor(self.tree_name, 'param')
         return params[param_node.position_index]
+
+
+class ParamNameWrapper(_ParamMixin):
+    def __init__(self, param_name):
+        self._wrapped_param_name = param_name
+
+    def __getattr__(self, name):
+        return getattr(self._wrapped_param_name, name)
+
+    def __repr__(self):
+        return '<%s: %s>' % (self.__class__.__name__, self._wrapped_param_name)
 
 
 class ImportName(AbstractNameDefinition):

@@ -49,6 +49,7 @@ from jedi.evaluate.arguments import unpack_arglist, ValuesArguments
 from jedi.evaluate.base_context import ContextSet, iterator_to_context_set, \
     NO_CONTEXTS
 from jedi.evaluate.context.function import FunctionAndClassBase
+from jedi.plugins import plugin_manager
 
 
 def apply_py__get__(context, instance, class_context):
@@ -136,8 +137,10 @@ class ClassMixin(object):
     def is_class(self):
         return True
 
-    def py__call__(self, arguments):
+    def py__call__(self, arguments=None):
         from jedi.evaluate.context import TreeInstance
+        if arguments is None:
+            arguments = ValuesArguments([])
         return ContextSet([TreeInstance(self.evaluator, self.parent_context, self, arguments)])
 
     def py__class__(self):
@@ -191,13 +194,13 @@ class ClassMixin(object):
 
     def get_filters(self, search_global=False, until_position=None,
                     origin_scope=None, is_instance=False):
+        metaclasses = self.get_metaclasses()
+        if metaclasses:
+            for f in self.get_metaclass_filters(metaclasses):
+                yield f
+
         if search_global:
-            yield ParserTreeFilter(
-                self.evaluator,
-                context=self,
-                until_position=until_position,
-                origin_scope=origin_scope
-            )
+            yield self.get_global_filter(until_position, origin_scope)
         else:
             for cls in self.py__mro__():
                 if isinstance(cls, compiled.CompiledObject):
@@ -214,12 +217,24 @@ class ClassMixin(object):
             type_ = builtin_from_name(self.evaluator, u'type')
             assert isinstance(type_, ClassContext)
             if type_ != self:
-                for instance in type_.py__call__(ValuesArguments([])):
+                for instance in type_.py__call__():
                     instance_filters = instance.get_filters()
                     # Filter out self filters
                     next(instance_filters)
                     next(instance_filters)
                     yield next(instance_filters)
+
+    def get_signatures(self):
+        init_funcs = self.py__call__().py__getattribute__('__init__')
+        return [sig.bind(self) for sig in init_funcs.get_signatures()]
+
+    def get_global_filter(self, until_position=None, origin_scope=None):
+        return ParserTreeFilter(
+            self.evaluator,
+            context=self,
+            until_position=until_position,
+            origin_scope=origin_scope
+        )
 
 
 class ClassContext(use_metaclass(CachedMetaClass, ClassMixin, FunctionAndClassBase)):
@@ -247,12 +262,17 @@ class ClassContext(use_metaclass(CachedMetaClass, ClassMixin, FunctionAndClassBa
                     found.append(type_var)
         return found
 
-    @evaluator_method_cache(default=())
-    def py__bases__(self):
+    def _get_bases_arguments(self):
         arglist = self.tree_node.get_super_arglist()
         if arglist:
             from jedi.evaluate import arguments
-            args = arguments.TreeArguments(self.evaluator, self.parent_context, arglist)
+            return arguments.TreeArguments(self.evaluator, self.parent_context, arglist)
+        return None
+
+    @evaluator_method_cache(default=())
+    def py__bases__(self):
+        args = self._get_bases_arguments()
+        if args is not None:
             lst = [value for key, value in args.unpack() if key is None]
             if lst:
                 return lst
@@ -300,6 +320,25 @@ class ClassContext(use_metaclass(CachedMetaClass, ClassMixin, FunctionAndClassBa
             )])
         return ContextSet({self})
 
-    def get_signatures(self):
-        init_funcs = self.py__getattribute__('__init__')
-        return [sig.bind(self) for sig in init_funcs.get_signatures()]
+    @plugin_manager.decorate()
+    def get_metaclass_filters(self, metaclass):
+        debug.dbg('Unprocessed metaclass %s', metaclass)
+        return []
+
+    @evaluator_method_cache(default=NO_CONTEXTS)
+    def get_metaclasses(self):
+        args = self._get_bases_arguments()
+        if args is not None:
+            m = [value for key, value in args.unpack() if key == 'metaclass']
+            metaclasses = ContextSet.from_sets(lazy_context.infer() for lazy_context in m)
+            metaclasses = ContextSet(m for m in metaclasses if m.is_class())
+            if metaclasses:
+                return metaclasses
+
+        for lazy_base in self.py__bases__():
+            for context in lazy_base.infer():
+                if context.is_class():
+                    contexts = context.get_metaclasses()
+                    if contexts:
+                        return contexts
+        return NO_CONTEXTS

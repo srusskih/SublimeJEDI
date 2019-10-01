@@ -100,6 +100,9 @@ class FunctionMixin(object):
 
         return FunctionExecutionContext(self.evaluator, self.parent_context, self, arguments)
 
+    def get_signatures(self):
+        return [TreeSignature(f) for f in self.get_signature_functions()]
+
 
 class FunctionContext(use_metaclass(CachedMetaClass, FunctionMixin, FunctionAndClassBase)):
     """
@@ -147,8 +150,8 @@ class FunctionContext(use_metaclass(CachedMetaClass, FunctionMixin, FunctionAndC
     def get_default_param_context(self):
         return self.parent_context
 
-    def get_signatures(self):
-        return [TreeSignature(self)]
+    def get_signature_functions(self):
+        return [self]
 
 
 class MethodContext(FunctionContext):
@@ -371,14 +374,14 @@ class FunctionExecutionContext(TreeContext):
 class OverloadedFunctionContext(FunctionMixin, ContextWrapper):
     def __init__(self, function, overloaded_functions):
         super(OverloadedFunctionContext, self).__init__(function)
-        self.overloaded_functions = overloaded_functions
+        self._overloaded_functions = overloaded_functions
 
     def py__call__(self, arguments):
         debug.dbg("Execute overloaded function %s", self._wrapped_context, color='BLUE')
         function_executions = []
         context_set = NO_CONTEXTS
         matched = False
-        for f in self.overloaded_functions:
+        for f in self._overloaded_functions:
             function_execution = f.get_function_execution(arguments)
             function_executions.append(function_execution)
             if function_execution.matches_signature():
@@ -393,39 +396,8 @@ class OverloadedFunctionContext(FunctionMixin, ContextWrapper):
             return NO_CONTEXTS
         return ContextSet.from_sets(fe.infer() for fe in function_executions)
 
-    def get_signatures(self):
-        return [TreeSignature(f) for f in self.overloaded_functions]
-
-
-def signature_matches(function_context, arguments):
-    unpacked_arguments = arguments.unpack()
-    key_args = {}
-    for param_node in function_context.tree_node.get_params():
-        while True:
-            key, argument = next(unpacked_arguments, (None, None))
-            if key is None or argument is None:
-                break
-            key_args[key] = argument
-        if argument is None:
-            argument = key_args.pop(param_node.name.value, None)
-            if argument is None:
-                # This signature has an parameter more than arguments were given.
-                return bool(param_node.star_count == 1)
-
-        if param_node.annotation is not None:
-            if param_node.star_count == 2:
-                return False  # TODO allow this
-
-            annotation_contexts = function_context.evaluator.eval_element(
-                function_context.get_default_param_context(),
-                param_node.annotation
-            )
-            argument_contexts = argument.infer().py__class__()
-            if not any(c1.is_sub_class_of(c2)
-                       for c1 in argument_contexts
-                       for c2 in annotation_contexts):
-                return False
-    return True
+    def get_signature_functions(self):
+        return self._overloaded_functions
 
 
 def _find_overload_functions(context, tree_node):

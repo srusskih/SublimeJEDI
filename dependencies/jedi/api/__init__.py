@@ -27,7 +27,7 @@ from jedi.api import interpreter
 from jedi.api import helpers
 from jedi.api.completion import Completion
 from jedi.api.environment import InterpreterEnvironment
-from jedi.api.project import get_default_project
+from jedi.api.project import get_default_project, Project
 from jedi.evaluate import Evaluator
 from jedi.evaluate import imports
 from jedi.evaluate import usages
@@ -144,7 +144,6 @@ class Script(object):
                              '(0-%d) for line %d (%r).' % (
                                  column, line_len, line, line_string))
         self._pos = line, column
-        self._path = path
 
         cache.clear_time_caches()
         debug.reset_time()
@@ -437,6 +436,7 @@ class Interpreter(Script):
     >>> print(script.completions()[0].name)
     upper
     """
+    _allow_descriptor_getattr_default = True
 
     def __init__(self, source, namespaces, **kwds):
         """
@@ -464,8 +464,10 @@ class Interpreter(Script):
             if not isinstance(environment, InterpreterEnvironment):
                 raise TypeError("The environment needs to be an InterpreterEnvironment subclass.")
 
-        super(Interpreter, self).__init__(source, environment=environment, **kwds)
+        super(Interpreter, self).__init__(source, environment=environment,
+                                          _project=Project(os.getcwd()), **kwds)
         self.namespaces = namespaces
+        self._evaluator.allow_descriptor_getattr = self._allow_descriptor_getattr_default
 
     def _get_module(self):
         return interpreter.MixedModuleContext(

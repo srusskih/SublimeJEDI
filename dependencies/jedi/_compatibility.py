@@ -501,7 +501,7 @@ def _python2_dct_keys_to_unicode(data):
 
 def pickle_dump(data, file, protocol):
     try:
-        if not is_py3:
+        if py_version < 34:
             data = _python2_dct_keys_to_unicode(data)
         pickle.dump(data, file, protocol)
         # On Python 3.3 flush throws sometimes an error even though the writing

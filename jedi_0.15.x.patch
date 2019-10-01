@@ -1,5 +1,5 @@
 diff --git dependencies/jedi/_compatibility.py dependencies/jedi/_compatibility.py
-index 28e23b09..e835ea25 100644
+index 28e23b0..f03a2a7 100644
 --- dependencies/jedi/_compatibility.py
 +++ dependencies/jedi/_compatibility.py
 @@ -177,7 +177,7 @@ def find_module_pre_py3(string, path=None, full_name=None, is_global_search=True
@@ -11,6 +11,15 @@ index 28e23b09..e835ea25 100644
  find_module.__doc__ = """
  Provides information about a module.
 
+@@ -501,7 +501,7 @@ def _python2_dct_keys_to_unicode(data):
+
+ def pickle_dump(data, file, protocol):
+     try:
+-        if not is_py3:
++        if py_version < 34:
+             data = _python2_dct_keys_to_unicode(data)
+         pickle.dump(data, file, protocol)
+         # On Python 3.3 flush throws sometimes an error even though the writing
 @@ -619,7 +619,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
      return None
 
@@ -21,7 +30,7 @@ index 28e23b09..e835ea25 100644
      # https://github.com/python/cpython/blob/ded4737989316653469763230036b04513cb62b3/Lib/weakref.py#L502-L662
      class finalize(object):
 diff --git dependencies/jedi/evaluate/compiled/access.py dependencies/jedi/evaluate/compiled/access.py
-index db74d36a..8eec98f5 100644
+index 18aacf5..182b934 100644
 --- dependencies/jedi/evaluate/compiled/access.py
 +++ dependencies/jedi/evaluate/compiled/access.py
 @@ -33,9 +33,11 @@ if is_py3:

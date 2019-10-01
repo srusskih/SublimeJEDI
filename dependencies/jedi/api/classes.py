@@ -4,9 +4,8 @@ These classes are the much bigger part of the whole API, because they contain
 the interesting information about completion and goto operations.
 """
 import re
+import sys
 import warnings
-
-from parso.python.tree import search_ancestor
 
 from jedi import settings
 from jedi import debug
@@ -36,6 +35,10 @@ def defined_names(evaluator, context):
     filter = next(context.get_filters(search_global=True))
     names = [name for name in filter.values()]
     return [Definition(evaluator, n) for n in _sort_names_by_start_pos(names)]
+
+
+def _contexts_to_definitions(contexts):
+    return [Definition(c.evaluator, c.name) for c in contexts]
 
 
 class BaseDefinition(object):
@@ -149,6 +152,9 @@ class BaseDefinition(object):
         'instance'
         >>> defs[3]
         'function'
+
+        Valid values for are ``module``, ``class``, ``instance``, ``function``,
+        ``param``, ``path`` and ``keyword``.
 
         """
         tree_name = self._name.tree_name
@@ -330,6 +336,8 @@ class BaseDefinition(object):
     @memoize_method
     def params(self):
         """
+        Deprecated! Will raise a warning soon. Use get_signatures()[...].params.
+
         Raises an ``AttributeError`` if the definition is not callable.
         Otherwise returns a list of `Definition` that represents the params.
         """
@@ -337,7 +345,10 @@ class BaseDefinition(object):
         # with overloading.
         for context in self._name.infer():
             for signature in context.get_signatures():
-                return [Definition(self._evaluator, n) for n in signature.get_param_names()]
+                return [
+                    Definition(self._evaluator, n)
+                    for n in signature.get_param_names(resolve_stars=True)
+                ]
 
         if self.type == 'function' or self.type == 'class':
             # Fallback, if no signatures were defined (which is probably by
@@ -383,6 +394,12 @@ class BaseDefinition(object):
         index = self._name.start_pos[0] - 1
         start_index = max(index - before, 0)
         return ''.join(lines[start_index:index + after + 1])
+
+    def get_signatures(self):
+        return [Signature(self._evaluator, s) for s in self._name.infer().get_signatures()]
+
+    def execute(self):
+        return _contexts_to_definitions(self._name.infer().execute_evaluated())
 
 
 class Completion(BaseDefinition):
@@ -598,14 +615,37 @@ class Definition(BaseDefinition):
         return hash((self._name.start_pos, self.module_path, self.name, self._evaluator))
 
 
-class CallSignature(Definition):
+class Signature(Definition):
     """
-    `CallSignature` objects is the return value of `Script.function_definition`.
+    `Signature` objects is the return value of `Script.function_definition`.
     It knows what functions you are currently in. e.g. `isinstance(` would
     return the `isinstance` function. without `(` it would return nothing.
     """
+    def __init__(self, evaluator, signature):
+        super(Signature, self).__init__(evaluator, signature.name)
+        self._signature = signature
+
+    @property
+    def params(self):
+        """
+        :return list of ParamDefinition:
+        """
+        return [ParamDefinition(self._evaluator, n)
+                for n in self._signature.get_param_names(resolve_stars=True)]
+
+    def to_string(self):
+        return self._signature.to_string()
+
+
+class CallSignature(Signature):
+    """
+    `CallSignature` objects is the return value of `Script.call_signatures`.
+    It knows what functions you are currently in. e.g. `isinstance(` would
+    return the `isinstance` function with its params. Without `(` it would
+    return nothing.
+    """
     def __init__(self, evaluator, signature, call_details):
-        super(CallSignature, self).__init__(evaluator, signature.name)
+        super(CallSignature, self).__init__(evaluator, signature)
         self._call_details = call_details
         self._signature = signature
 
@@ -615,32 +655,58 @@ class CallSignature(Definition):
         The Param index of the current call.
         Returns None if the index cannot be found in the curent call.
         """
-        return self._call_details.calculate_index(self._signature.get_param_names())
-
-    @property
-    def params(self):
-        return [Definition(self._evaluator, n) for n in self._signature.get_param_names()]
+        return self._call_details.calculate_index(
+            self._signature.get_param_names(resolve_stars=True)
+        )
 
     @property
     def bracket_start(self):
         """
-        The indent of the bracket that is responsible for the last function
-        call.
+        The line/column of the bracket that is responsible for the last
+        function call.
         """
         return self._call_details.bracket_leaf.start_pos
 
-    @property
-    def _params_str(self):
-        return ', '.join([p.description[6:]
-                          for p in self.params])
-
     def __repr__(self):
-        return '<%s: %s index=%r params=[%s]>' % (
+        return '<%s: index=%r %s>' % (
             type(self).__name__,
-            self._name.string_name,
             self.index,
-            self._params_str,
+            self._signature.to_string(),
         )
+
+
+class ParamDefinition(Definition):
+    def infer_default(self):
+        """
+        :return list of Definition:
+        """
+        return _contexts_to_definitions(self._name.infer_default())
+
+    def infer_annotation(self, **kwargs):
+        """
+        :return list of Definition:
+
+        :param execute_annotation: If False, the values are not executed and
+            you get classes instead of instances.
+        """
+        return _contexts_to_definitions(self._name.infer_annotation(**kwargs))
+
+    def to_string(self):
+        return self._name.to_string()
+
+    @property
+    def kind(self):
+        """
+        Returns an enum instance. Returns the same values as the builtin
+        :py:attr:`inspect.Parameter.kind`.
+
+        No support for Python < 3.4 anymore.
+        """
+        if sys.version_info < (3, 5):
+            raise NotImplementedError(
+                'Python 2 is end-of-life, the new feature is not available for it'
+            )
+        return self._name.get_kind()
 
 
 def _format_signatures(context):
