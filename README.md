@@ -263,6 +263,32 @@ Enabling this option to try to bring more comfortable workflow.
 Please note, if you are using [SublimeAllAutocomplete](https://github.com/alienhard/SublimeAllAutocomplete) - you should not care about this option.
 
 
+### Quick Select/Switch Python
+
+Specify python interpreters used now and avaliabe
+
+```json
+// User/sublime_jedi.sublime-settings
+{
+    "python_interpreter": "D:/Python36/python.exe",
+    "python_interpreters":
+    [
+        "D:/Python27/python.exe",
+        "D:/Python36/python.exe",
+        "D:/Python27/venv/Scripts/python.exe",
+        "D:/Python27/vexe/Scripts/python.exe",
+        "D:/Python36/venv/Scripts/python.exe",
+        "D:/Python36/vexe/Scripts/python.exe",
+        "D:/Python36/vweb/Scripts/python.exe"
+    ]
+}
+``` 
+
+And then, you can quick select/switch python by input 'SublimeJedi: Select Python' in command palette
+
+When a python file is opened or activated, the python interpreter used by JEDI will show on statusbar
+
+
 #### Logging
 
 Plugin uses Python logging lib to log everything. It allow collect propper information in right order rather then `print()`-ing to sublime console.

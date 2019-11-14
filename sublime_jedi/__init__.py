@@ -5,6 +5,7 @@ from .helper import (
     SublimeJediDocstring, SublimeJediSignature, SublimeJediTooltip,
     HelpMessageCommand
 )
+from .py_select import PySelectEventListener, SublimeJediPySelect
 
 __all__ = [
     'SublimeJediGoto',
@@ -15,5 +16,7 @@ __all__ = [
     'SublimeJediDocstring',
     'SublimeJediSignature',
     'SublimeJediTooltip',
-    'HelpMessageCommand'
+    'HelpMessageCommand',
+    'PySelectEventListener',
+    'SublimeJediPySelect'
 ]
