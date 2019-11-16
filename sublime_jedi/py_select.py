@@ -10,7 +10,7 @@ class PySelectEventListener(sublime_plugin.EventListener):
         Show the Python Interpreter used by SublimeJEDI on statusbar
         '''
         if is_python_scope(view, view.sel()[0].begin()):
-            view.window().status_message('   Py: %s' %get_plugin_settings().get('python_interpreter'))
+            view.window().status_message('   Py: {}'.format(get_plugin_settings().get('python_interpreter')))
 
     def on_load(self, view) -> None:
         self.show_py(view)
