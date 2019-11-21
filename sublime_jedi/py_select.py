@@ -1,6 +1,8 @@
 import sublime, sublime_plugin
 from .utils import PythonCommandMixin, is_python_scope
 from .settings import get_plugin_settings, get_settings_param
+from . import daemon
+from collections import defaultdict
 
 
 class PySelectEventListener(sublime_plugin.EventListener):
@@ -34,6 +36,8 @@ class ListAvaliablePython(sublime_plugin.ListInputHandler):
         if sel_py:
             get_plugin_settings().set('python_interpreter', sel_py)
             sublime.save_settings('sublime_jedi.sublime-settings')
+
+            daemon.DAEMONS = defaultdict(dict)
 
 
 class SublimeJediPySelect(PythonCommandMixin, sublime_plugin.TextCommand):
