@@ -124,7 +124,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         settings = get_settings(self.view)
 
         if sublime.active_window().active_view().id() != self.view.id():
-            return None
+            return False
 
         if is_repl(self.view) and not settings['enable_in_sublime_repl']:
             logger.debug("JEDI does not complete in SublimeREPL views.")
@@ -204,21 +204,10 @@ class Autocomplete(sublime_plugin.ViewEventListener):
     def _sort_completions(self, completions):
         """Sort completions by frequency in document."""
         buffer = self.view.substr(sublime.Region(0, self.view.size()))
-        current_line, col = self.view.rowcol(self.view.sel()[0].begin())
-        lines = buffer.splitlines()
-
-        def distance(term):
-            ocurrences = [
-                abs(i - current_line)
-                for i, line in enumerate(lines)
-                if term in line
-            ]
-            return min(ocurrences or [float('inf')])
-
         return sorted(
             completions,
             key=lambda x: (
-                distance(x[1]),
+                -buffer.count(x[1]),
                 len(x[1]) - len(x[1].strip('_')),  # how many undescores
                 x[1]  # alphabetically
             )
