@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor
 
 from functools import wraps
 from collections import defaultdict
@@ -56,36 +56,6 @@ def ask_daemon_sync(view, ask_type, ask_kwargs, location=None):
         ask_type,
         ask_kwargs or {},
         *_prepare_request_data(view, location))
-
-
-def ask_daemon_with_timeout(
-        view,
-        ask_type,
-        ask_kwargs=None,
-        location=None,
-        timeout=3):
-    """Jedi sync request shortcut with timeout.
-
-    :type view: sublime.View
-    :type ask_type: str
-    :type ask_kwargs: dict or None
-    :type location: type of (int, int) or None
-    :type timeout: int
-    """
-    daemon = _get_daemon(view)
-    requestor = _get_requestor(view)
-    request_data = _prepare_request_data(view, location)
-
-    def _target():
-        return daemon.request(ask_type, ask_kwargs or {}, *request_data)
-
-    request = requestor.submit(_target)
-    try:
-        return request.result(timeout=timeout)
-    except TimeoutError:
-        # no need to wait more
-        request.cancel()
-        raise
 
 
 def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):
