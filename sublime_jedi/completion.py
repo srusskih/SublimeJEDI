@@ -3,6 +3,7 @@ import re
 
 import sublime
 import sublime_plugin
+from threading import Lock
 
 from .console_logging import getLogger
 from .daemon import ask_daemon, ask_daemon_with_timeout
@@ -115,8 +116,15 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 class Autocomplete(sublime_plugin.ViewEventListener):
     """Sublime Text autocompletion integration."""
 
+    _lock = Lock()
+    _completions = []
+    _last_location = None
+
     def __enabled(self):
         settings = get_settings(self.view)
+
+        if sublime.active_window().active_view().id() != self.view.id():
+            return None
 
         if is_repl(self.view) and not settings['enable_in_sublime_repl']:
             logger.debug("JEDI does not complete in SublimeREPL views.")
@@ -146,33 +154,47 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         logger.info('JEDI completion triggered.')
 
         settings = get_settings(self.view)
-        only_jedi_completion = (
-            settings['sublime_completions_visibility'] in ('default', 'jedi')
-        )
-
-        previous_char = self.view.substr(locations[0] - 1)
         if settings['only_complete_after_regex']:
+            previous_char = self.view.substr(locations[0] - 1)
             if not re.match(settings['only_complete_after_regex'], previous_char):
                 return False
 
-        cplns = ask_daemon_with_timeout(
-            self.view,
-            'autocomplete',
-            location=locations[0],
-            timeout=settings['completion_timeout']
+        with self._lock:
+            if self._last_location != locations[0]:
+                self._last_location = locations[0]
+                ask_daemon(
+                    self.view,
+                    self._receive_completions,
+                    'autocomplete',
+                    location=locations[0],
+                )
+                return [], PLUGIN_ONLY_COMPLETION
+
+            if self._last_location == locations[0] and self._completions:
+                self._last_location = None
+                return self._completions
+
+    def _receive_completions(self, view, completions):
+        if not completions:
+            return
+
+        completions = [tuple(x) for x in self._sort_completions(completions)]
+        logger.debug("Completions: {0}".format(completions))
+
+        with self._lock:
+            self._completions = completions
+
+        settings = get_settings(self.view)
+
+        only_jedi_completion = (
+            settings['sublime_completions_visibility'] in ('default', 'jedi')
         )
-
-        logger.info("Completion completed.")
-
-        cplns = [tuple(x) for x in self._sort_completions(cplns)]
-        logger.debug("Completions: {0}".format(cplns))
-
-        # disabled due to can't reproduce
-        # self._fix_tab_completion_issue()
-
-        if only_jedi_completion:
-            return cplns, PLUGIN_ONLY_COMPLETION
-        return cplns
+        view.run_command('hide_auto_complete')
+        view.run_command('auto_complete', {
+            'api_completions_only': only_jedi_completion,
+            'disable_auto_insert': True,
+            'next_completion_if_showing': False,
+        })
 
     def _sort_completions(self, completions):
         """Sort completions by frequency in document."""
