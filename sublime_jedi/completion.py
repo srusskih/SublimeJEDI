@@ -118,6 +118,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
 
     _lock = Lock()
     _completions = []
+    _previous_completions = []
     _last_location = None
 
     def __enabled(self):
@@ -182,24 +183,26 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         logger.debug("Completions: {0}".format(completions))
 
         with self._lock:
+            self._previous_completions = self._completions
             self._completions = completions
 
-        settings = get_settings(self.view)
-
-        only_jedi_completion = (
-            settings['sublime_completions_visibility'] in ('default', 'jedi')
-        )
-        view.run_command('hide_auto_complete')
-        view.run_command('auto_complete', {
-            'api_completions_only': only_jedi_completion,
-            'disable_auto_insert': True,
-            'next_completion_if_showing': False,
-        })
+        if (not self._is_completions_subset()
+                or not view.is_auto_complete_visible()):
+            settings = get_settings(self.view)
+            only_jedi_completion = (
+                settings['sublime_completions_visibility']
+                in ('default', 'jedi')
+            )
+            view.run_command('hide_auto_complete')
+            view.run_command('auto_complete', {
+                'api_completions_only': only_jedi_completion,
+                'disable_auto_insert': True,
+                'next_completion_if_showing': False,
+            })
 
     def _sort_completions(self, completions):
         """Sort completions by frequency in document."""
         buffer = self.view.substr(sublime.Region(0, self.view.size()))
-
         return sorted(
             completions,
             key=lambda x: (
@@ -209,20 +212,11 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             )
         )
 
-    def _fix_tab_completion_issue(self):
-        """Fix issue with tab completion & commit on tab.
-
-        When you hit <tab> after completion commit,
-        completion pop-up will appears
-        and `\t`(tabulation) would be inserted
-        the fix detects such behavior and trying avoidt.
-        """
-        logger.debug("command history: " + str([
-            self.view.command_history(-1),
-            self.view.command_history(0),
-            self.view.command_history(1),
-        ]))
-
-        last_command = self.view.command_history(0)
-        if last_command == (u'insert', {'characters': u'\t'}, 1):
-            self.view.run_command('undo')
+    def _is_completions_subset(self):
+        with self._lock:
+            completions = set(
+                completion for _, completion in self._completions)
+            previous = set(
+                completion for _, completion in self._previous_completions)
+        print('SUBSET', completions.issubset(previous))
+        return completions.issubset(previous)
