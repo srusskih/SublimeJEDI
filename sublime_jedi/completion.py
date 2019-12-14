@@ -186,11 +186,11 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             self._previous_completions = self._completions
             self._completions = completions
 
-        if (not view.is_auto_complete_visible() or
+        if (completions and
+                not view.is_auto_complete_visible() or
                 not self._is_completions_subset()):
-            settings = get_settings(self.view)
             only_jedi_completion = (
-                settings['sublime_completions_visibility']
+                get_settings(self.view)['sublime_completions_visibility']
                 in ('default', 'jedi')
             )
             view.run_command('hide_auto_complete')
