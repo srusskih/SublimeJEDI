@@ -6,10 +6,9 @@ import sublime_plugin
 from threading import Lock
 
 from .console_logging import getLogger
-from .daemon import ask_daemon, ask_daemon_with_timeout
-from .utils import (get_settings,
-                    is_python_scope,
-                    is_repl,)
+from .daemon import ask_daemon
+from .utils import get_settings, is_python_scope, is_repl
+
 
 logger = getLogger(__name__)
 FOLLOWING_CHARS = set(["\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"])
@@ -173,13 +172,15 @@ class Autocomplete(sublime_plugin.ViewEventListener):
 
             if self._last_location == locations[0] and self._completions:
                 self._last_location = None
-                return self._completions
+                return [
+                    tuple(x)
+                    for x in self._sort_completions(self._completions)
+                ]
 
     def _receive_completions(self, view, completions):
         if not completions:
             return
 
-        completions = [tuple(x) for x in self._sort_completions(completions)]
         logger.debug("Completions: {0}".format(completions))
 
         with self._lock:
@@ -203,10 +204,21 @@ class Autocomplete(sublime_plugin.ViewEventListener):
     def _sort_completions(self, completions):
         """Sort completions by frequency in document."""
         buffer = self.view.substr(sublime.Region(0, self.view.size()))
+        current_line, col = self.view.rowcol(self.view.sel()[0].begin())
+        lines = buffer.splitlines()
+
+        def distance(term):
+            ocurrences = [
+                abs(i - current_line)
+                for i, line in enumerate(lines)
+                if term in line
+            ]
+            return min(ocurrences or [float('inf')])
+
         return sorted(
             completions,
             key=lambda x: (
-                -buffer.count(x[1]),  # frequency in the text
+                distance(x[1]),
                 len(x[1]) - len(x[1].strip('_')),  # how many undescores
                 x[1]  # alphabetically
             )
@@ -218,5 +230,4 @@ class Autocomplete(sublime_plugin.ViewEventListener):
                 completion for _, completion in self._completions)
             previous = set(
                 completion for _, completion in self._previous_completions)
-        print('SUBSET', completions.issubset(previous))
         return completions.issubset(previous)
