@@ -187,9 +187,9 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             self._previous_completions = self._completions
             self._completions = completions
 
-        if (completions and
+        if (completions and (
                 not view.is_auto_complete_visible() or
-                not self._is_completions_subset()):
+                not self._is_completions_subset())):
             only_jedi_completion = (
                 get_settings(self.view)['sublime_completions_visibility']
                 in ('default', 'jedi')
@@ -207,7 +207,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         return sorted(
             completions,
             key=lambda x: (
-                -buffer.count(x[1]),
+                -buffer.count(x[1]),  # frequency in the text
                 len(x[1]) - len(x[1].strip('_')),  # how many undescores
                 x[1]  # alphabetically
             )
