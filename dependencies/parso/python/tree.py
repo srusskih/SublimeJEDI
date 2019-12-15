@@ -95,7 +95,7 @@ class DocstringMixin(object):
 
 class PythonMixin(object):
     """
-    Some Python specific utitilies.
+    Some Python specific utilities.
     """
     __slots__ = ()
 
