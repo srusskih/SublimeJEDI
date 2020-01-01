@@ -165,7 +165,7 @@ class JediFacade:
 
         :rtype: list of (str, str)
         """
-        completions = self.script.completions()
+        completions = self.script.completions(fuzzy=True)
         for complete in completions:
             yield format_completion(complete)
 

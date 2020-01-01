@@ -156,7 +156,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         settings = get_settings(self.view)
         if settings['only_complete_after_regex']:
             previous_char = self.view.substr(locations[0] - 1)
-            if not re.match(settings['only_complete_after_regex'], previous_char):
+            if not re.match(settings['only_complete_after_regex'], previous_char):  # noqa
                 return False
 
         with self._lock:
@@ -172,10 +172,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
 
             if self._last_location == locations[0] and self._completions:
                 self._last_location = None
-                return [
-                    tuple(x)
-                    for x in self._sort_completions(self._completions)
-                ]
+                return self._completions
 
     def _receive_completions(self, view, completions):
         if not completions:
@@ -200,18 +197,6 @@ class Autocomplete(sublime_plugin.ViewEventListener):
                 'disable_auto_insert': True,
                 'next_completion_if_showing': False,
             })
-
-    def _sort_completions(self, completions):
-        """Sort completions by frequency in document."""
-        buffer = self.view.substr(sublime.Region(0, self.view.size()))
-        return sorted(
-            completions,
-            key=lambda x: (
-                -buffer.count(x[1]),  # frequency in the text
-                len(x[1]) - len(x[1].strip('_')),  # how many undescores
-                x[1]  # alphabetically
-            )
-        )
 
     def _is_completions_subset(self):
         with self._lock:
