@@ -4,10 +4,9 @@ import sys
 import types
 import unittest
 
-TestResults = NamedTuple('TestResults', [
-    ('failed', int),
-    ('attempted', int),
-])
+class TestResults(NamedTuple):
+    failed: int
+    attempted: int
 
 OPTIONFLAGS_BY_NAME: Dict[str, int]
 def register_optionflag(name: str) -> int: ...
@@ -56,8 +55,8 @@ class DocTest:
 
 class DocTestParser:
     def parse(self, string: str, name: str = ...) -> List[Union[str, Example]]: ...
-    def get_doctest(self, string: str, globs: Dict[str, Any], name: str, filename: Optional[str], lineno: Optional[str]) -> DocTest: ...
-    def get_examples(self, strin: str, name: str = ...) -> List[Example]: ...
+    def get_doctest(self, string: str, globs: Dict[str, Any], name: str, filename: Optional[str], lineno: Optional[int]) -> DocTest: ...
+    def get_examples(self, string: str, name: str = ...) -> List[Example]: ...
 
 class DocTestFinder:
     def __init__(self, verbose: bool = ..., parser: DocTestParser = ...,

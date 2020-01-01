@@ -1,22 +1,22 @@
 # NB: SocketServer.pyi and socketserver.pyi must remain consistent!
 # Stubs for socketserver
 
-from typing import Any, BinaryIO, Optional, Tuple, Type
+from typing import Any, BinaryIO, Callable, Optional, Tuple, Type, Text, Union
 from socket import SocketType
 import sys
 import types
 
 class BaseServer:
     address_family: int
-    RequestHandlerClass: type
+    RequestHandlerClass: Callable[..., BaseRequestHandler]
     server_address: Tuple[str, int]
     socket: SocketType
     allow_reuse_address: bool
     request_queue_size: int
     socket_type: int
     timeout: Optional[float]
-    def __init__(self, server_address: Tuple[str, int],
-                 RequestHandlerClass: type) -> None: ...
+    def __init__(self, server_address: Any,
+                 RequestHandlerClass: Callable[..., BaseRequestHandler]) -> None: ...
     def fileno(self) -> int: ...
     def handle_request(self) -> None: ...
     def serve_forever(self, poll_interval: float = ...) -> None: ...
@@ -38,29 +38,29 @@ class BaseServer:
         def __enter__(self) -> BaseServer: ...
         def __exit__(self, exc_type: Optional[Type[BaseException]],
                      exc_val: Optional[BaseException],
-                     exc_tb: Optional[types.TracebackType]) -> bool: ...
+                     exc_tb: Optional[types.TracebackType]) -> None: ...
     if sys.version_info >= (3, 3):
         def service_actions(self) -> None: ...
 
 class TCPServer(BaseServer):
     def __init__(self, server_address: Tuple[str, int],
-                 RequestHandlerClass: type,
+                 RequestHandlerClass: Callable[..., BaseRequestHandler],
                  bind_and_activate: bool = ...) -> None: ...
 
 class UDPServer(BaseServer):
     def __init__(self, server_address: Tuple[str, int],
-                 RequestHandlerClass: type,
+                 RequestHandlerClass: Callable[..., BaseRequestHandler],
                  bind_and_activate: bool = ...) -> None: ...
 
 if sys.platform != 'win32':
     class UnixStreamServer(BaseServer):
-        def __init__(self, server_address: Tuple[str, int],
-                     RequestHandlerClass: type,
+        def __init__(self, server_address: Union[Text, bytes],
+                     RequestHandlerClass: Callable[..., BaseRequestHandler],
                      bind_and_activate: bool = ...) -> None: ...
 
     class UnixDatagramServer(BaseServer):
-        def __init__(self, server_address: Tuple[str, int],
-                     RequestHandlerClass: type,
+        def __init__(self, server_address: Union[Text, bytes],
+                     RequestHandlerClass: Callable[..., BaseRequestHandler],
                      bind_and_activate: bool = ...) -> None: ...
 
 class ForkingMixIn: ...

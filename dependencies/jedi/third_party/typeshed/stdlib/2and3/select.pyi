@@ -1,9 +1,10 @@
 import sys
-from typing import Any, Optional, Sequence, Tuple, Iterable, List, Union
+from typing import Any, Iterable, List, Optional, Protocol, Tuple, Union
 
-# When we have protocols, this should change to a protocol with a fileno method
-# See https://docs.python.org/3/c-api/file.html#c.PyObject_AsFileDescriptor
-_FileDescriptor = Union[int, Any]
+class _HasFileno(Protocol):
+    def fileno(self) -> int: ...
+
+_FileDescriptor = Union[int, _HasFileno]
 
 EPOLLERR: int
 EPOLLET: int
@@ -75,7 +76,7 @@ class poll:
     def unregister(self, fd: _FileDescriptor) -> None: ...
     def poll(self, timeout: Optional[float] = ...) -> List[Tuple[int, int]]: ...
 
-def select(rlist: Sequence[Any], wlist: Sequence[Any], xlist: Sequence[Any],
+def select(rlist: Iterable[Any], wlist: Iterable[Any], xlist: Iterable[Any],
            timeout: Optional[float] = ...) -> Tuple[List[Any],
                                                     List[Any],
                                                     List[Any]]: ...

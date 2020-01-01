@@ -2,7 +2,9 @@
 
 # Based on http://docs.python.org/2/library/subprocess.html and Python 3 stub
 
-from typing import Sequence, Any, Mapping, Callable, Tuple, IO, Union, Optional, List, Text
+from typing import (
+    Sequence, Any, Mapping, Callable, Tuple, IO, Union, Optional, List, Text, TypeVar, Generic,
+)
 
 _FILE = Union[None, int, IO[Any]]
 _TXT = Union[bytes, Text]
@@ -59,49 +61,50 @@ PIPE: int
 STDOUT: int
 
 class CalledProcessError(Exception):
-    returncode = 0
+    returncode: int
     # morally: _CMD
     cmd: Any
     # morally: Optional[bytes]
-    output: Any
+    output: bytes
 
     def __init__(self,
                  returncode: int,
                  cmd: _CMD,
                  output: Optional[bytes] = ...) -> None: ...
 
-class Popen:
-    stdin: Optional[IO[Any]]
-    stdout: Optional[IO[Any]]
-    stderr: Optional[IO[Any]]
-    pid = 0
-    returncode = 0
+# We use a dummy type variable used to make Popen generic like it is in python 3
+_T = TypeVar('_T', bound=bytes)
 
-    def __init__(self,
-                 args: _CMD,
-                 bufsize: int = ...,
-                 executable: Optional[_TXT] = ...,
-                 stdin: Optional[_FILE] = ...,
-                 stdout: Optional[_FILE] = ...,
-                 stderr: Optional[_FILE] = ...,
-                 preexec_fn: Optional[Callable[[], Any]] = ...,
-                 close_fds: bool = ...,
-                 shell: bool = ...,
-                 cwd: Optional[_TXT] = ...,
-                 env: Optional[_ENV] = ...,
-                 universal_newlines: bool = ...,
-                 startupinfo: Optional[Any] = ...,
-                 creationflags: int = ...) -> None: ...
+class Popen(Generic[_T]):
+    stdin: Optional[IO[bytes]]
+    stdout: Optional[IO[bytes]]
+    stderr: Optional[IO[bytes]]
+    pid: int
+    returncode: int
+
+    def __new__(cls,
+                args: _CMD,
+                bufsize: int = ...,
+                executable: Optional[_TXT] = ...,
+                stdin: Optional[_FILE] = ...,
+                stdout: Optional[_FILE] = ...,
+                stderr: Optional[_FILE] = ...,
+                preexec_fn: Optional[Callable[[], Any]] = ...,
+                close_fds: bool = ...,
+                shell: bool = ...,
+                cwd: Optional[_TXT] = ...,
+                env: Optional[_ENV] = ...,
+                universal_newlines: bool = ...,
+                startupinfo: Optional[Any] = ...,
+                creationflags: int = ...) -> Popen[bytes]: ...
 
     def poll(self) -> int: ...
     def wait(self) -> int: ...
     # morally: -> Tuple[Optional[bytes], Optional[bytes]]
-    def communicate(self, input: Optional[_TXT] = ...) -> Tuple[Any, Any]: ...
+    def communicate(self, input: Optional[_TXT] = ...) -> Tuple[bytes, bytes]: ...
     def send_signal(self, signal: int) -> None: ...
     def terminate(self) -> None: ...
     def kill(self) -> None: ...
-    def __enter__(self) -> Popen: ...
-    def __exit__(self, type, value, traceback) -> bool: ...
 
 def list2cmdline(seq: Sequence[str]) -> str: ...  # undocumented
 

@@ -8,7 +8,7 @@ from types import FrameType, ModuleType, TracebackType, ClassType
 
 # The following type alias are stub-only and do not exist during runtime
 _ExcInfo = Tuple[Type[BaseException], BaseException, TracebackType]
-_OptExcInfo = Tuple[Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]]
+_OptExcInfo = Union[_ExcInfo, Tuple[None, None, None]]
 
 class _flags:
     bytes_warning: int
@@ -42,11 +42,11 @@ class _float_info:
     rounds: int
 
 class _version_info(Tuple[int, int, int, str, int]):
-    major = 0
-    minor = 0
-    micro = 0
+    major: int
+    minor: int
+    micro: int
     releaselevel: str
-    serial = 0
+    serial: int
 
 _mercurial: Tuple[str, str, str]
 api_version: int
@@ -114,13 +114,11 @@ def _getframe(depth: int = ...) -> FrameType: ...
 def call_tracing(fn: Any, args: Any) -> Any: ...
 def __displayhook__(value: int) -> None: ...
 def __excepthook__(type_: type, value: BaseException, traceback: TracebackType) -> None: ...
-def exc_clear() -> None:
-    raise DeprecationWarning()
+def exc_clear() -> None: ...
 def exc_info() -> _OptExcInfo: ...
 
 # sys.exit() accepts an optional argument of anything printable
-def exit(arg: Any = ...) -> NoReturn:
-    raise SystemExit()
+def exit(arg: Any = ...) -> NoReturn: ...
 def getcheckinterval() -> int: ...  # deprecated
 def getdefaultencoding() -> str: ...
 def getdlopenflags() -> int: ...

@@ -1,12 +1,39 @@
 # Stubs for xml.etree.ElementTree
 
-from typing import Any, Callable, Dict, Generator, IO, ItemsView, Iterable, Iterator, KeysView, List, MutableSequence, Optional, overload, Sequence, Text, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    IO,
+    ItemsView,
+    Iterable,
+    Iterator,
+    KeysView,
+    List,
+    MutableSequence,
+    Optional,
+    Protocol,
+    Sequence,
+    Text,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 import io
 import sys
 
+if sys.version_info < (3,) or sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
 VERSION: str
 
-class ParseError(SyntaxError): ...
+class ParseError(SyntaxError):
+    code: int
+    position: Tuple[int, int]
 
 def iselement(element: object) -> bool: ...
 
@@ -26,20 +53,50 @@ _parser_input_type = Union[bytes, Text]
 # there is a 'name' attribute.)
 _str_argument_type = Union[str, Text]
 
-# Type for return values from individual tag/attr/text values and serialization
+# Type for return values from individual tag/attr/text values
 if sys.version_info >= (3,):
     # note: in python3, everything comes out as str, yay:
     _str_result_type = str
-    # unfortunately, tostring and tostringlist can return either bytes or str
-    # depending on the value of `encoding` parameter. Client code knows best:
-    _tostring_result_type = Any
 else:
     # in python2, if the tag/attribute/text wasn't decode-able as ascii, it
     # comes out as a unicode string; otherwise it comes out as str. (see
     # _fixtext function in the source). Client code knows best:
     _str_result_type = Any
-    # On the bright side, tostring and tostringlist always return bytes:
-    _tostring_result_type = bytes
+
+_file_or_filename = Union[str, bytes, int, IO[Any]]
+
+if sys.version_info >= (3, 8):
+    class _Writeable(Protocol):
+        def write(self, __s: str) -> Any: ...
+
+    @overload
+    def canonicalize(
+        xml_data: Optional[_parser_input_type] = ...,
+        *,
+        out: None = ...,
+        from_file: Optional[_file_or_filename] = ...,
+        with_comments: bool = ...,
+        strip_text: bool = ...,
+        rewrite_prefixes: bool = ...,
+        qname_aware_tags: Optional[Iterable[str]] = ...,
+        qname_aware_attrs: Optional[Iterable[str]] = ...,
+        exclude_attrs: Optional[Iterable[str]] = ...,
+        exclude_tags: Optional[Iterable[str]] = ...,
+    ) -> str: ...
+    @overload
+    def canonicalize(
+        xml_data: Optional[_parser_input_type] = ...,
+        *,
+        out: _Writeable,
+        from_file: Optional[_file_or_filename] = ...,
+        with_comments: bool = ...,
+        strip_text: bool = ...,
+        rewrite_prefixes: bool = ...,
+        qname_aware_tags: Optional[Iterable[str]] = ...,
+        qname_aware_attrs: Optional[Iterable[str]] = ...,
+        exclude_attrs: Optional[Iterable[str]] = ...,
+        exclude_tags: Optional[Iterable[str]] = ...,
+    ) -> None: ...
 
 class Element(MutableSequence[Element]):
     tag: _str_result_type
@@ -53,8 +110,14 @@ class Element(MutableSequence[Element]):
     def extend(self, elements: Iterable[Element]) -> None: ...
     def find(self, path: _str_argument_type, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Optional[Element]: ...
     def findall(self, path: _str_argument_type, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> List[Element]: ...
-    def findtext(self, path: _str_argument_type, default: Optional[_T] = ..., namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Union[_T, _str_result_type]: ...
-    def get(self, key: _str_argument_type, default: Optional[_T] = ...) -> Union[_str_result_type, _T]: ...
+    @overload
+    def findtext(self, path: _str_argument_type, *, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Optional[_str_result_type]: ...
+    @overload
+    def findtext(self, path: _str_argument_type, default: _T, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Union[_T, _str_result_type]: ...
+    @overload
+    def get(self, key: _str_argument_type) -> Optional[_str_result_type]: ...
+    @overload
+    def get(self, key: _str_argument_type, default: _T) -> Union[_str_result_type, _T]: ...
     def getchildren(self) -> List[Element]: ...
     def getiterator(self, tag: Optional[_str_argument_type] = ...) -> List[Element]: ...
     if sys.version_info >= (3, 2):
@@ -92,9 +155,6 @@ class QName:
     text: str
     def __init__(self, text_or_uri: _str_argument_type, tag: Optional[_str_argument_type] = ...) -> None: ...
 
-
-_file_or_filename = Union[str, bytes, int, IO[Any]]
-
 class ElementTree:
     def __init__(self, element: Optional[Element] = ..., file: Optional[_file_or_filename] = ...) -> None: ...
     def getroot(self) -> Element: ...
@@ -102,7 +162,10 @@ class ElementTree:
     def iter(self, tag: Optional[_str_argument_type] = ...) -> Generator[Element, None, None]: ...
     def getiterator(self, tag: Optional[_str_argument_type] = ...) -> List[Element]: ...
     def find(self, path: _str_argument_type, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Optional[Element]: ...
-    def findtext(self, path: _str_argument_type, default: Optional[_T] = ..., namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Union[_T, _str_result_type]: ...
+    @overload
+    def findtext(self, path: _str_argument_type, *, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Optional[_str_result_type]: ...
+    @overload
+    def findtext(self, path: _str_argument_type, default: _T, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> Union[_T, _str_result_type]: ...
     def findall(self, path: _str_argument_type, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> List[Element]: ...
     def iterfind(self, path: _str_argument_type, namespaces: Optional[Dict[_str_argument_type, _str_argument_type]] = ...) -> List[Element]: ...
     if sys.version_info >= (3, 4):
@@ -112,12 +175,22 @@ class ElementTree:
     def write_c14n(self, file: _file_or_filename) -> None: ...
 
 def register_namespace(prefix: _str_argument_type, uri: _str_argument_type) -> None: ...
-if sys.version_info >= (3, 4):
-    def tostring(element: Element, encoding: Optional[str] = ..., method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> _tostring_result_type: ...
-    def tostringlist(element: Element, encoding: Optional[str] = ..., method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> List[_tostring_result_type]: ...
+if sys.version_info >= (3,):
+    @overload
+    def tostring(element: Element, encoding: None = ..., method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> bytes: ...
+    @overload
+    def tostring(element: Element, encoding: Literal["unicode"], method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> str: ...
+    @overload
+    def tostring(element: Element, encoding: str, method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> Any: ...
+    @overload
+    def tostringlist(element: Element, encoding: None = ..., method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> List[bytes]: ...
+    @overload
+    def tostringlist(element: Element, encoding: Literal["unicode"], method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> List[str]: ...
+    @overload
+    def tostringlist(element: Element, encoding: str, method: Optional[str] = ..., *, short_empty_elements: bool = ...) -> List[Any]: ...
 else:
-    def tostring(element: Element, encoding: Optional[str] = ..., method: Optional[str] = ...) -> _tostring_result_type: ...
-    def tostringlist(element: Element, encoding: Optional[str] = ..., method: Optional[str] = ...) -> List[_tostring_result_type]: ...
+    def tostring(element: Element, encoding: Optional[str] = ..., method: Optional[str] = ...) -> bytes: ...
+    def tostringlist(element: Element, encoding: Optional[str] = ..., method: Optional[str] = ...) -> List[bytes]: ...
 def dump(elem: Element) -> None: ...
 def parse(source: _file_or_filename, parser: Optional[XMLParser] = ...) -> ElementTree: ...
 def iterparse(source: _file_or_filename, events: Optional[Sequence[str]] = ..., parser: Optional[XMLParser] = ...) -> Iterator[Tuple[str, Any]]: ...
@@ -155,13 +228,32 @@ class TreeBuilder:
     def start(self, tag: _parser_input_type, attrs: Dict[_parser_input_type, _parser_input_type]) -> Element: ...
     def end(self, tag: _parser_input_type) -> Element: ...
 
+if sys.version_info >= (3, 8):
+    class C14NWriterTarget:
+        def __init__(
+            self,
+            write: Callable[[str], Any],
+            *,
+            with_comments: bool = ...,
+            strip_text: bool = ...,
+            rewrite_prefixes: bool = ...,
+            qname_aware_tags: Optional[Iterable[str]] = ...,
+            qname_aware_attrs: Optional[Iterable[str]] = ...,
+            exclude_attrs: Optional[Iterable[str]] = ...,
+            exclude_tags: Optional[Iterable[str]] = ...,
+        ) -> None: ...
+
+
 class XMLParser:
     parser: Any
     target: TreeBuilder
     # TODO-what is entity used for???
     entity: Any
     version: str
-    def __init__(self, html: int = ..., target: Optional[TreeBuilder] = ..., encoding: Optional[str] = ...) -> None: ...
-    def doctype(self, name: str, pubid: str, system: str) -> None: ...
+    if sys.version_info >= (3, 8):
+        def __init__(self, *, target: Optional[TreeBuilder] = ..., encoding: Optional[str] = ...) -> None: ...
+    else:
+        def __init__(self, html: int = ..., target: Optional[TreeBuilder] = ..., encoding: Optional[str] = ...) -> None: ...
+        def doctype(self, name: str, pubid: str, system: str) -> None: ...
     def close(self) -> Element: ...
     def feed(self, data: _parser_input_type) -> None: ...
