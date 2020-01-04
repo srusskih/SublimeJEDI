@@ -1,31 +1,25 @@
 # Stubs for selector
 # See https://docs.python.org/3/library/selectors.html
 
-from typing import Any, List, NamedTuple, Mapping, Tuple, Optional, Union
 from abc import ABCMeta, abstractmethod
-import socket
+from typing import Any, List, Mapping, NamedTuple, Optional, Protocol, Tuple, Union
 
+class _HasFileno(Protocol):
+    def fileno(self) -> int: ...
 
 # Type aliases added mainly to preserve some context
-#
-# See https://github.com/python/typeshed/issues/482
-# for details regarding how _FileObject is typed.
-_FileObject = Union[int, socket.socket]
+_FileObject = Union[int, _HasFileno]
 _FileDescriptor = int
 _EventMask = int
-
 
 EVENT_READ: _EventMask
 EVENT_WRITE: _EventMask
 
-
-SelectorKey = NamedTuple('SelectorKey', [
-    ('fileobj', _FileObject),
-    ('fd', _FileDescriptor),
-    ('events', _EventMask),
-    ('data', Any)
-])
-
+class SelectorKey(NamedTuple):
+    fileobj: _FileObject
+    fd: _FileDescriptor
+    events: _EventMask
+    data: Any
 
 class BaseSelector(metaclass=ABCMeta):
     @abstractmethod

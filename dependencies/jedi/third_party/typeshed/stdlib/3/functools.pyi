@@ -4,11 +4,8 @@ from typing import Any, Callable, Generic, Dict, Iterable, Mapping, Optional, Se
 _AnyCallable = Callable[..., Any]
 
 _T = TypeVar("_T")
-_T2 = TypeVar("_T2")
-_T3 = TypeVar("_T3")
-_T4 = TypeVar("_T4")
-_T5 = TypeVar("_T5")
 _S = TypeVar("_S")
+
 @overload
 def reduce(function: Callable[[_T, _S], _T],
            sequence: Iterable[_S], initial: _T) -> _T: ...
@@ -16,13 +13,11 @@ def reduce(function: Callable[[_T, _S], _T],
 def reduce(function: Callable[[_T, _T], _T],
            sequence: Iterable[_T]) -> _T: ...
 
-
-class _CacheInfo(NamedTuple('CacheInfo', [
-    ('hits', int),
-    ('misses', int),
-    ('maxsize', int),
-    ('currsize', int)
-])): ...
+class _CacheInfo(NamedTuple):
+    hits: int
+    misses: int
+    maxsize: int
+    currsize: int
 
 class _lru_cache_wrapper(Generic[_T]):
     __wrapped__: Callable[..., _T]
@@ -30,10 +25,13 @@ class _lru_cache_wrapper(Generic[_T]):
     def cache_info(self) -> _CacheInfo: ...
     def cache_clear(self) -> None: ...
 
-class lru_cache():
-    def __init__(self, maxsize: Optional[int] = ..., typed: bool = ...) -> None: ...
-    def __call__(self, f: Callable[..., _T]) -> _lru_cache_wrapper[_T]: ...
-
+if sys.version_info >= (3, 8):
+    @overload
+    def lru_cache(maxsize: Optional[int] = ..., typed: bool = ...) -> Callable[[Callable[..., _T]], _lru_cache_wrapper[_T]]: ...
+    @overload
+    def lru_cache(maxsize: Callable[..., _T], typed: bool = ...) -> _lru_cache_wrapper[_T]: ...
+else:
+    def lru_cache(maxsize: Optional[int] = ..., typed: bool = ...) -> Callable[[Callable[..., _T]], _lru_cache_wrapper[_T]]: ...
 
 WRAPPER_ASSIGNMENTS: Sequence[str]
 WRAPPER_UPDATES: Sequence[str]
@@ -44,75 +42,12 @@ def wraps(wrapped: _AnyCallable, assigned: Sequence[str] = ..., updated: Sequenc
 def total_ordering(cls: type) -> type: ...
 def cmp_to_key(mycmp: Callable[[_T, _T], int]) -> Callable[[_T], Any]: ...
 
-@overload
-def partial(__func: Callable[[_T], _S], __arg: _T) -> Callable[[], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2], _S], __arg: _T) -> Callable[[_T2], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3], _S], __arg: _T) -> Callable[[_T2, _T3], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4], _S], __arg: _T) -> Callable[[_T2, _T3, _T4], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4, _T5], _S], __arg: _T) -> Callable[[_T2, _T3, _T4, _T5], _S]: ...
-
-@overload
-def partial(__func: Callable[[_T, _T2], _S],
-            __arg1: _T,
-            __arg2: _T2) -> Callable[[], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3], _S],
-            __arg1: _T,
-            __arg2: _T2) -> Callable[[_T3], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4], _S],
-            __arg1: _T,
-            __arg2: _T2) -> Callable[[_T3, _T4], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4, _T5], _S],
-            __arg1: _T,
-            __arg2: _T2) -> Callable[[_T3, _T4, _T5], _S]: ...
-
-@overload
-def partial(__func: Callable[[_T, _T2, _T3], _S],
-            __arg1: _T,
-            __arg2: _T2,
-            __arg3: _T3) -> Callable[[], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4], _S],
-            __arg1: _T,
-            __arg2: _T2,
-            __arg3: _T3) -> Callable[[_T4], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4, _T5], _S],
-            __arg1: _T,
-            __arg2: _T2,
-            __arg3: _T3) -> Callable[[_T4, _T5], _S]: ...
-
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4], _S],
-            __arg1: _T,
-            __arg2: _T2,
-            __arg3: _T3,
-            __arg4: _T4) -> Callable[[], _S]: ...
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4, _T5], _S],
-            __arg1: _T,
-            __arg2: _T2,
-            __arg3: _T3,
-            __arg4: _T4) -> Callable[[_T5], _S]: ...
-
-@overload
-def partial(__func: Callable[[_T, _T2, _T3, _T4, _T5], _S],
-            __arg1: _T,
-            __arg2: _T2,
-            __arg3: _T3,
-            __arg4: _T4,
-            __arg5: _T5) -> Callable[[], _S]: ...
-
-@overload
-def partial(__func: Callable[..., _S],
-            *args: Any,
-            **kwargs: Any) -> Callable[..., _S]: ...
+class partial(Generic[_T]):
+    func: Callable[..., _T]
+    args: Tuple[Any, ...]
+    keywords: Dict[str, Any]
+    def __init__(self, func: Callable[..., _T], *args: Any, **kwargs: Any) -> None: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> _T: ...
 
 # With protocols, this could change into a generic protocol that defines __get__ and returns _T
 _Descriptor = Any
@@ -141,3 +76,14 @@ class _SingleDispatchCallable(Generic[_T]):
     def __call__(self, *args: Any, **kwargs: Any) -> _T: ...
 
 def singledispatch(func: Callable[..., _T]) -> _SingleDispatchCallable[_T]: ...
+
+if sys.version_info >= (3, 8):
+    class cached_property(Generic[_S, _T]):
+        func: Callable[[_S], _T]
+        attrname: Optional[str]
+        def __init__(self, func: Callable[[_S], _T]) -> None: ...
+        @overload
+        def __get__(self, instance: None, owner: Optional[Type[_S]] = ...) -> cached_property[_S, _T]: ...
+        @overload
+        def __get__(self, instance: _S, owner: Optional[Type[_S]] = ...) -> _T: ...
+        def __set_name__(self, owner: Type[_S], name: str) -> None: ...

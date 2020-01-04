@@ -2,19 +2,22 @@
 
 [![Build Status](https://travis-ci.org/python/typeshed.svg?branch=master)](https://travis-ci.org/python/typeshed)
 [![Chat at https://gitter.im/python/typing](https://badges.gitter.im/python/typing.svg)](https://gitter.im/python/typing?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Pull Requests Welcome](https://img.shields.io/badge/pull%20requests-welcome-brightgreen.svg)](https://github.com/python/typeshed/blob/master/CONTRIBUTING.md)
 
 ## About
 
 Typeshed contains external type annotations for the Python standard library
-and Python builtins, as well as third party packages.
+and Python builtins, as well as third party packages as contributed by
+people external to those projects.
 
 This data can e.g. be used for static analysis, type checking or type inference.
 
 For information on how to use `typeshed`, read below.  Information for
 contributors can be found in [CONTRIBUTING.md](CONTRIBUTING.md).  **Please read
-it before submitting pull requests.**
+it before submitting pull requests; do not report issues with annotations to
+the project the stubs are for, but instead report them here to typeshed.**
 
-Typeshed supports Python versions 2.7 and 3.4 and up.
+Typeshed supports Python versions 2.7 and 3.5 and up.
 
 ## Using
 
@@ -44,10 +47,13 @@ pytype repo.
 
 ## Format
 
-Each Python module is represented by a `.pyi` "stub". This is a normal Python
-file (i.e., it can be interpreted by Python 3), except all the methods are empty.
+Each Python module is represented by a `.pyi` "stub file".  This is a
+syntactically valid Python file, although it usually cannot be run by
+Python 3 (since forward references don't require string quotes).  All
+the methods are empty.
+
 Python function annotations ([PEP 3107](https://www.python.org/dev/peps/pep-3107/))
-are used to describe the types the function has.
+are used to describe the signature of each function or method.
 
 See [PEP 484](http://www.python.org/dev/peps/pep-0484/) for the exact
 syntax of the stub files and [CONTRIBUTING.md](CONTRIBUTING.md) for the

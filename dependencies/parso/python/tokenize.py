@@ -314,17 +314,19 @@ class FStringNode(object):
 
 def _close_fstring_if_necessary(fstring_stack, string, start_pos, additional_prefix):
     for fstring_stack_index, node in enumerate(fstring_stack):
-        if string.startswith(node.quote):
+        lstripped_string = string.lstrip()
+        len_lstrip = len(string) - len(lstripped_string)
+        if lstripped_string.startswith(node.quote):
             token = PythonToken(
                 FSTRING_END,
                 node.quote,
                 start_pos,
-                prefix=additional_prefix,
+                prefix=additional_prefix+string[:len_lstrip],
             )
             additional_prefix = ''
             assert not node.previous_lines
             del fstring_stack[fstring_stack_index:]
-            return token, '', len(node.quote)
+            return token, '', len(node.quote) + len_lstrip
     return None, additional_prefix, 0
 
 
@@ -482,8 +484,20 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                     yield fstring_end_token
                     continue
 
-            pseudomatch = pseudo_token.match(line, pos)
-            if not pseudomatch:                             # scan for tokens
+            # in an f-string, match until the end of the string
+            if fstring_stack:
+                string_line = line
+                for fstring_stack_node in fstring_stack:
+                    quote = fstring_stack_node.quote
+                    end_match = endpats[quote].match(line, pos)
+                    if end_match is not None:
+                        end_match_string = end_match.group(0)
+                        if len(end_match_string) - len(quote) + pos < len(string_line):
+                            string_line = line[:pos] + end_match_string[:-len(quote)]
+                pseudomatch = pseudo_token.match(string_line, pos)
+            else:
+                pseudomatch = pseudo_token.match(line, pos)
+            if not pseudomatch:  # scan for tokens
                 match = whitespace.match(line, pos)
                 if pos == 0:
                     for t in dedent_if_necessary(match.end()):
@@ -560,7 +574,12 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                 new_line = True
             elif initial == '#':  # Comments
                 assert not token.endswith("\n")
-                additional_prefix = prefix + token
+                if fstring_stack and fstring_stack[-1].is_in_expr():
+                    # `#` is not allowed in f-string expressions
+                    yield PythonToken(ERRORTOKEN, initial, spos, prefix)
+                    pos = start + 1
+                else:
+                    additional_prefix = prefix + token
             elif token in triple_quoted:
                 endprog = endpats[token]
                 endmatch = endprog.match(line, pos)
@@ -616,10 +635,13 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                     else:
                         if paren_level:
                             paren_level -= 1
-                elif token == ':' and fstring_stack \
+                elif token.startswith(':') and fstring_stack \
                         and fstring_stack[-1].parentheses_count \
                         - fstring_stack[-1].format_spec_count == 1:
+                    # `:` and `:=` both count
                     fstring_stack[-1].format_spec_count += 1
+                    token = ':'
+                    pos = start + 1
 
                 yield PythonToken(OP, token, spos, prefix)
 

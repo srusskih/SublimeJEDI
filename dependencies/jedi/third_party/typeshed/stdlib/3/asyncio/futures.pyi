@@ -1,22 +1,21 @@
 import sys
-from typing import Any, Union, Callable, TypeVar, Type, List, Generic, Iterable, Generator, Awaitable, Optional, Tuple
+from typing import Any, Union, Callable, TypeVar, Type, List, Iterable, Generator, Awaitable, Optional, Tuple
 from .events import AbstractEventLoop
 from concurrent.futures import (
-    CancelledError as CancelledError,
-    TimeoutError as TimeoutError,
     Future as _ConcurrentFuture,
     Error,
 )
 
+if sys.version_info < (3, 8):
+    from concurrent.futures import CancelledError as CancelledError
+    from concurrent.futures import TimeoutError as TimeoutError
+    class InvalidStateError(Error): ...
+
 if sys.version_info >= (3, 7):
     from contextvars import Context
 
-__all__: List[str]
-
 _T = TypeVar('_T')
-_S = TypeVar('_S', bound=Future)
-
-class InvalidStateError(Error): ...
+_S = TypeVar('_S')
 
 class _TracebackLogger:
     exc: BaseException
@@ -26,8 +25,7 @@ class _TracebackLogger:
     def clear(self) -> None: ...
     def __del__(self) -> None: ...
 
-if sys.version_info >= (3, 5):
-    def isfuture(obj: object) -> bool: ...
+def isfuture(obj: object) -> bool: ...
 
 class Future(Awaitable[_T], Iterable[_T]):
     _state: str
@@ -61,4 +59,4 @@ class Future(Awaitable[_T], Iterable[_T]):
     @property
     def _loop(self) -> AbstractEventLoop: ...
 
-def wrap_future(f: Union[_ConcurrentFuture[_T], Future[_T]]) -> Future[_T]: ...
+def wrap_future(f: Union[_ConcurrentFuture[_T], Future[_T]], *, loop: Optional[AbstractEventLoop] = ...) -> Future[_T]: ...

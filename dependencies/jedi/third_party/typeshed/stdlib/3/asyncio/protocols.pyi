@@ -1,8 +1,5 @@
 from asyncio import transports
-from typing import List, Optional, Text, Tuple, Union
-
-__all__: List[str]
-
+from typing import Optional, Text, Tuple, Union
 
 class BaseProtocol:
     def connection_made(self, transport: transports.BaseTransport) -> None: ...
@@ -13,6 +10,10 @@ class BaseProtocol:
 class Protocol(BaseProtocol):
     def data_received(self, data: bytes) -> None: ...
     def eof_received(self) -> Optional[bool]: ...
+
+class BufferedProtocol(Protocol):
+    def get_buffer(self, sizehint: int) -> bytearray: ...
+    def buffer_updated(self, nbytes: int) -> None: ...
 
 class DatagramProtocol(BaseProtocol):
     def datagram_received(self, data: Union[bytes, Text], addr: Tuple[str, int]) -> None: ...

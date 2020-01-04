@@ -141,6 +141,9 @@ class NFAArc(object):
         self.next = next_
         self.nonterminal_or_string = nonterminal_or_string
 
+    def __repr__(self):
+        return '<%s: %s>' % (self.__class__.__name__, self.nonterminal_or_string)
+
 
 class NFAState(object):
     def __init__(self, from_rule):
