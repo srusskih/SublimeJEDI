@@ -16,7 +16,7 @@ _T = TypeVar('_T')
 
 # The following type alias are stub-only and do not exist during runtime
 _ExcInfo = Tuple[Type[BaseException], BaseException, TracebackType]
-_OptExcInfo = Tuple[Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]]
+_OptExcInfo = Union[_ExcInfo, Tuple[None, None, None]]
 
 # ----- sys variables -----
 abiflags: str
@@ -46,6 +46,8 @@ path_hooks: List[Any]  # TODO precise type; function, path to finder
 path_importer_cache: Dict[str, Any]  # TODO precise type
 platform: str
 prefix: str
+if sys.version_info >= (3, 8):
+    pycache_prefix: Optional[str]
 ps1: str
 ps2: str
 stdin: TextIO
@@ -54,8 +56,6 @@ stderr: TextIO
 __stdin__: TextIO
 __stdout__: TextIO
 __stderr__: TextIO
-# deprecated and removed in Python 3.3:
-subversion: Tuple[str, str, str]
 tracebacklimit: int
 version: str
 api_version: int
@@ -83,6 +83,7 @@ class _flags:
     hash_randomization: int
     if sys.version_info >= (3, 7):
         dev_mode: int
+        utf8_mode: int
 
 float_info: _float_info
 class _float_info:
@@ -129,13 +130,13 @@ version_info: _version_info
 def call_tracing(fn: Callable[..., _T], args: Any) -> _T: ...
 def _clear_type_cache() -> None: ...
 def _current_frames() -> Dict[int, Any]: ...
+def _debugmallocstats() -> None: ...
 def displayhook(value: Optional[int]) -> None: ...
 def excepthook(type_: Type[BaseException], value: BaseException,
                traceback: TracebackType) -> None: ...
 def exc_info() -> _OptExcInfo: ...
 # sys.exit() accepts an optional argument of anything printable
-def exit(arg: object = ...) -> NoReturn:
-    raise SystemExit()
+def exit(arg: object = ...) -> NoReturn: ...
 def getcheckinterval() -> int: ...  # deprecated
 def getdefaultencoding() -> str: ...
 if sys.platform != 'win32':
@@ -185,8 +186,7 @@ def getwindowsversion() -> _WinVersion: ...  # Windows only
 
 def intern(string: str) -> str: ...
 
-if sys.version_info >= (3, 5):
-    def is_finalizing() -> bool: ...
+def is_finalizing() -> bool: ...
 
 if sys.version_info >= (3, 7):
     __breakpointhook__: Any  # contains the original value of breakpointhook
@@ -199,3 +199,15 @@ def setswitchinterval(interval: float) -> None: ...
 def settscdump(on_flag: bool) -> None: ...
 
 def gettotalrefcount() -> int: ...  # Debug builds only
+
+if sys.version_info >= (3, 8):
+    # not exported by sys
+    class UnraisableHookArgs:
+        exc_type: Type[BaseException]
+        exc_value: Optional[BaseException]
+        exc_traceback: Optional[TracebackType]
+        err_msg: Optional[str]
+        object: Optional[object]
+    unraisablehook: Callable[[UnraisableHookArgs], Any]
+    def addaudithook(hook: Callable[[str, Tuple[Any, ...]], Any]) -> None: ...
+    def audit(__event: str, *args: Any) -> None: ...

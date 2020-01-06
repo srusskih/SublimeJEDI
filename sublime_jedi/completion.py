@@ -3,12 +3,12 @@ import re
 
 import sublime
 import sublime_plugin
+from threading import Lock
 
 from .console_logging import getLogger
-from .daemon import ask_daemon, ask_daemon_with_timeout
-from .utils import (get_settings,
-                    is_python_scope,
-                    is_repl,)
+from .daemon import ask_daemon
+from .utils import get_settings, is_python_scope, is_repl
+
 
 logger = getLogger(__name__)
 FOLLOWING_CHARS = set(["\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"])
@@ -115,8 +115,16 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 class Autocomplete(sublime_plugin.ViewEventListener):
     """Sublime Text autocompletion integration."""
 
+    _lock = Lock()
+    _completions = []
+    _previous_completions = []
+    _last_location = None
+
     def __enabled(self):
         settings = get_settings(self.view)
+
+        if sublime.active_window().active_view().id() != self.view.id():
+            return False
 
         if is_repl(self.view) and not settings['enable_in_sublime_repl']:
             logger.debug("JEDI does not complete in SublimeREPL views.")
@@ -146,61 +154,54 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         logger.info('JEDI completion triggered.')
 
         settings = get_settings(self.view)
-        only_jedi_completion = (
-            settings['sublime_completions_visibility'] in ('default', 'jedi')
-        )
-
-        previous_char = self.view.substr(locations[0] - 1)
         if settings['only_complete_after_regex']:
-            if not re.match(settings['only_complete_after_regex'], previous_char):
+            previous_char = self.view.substr(locations[0] - 1)
+            if not re.match(settings['only_complete_after_regex'], previous_char):  # noqa
                 return False
 
-        cplns = ask_daemon_with_timeout(
-            self.view,
-            'autocomplete',
-            location=locations[0],
-            timeout=settings['completion_timeout']
-        )
+        with self._lock:
+            if self._last_location != locations[0]:
+                self._last_location = locations[0]
+                ask_daemon(
+                    self.view,
+                    self._receive_completions,
+                    'autocomplete',
+                    location=locations[0],
+                )
+                return [], PLUGIN_ONLY_COMPLETION
 
-        logger.info("Completion completed.")
+            if self._last_location == locations[0] and self._completions:
+                self._last_location = None
+                return self._completions
 
-        cplns = [tuple(x) for x in self._sort_completions(cplns)]
-        logger.debug("Completions: {0}".format(cplns))
+    def _receive_completions(self, view, completions):
+        if not completions:
+            return
 
-        # disabled due to can't reproduce
-        # self._fix_tab_completion_issue()
+        logger.debug("Completions: {0}".format(completions))
 
-        if only_jedi_completion:
-            return cplns, PLUGIN_ONLY_COMPLETION
-        return cplns
+        with self._lock:
+            self._previous_completions = self._completions
+            self._completions = completions
 
-    def _sort_completions(self, completions):
-        """Sort completions by frequency in document."""
-        buffer = self.view.substr(sublime.Region(0, self.view.size()))
-
-        return sorted(
-            completions,
-            key=lambda x: (
-                -buffer.count(x[1]),  # frequency in the text
-                len(x[1]) - len(x[1].strip('_')),  # how many undescores
-                x[1]  # alphabetically
+        if (completions and (
+                not view.is_auto_complete_visible() or
+                not self._is_completions_subset())):
+            only_jedi_completion = (
+                get_settings(self.view)['sublime_completions_visibility']
+                in ('default', 'jedi')
             )
-        )
+            view.run_command('hide_auto_complete')
+            view.run_command('auto_complete', {
+                'api_completions_only': only_jedi_completion,
+                'disable_auto_insert': True,
+                'next_completion_if_showing': False,
+            })
 
-    def _fix_tab_completion_issue(self):
-        """Fix issue with tab completion & commit on tab.
-
-        When you hit <tab> after completion commit,
-        completion pop-up will appears
-        and `\t`(tabulation) would be inserted
-        the fix detects such behavior and trying avoidt.
-        """
-        logger.debug("command history: " + str([
-            self.view.command_history(-1),
-            self.view.command_history(0),
-            self.view.command_history(1),
-        ]))
-
-        last_command = self.view.command_history(0)
-        if last_command == (u'insert', {'characters': u'\t'}, 1):
-            self.view.run_command('undo')
+    def _is_completions_subset(self):
+        with self._lock:
+            completions = set(
+                completion for _, completion in self._completions)
+            previous = set(
+                completion for _, completion in self._previous_completions)
+        return completions.issubset(previous)

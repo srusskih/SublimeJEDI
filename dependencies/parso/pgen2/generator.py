@@ -309,13 +309,39 @@ def _calculate_tree_traversal(nonterminal_to_dfas):
             _calculate_first_plans(nonterminal_to_dfas, first_plans, nonterminal)
 
     # Now that we have calculated the first terminals, we are sure that
-    # there is no left recursion or ambiguities.
+    # there is no left recursion.
 
     for dfas in nonterminal_to_dfas.values():
         for dfa_state in dfas:
+            transitions = dfa_state.transitions
             for nonterminal, next_dfa in dfa_state.nonterminal_arcs.items():
                 for transition, pushes in first_plans[nonterminal].items():
-                    dfa_state.transitions[transition] = DFAPlan(next_dfa, pushes)
+                    if transition in transitions:
+                        prev_plan = transitions[transition]
+                        # Make sure these are sorted so that error messages are
+                        # at least deterministic
+                        choices = sorted([
+                            (
+                                prev_plan.dfa_pushes[0].from_rule
+                                if prev_plan.dfa_pushes
+                                else prev_plan.next_dfa.from_rule
+                            ),
+                            (
+                                pushes[0].from_rule
+                                if pushes else next_dfa.from_rule
+                            ),
+                        ])
+                        raise ValueError(
+                            "Rule %s is ambiguous; given a %s token, we "
+                            "can't determine if we should evaluate %s or %s."
+                            % (
+                                (
+                                    dfa_state.from_rule,
+                                    transition,
+                                ) + tuple(choices)
+                            )
+                        )
+                    transitions[transition] = DFAPlan(next_dfa, pushes)
 
 
 def _calculate_first_plans(nonterminal_to_dfas, first_plans, nonterminal):
@@ -345,13 +371,6 @@ def _calculate_first_plans(nonterminal_to_dfas, first_plans, nonterminal):
                 raise ValueError("left recursion for rule %r" % nonterminal)
 
         for t, pushes in first_plans2.items():
-            check = new_first_plans.get(t)
-            if check is not None:
-                raise ValueError(
-                    "Rule %s is ambiguous; %s is the"
-                    " start of the rule %s as well as %s."
-                    % (nonterminal, t, nonterminal2, check[-1].from_rule)
-                )
             new_first_plans[t] = [next_] + pushes
 
     first_plans[nonterminal] = new_first_plans

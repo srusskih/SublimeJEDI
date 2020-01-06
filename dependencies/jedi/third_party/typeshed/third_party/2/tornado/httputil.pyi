@@ -1,16 +1,16 @@
-from typing import Any
+from typing import Any, Dict, NamedTuple
+
 from tornado.util import ObjectDict
-from collections import namedtuple
 
 class SSLError(Exception): ...
 
-class _NormalizedHeaderCache(dict):
+class _NormalizedHeaderCache(Dict[Any, Any]):
     size: Any
     queue: Any
     def __init__(self, size) -> None: ...
     def __missing__(self, key): ...
 
-class HTTPHeaders(dict):
+class HTTPHeaders(Dict[Any, Any]):
     def __init__(self, *args, **kwargs) -> None: ...
     def add(self, name, value): ...
     def get_list(self, name): ...
@@ -79,11 +79,17 @@ def parse_body_arguments(content_type, body, arguments, files, headers=...): ...
 def parse_multipart_form_data(boundary, data, arguments, files): ...
 def format_timestamp(ts): ...
 
-RequestStartLine = namedtuple('RequestStartLine', ['method', 'path', 'version'])
+class RequestStartLine(NamedTuple):
+    method: str
+    path: str
+    version: str
 
 def parse_request_start_line(line): ...
 
-ResponseStartLine = namedtuple('ResponseStartLine', ['version', 'code', 'reason'])
+class ResponseStartLine(NamedTuple):
+    version: str
+    code: str
+    reason: str
 
 def parse_response_start_line(line): ...
 def doctests(): ...
