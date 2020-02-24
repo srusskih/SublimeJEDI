@@ -2,8 +2,9 @@ from collections import namedtuple
 import re
 import sys
 from ast import literal_eval
+from functools import total_ordering
 
-from parso._compatibility import unicode, total_ordering
+from parso._compatibility import unicode
 
 # The following is a list in Python that are line breaks in str.splitlines, but
 # not in Python. In Python only \r (Carriage Return, 0xD) and \n (Line Feed,
@@ -122,7 +123,7 @@ def _parse_version(version):
     match = re.match(r'(\d+)(?:\.(\d)(?:\.\d+)?)?$', version)
     if match is None:
         raise ValueError('The given version is not in the right format. '
-                         'Use something like "3.2" or "3".')
+                         'Use something like "3.8" or "3".')
 
     major = int(match.group(1))
     minor = match.group(2)
@@ -163,13 +164,13 @@ class PythonVersionInfo(namedtuple('Version', 'major, minor')):
 
 def parse_version_string(version=None):
     """
-    Checks for a valid version number (e.g. `3.2` or `2.7.1` or `3`) and
+    Checks for a valid version number (e.g. `3.8` or `2.7.1` or `3`) and
     returns a corresponding version info that is always two characters long in
     decimal.
     """
     if version is None:
         version = '%s.%s' % sys.version_info[:2]
     if not isinstance(version, (unicode, str)):
-        raise TypeError("version must be a string like 3.2.")
+        raise TypeError('version must be a string like "3.8"')
 
     return _parse_version(version)

@@ -84,7 +84,7 @@ class {typename}(tuple):
     # These methods were added by Jedi.
     # __new__ doesn't really work with Jedi. So adding this to nametuples seems
     # like the easiest way.
-    def __init__(_cls, {arg_list}):
+    def __init__(self, {arg_list}):
         'A helper function for namedtuple.'
         self.__iterable = ({arg_list})
 
@@ -467,8 +467,6 @@ def collections_namedtuple(value, arguments, callback):
     generated_class = next(module.iter_classdefs())
     parent_context = ModuleValue(
         inference_state, module,
-        file_io=None,
-        string_names=None,
         code_lines=parso.split_lines(code, keepends=True),
     ).as_context()
 

@@ -20,7 +20,8 @@ from jedi.inference.value import ClassValue, FunctionValue
 from jedi.inference.value import iterable
 from jedi.inference.value.dynamic_arrays import ListModification, DictModification
 from jedi.inference.value import TreeInstance
-from jedi.inference.helpers import is_string, is_literal, is_number, get_names_of_node
+from jedi.inference.helpers import is_string, is_literal, is_number, \
+    get_names_of_node, is_big_annoying_library
 from jedi.inference.compiled.access import COMPARISON_OPERATORS
 from jedi.inference.cache import inference_state_method_cache
 from jedi.inference.gradual.stub_value import VersionInfo
@@ -64,18 +65,6 @@ def _limit_value_infers(func):
     return wrapper
 
 
-def _py__stop_iteration_returns(generators):
-    results = NO_VALUES
-    for generator in generators:
-        try:
-            method = generator.py__stop_iteration_returns
-        except AttributeError:
-            debug.warning('%s is not actually a generator', generator)
-        else:
-            results |= method()
-    return results
-
-
 def infer_node(context, element):
     if isinstance(context, CompForContext):
         return _infer_node(context, element)
@@ -108,7 +97,7 @@ def infer_node(context, element):
             str_element_names = [e.value for e in element_names]
             if any(i.value in str_element_names for i in if_names):
                 for if_name in if_names:
-                    definitions = context.inference_state.goto_definitions(context, if_name)
+                    definitions = context.inference_state.infer(context, if_name)
                     # Every name that has multiple different definitions
                     # causes the complexity to rise. The complexity should
                     # never fall below 1.
@@ -212,8 +201,8 @@ def _infer_node(context, element):
         return value_set
     elif typ == 'test':
         # `x if foo else y` case.
-        return (context.infer_node(element.children[0]) |
-                context.infer_node(element.children[-1]))
+        return (context.infer_node(element.children[0])
+                | context.infer_node(element.children[-1]))
     elif typ == 'operator':
         # Must be an ellipsis, other operators are not inferred.
         # In Python 2 ellipsis is coded as three single dot tokens, not
@@ -328,8 +317,8 @@ def infer_atom(context, atom):
         c = atom.children
         # Parentheses without commas are not tuples.
         if c[0] == '(' and not len(c) == 2 \
-                and not(c[1].type == 'testlist_comp' and
-                        len(c[1].children) > 1):
+                and not(c[1].type == 'testlist_comp'
+                        and len(c[1].children) > 1):
             return context.infer_node(c[1])
 
         try:
@@ -355,8 +344,8 @@ def infer_atom(context, atom):
             array_node_c = array_node.children
         except AttributeError:
             array_node_c = []
-        if c[0] == '{' and (array_node == '}' or ':' in array_node_c or
-                            '**' in array_node_c):
+        if c[0] == '{' and (array_node == '}' or ':' in array_node_c
+                            or '**' in array_node_c):
             new_value = iterable.DictLiteralValue(state, context, atom)
         else:
             new_value = iterable.SequenceLiteralValue(state, context, atom)
@@ -587,12 +576,12 @@ def _infer_comparison_part(inference_state, context, left, operator, right):
             return ValueSet([right])
     elif str_operator == '+':
         if l_is_num and r_is_num or is_string(left) and is_string(right):
-            return ValueSet([left.execute_operation(right, str_operator)])
+            return left.execute_operation(right, str_operator)
         elif _is_tuple(left) and _is_tuple(right) or _is_list(left) and _is_list(right):
             return ValueSet([iterable.MergedArray(inference_state, (left, right))])
     elif str_operator == '-':
         if l_is_num and r_is_num:
-            return ValueSet([left.execute_operation(right, str_operator)])
+            return left.execute_operation(right, str_operator)
     elif str_operator == '%':
         # With strings and numbers the left type typically remains. Except for
         # `int() % float()`.
@@ -600,11 +589,9 @@ def _infer_comparison_part(inference_state, context, left, operator, right):
     elif str_operator in COMPARISON_OPERATORS:
         if left.is_compiled() and right.is_compiled():
             # Possible, because the return is not an option. Just compare.
-            try:
-                return ValueSet([left.execute_operation(right, str_operator)])
-            except TypeError:
-                # Could be True or False.
-                pass
+            result = left.execute_operation(right, str_operator)
+            if result:
+                return result
         else:
             if str_operator in ('is', '!=', '==', 'is not'):
                 operation = COMPARISON_OPERATORS[str_operator]
@@ -738,7 +725,9 @@ def tree_name_to_values(inference_state, context, tree_name):
         # the static analysis report.
         exceptions = context.infer_node(tree_name.get_previous_sibling().get_previous_sibling())
         types = exceptions.execute_with_values()
-    elif node.type == 'param':
+    elif typ == 'param':
+        types = NO_VALUES
+    elif typ == 'del_stmt':
         types = NO_VALUES
     else:
         raise ValueError("Should not happen. type: %s" % typ)
@@ -762,6 +751,10 @@ def _apply_decorators(context, node):
     else:
         decoratee_value = FunctionValue.from_context(context, node)
     initial = values = ValueSet([decoratee_value])
+
+    if is_big_annoying_library(context):
+        return values
+
     for dec in reversed(node.get_decorators()):
         debug.dbg('decorator: %s %s', dec, values, color="MAGENTA")
         with debug.increase_indent_cm():

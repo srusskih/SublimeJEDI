@@ -224,7 +224,7 @@ def load_grammar(**kwargs):
     Loads a :py:class:`parso.Grammar`. The default version is the current Python
     version.
 
-    :param str version: A python version string, e.g. ``version='3.3'``.
+    :param str version: A python version string, e.g. ``version='3.8'``.
     :param str path: A path to a grammar file
     """
     def load_grammar(language='python', version=None, path=None):

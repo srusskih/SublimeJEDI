@@ -17,8 +17,23 @@ from parso._compatibility import FileNotFoundError
 
 LOG = logging.getLogger(__name__)
 
+_CACHED_FILE_MINIMUM_SURVIVAL = 60 * 10  # 10 minutes
+"""
+Cached files should survive at least a few minutes.
+"""
+_CACHED_SIZE_TRIGGER = 600
+"""
+This setting limits the amount of cached files. It's basically a way to start
+garbage collection.
 
-_PICKLE_VERSION = 32
+The reasoning for this limit being as big as it is, is the following:
+
+Numpy, Pandas, Matplotlib and Tensorflow together use about 500 files. This
+makes Jedi use ~500mb of memory. Since we might want a bit more than those few
+libraries, we just increase it a bit.
+"""
+
+_PICKLE_VERSION = 33
 """
 Version number (integer) for file system cache.
 
@@ -40,7 +55,7 @@ _VERSION_TAG = '%s-%s%s-%s' % (
 """
 Short name for distinguish Python implementations and versions.
 
-It's like `sys.implementation.cache_tag` but for Python < 3.3
+It's like `sys.implementation.cache_tag` but for Python2
 we generate something similar.  See:
 http://docs.python.org/3/library/sys.html#sys.implementation
 """
@@ -76,6 +91,7 @@ class _NodeCacheItem(object):
         if change_time is None:
             change_time = time.time()
         self.change_time = change_time
+        self.last_used = change_time
 
 
 def load_module(hashed_grammar, file_io, cache_path=None):
@@ -89,6 +105,7 @@ def load_module(hashed_grammar, file_io, cache_path=None):
     try:
         module_cache_item = parser_cache[hashed_grammar][file_io.path]
         if p_time <= module_cache_item.change_time:
+            module_cache_item.last_used = time.time()
             return module_cache_item.node
     except KeyError:
         return _load_from_file_system(
@@ -122,9 +139,25 @@ def _load_from_file_system(hashed_grammar, path, p_time, cache_path=None):
     except FileNotFoundError:
         return None
     else:
-        parser_cache.setdefault(hashed_grammar, {})[path] = module_cache_item
+        _set_cache_item(hashed_grammar, path, module_cache_item)
         LOG.debug('pickle loaded: %s', path)
         return module_cache_item.node
+
+
+def _set_cache_item(hashed_grammar, path, module_cache_item):
+    if sum(len(v) for v in parser_cache.values()) >= _CACHED_SIZE_TRIGGER:
+        # Garbage collection of old cache files.
+        # We are basically throwing everything away that hasn't been accessed
+        # in 10 minutes.
+        cutoff_time = time.time() - _CACHED_FILE_MINIMUM_SURVIVAL
+        for key, path_to_item_map in parser_cache.items():
+            parser_cache[key] = {
+                path: node_item
+                for path, node_item in path_to_item_map.items()
+                if node_item.last_used > cutoff_time
+            }
+
+    parser_cache.setdefault(hashed_grammar, {})[path] = module_cache_item
 
 
 def save_module(hashed_grammar, file_io, module, lines, pickling=True, cache_path=None):
@@ -136,7 +169,7 @@ def save_module(hashed_grammar, file_io, module, lines, pickling=True, cache_pat
         pickling = False
 
     item = _NodeCacheItem(module, lines, p_time)
-    parser_cache.setdefault(hashed_grammar, {})[path] = item
+    _set_cache_item(hashed_grammar, path, item)
     if pickling and path is not None:
         _save_to_file_system(hashed_grammar, path, item, cache_path=cache_path)
 

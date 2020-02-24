@@ -119,7 +119,7 @@ def _internal_check_array_additions(context, sequence):
 
     # reset settings
     settings.dynamic_params_for_other_modules = temp_param_add
-    debug.dbg('Dynamic array result %s' % added_types, color='MAGENTA')
+    debug.dbg('Dynamic array result %s', added_types, color='MAGENTA')
     return added_types
 
 
@@ -192,6 +192,9 @@ class DictModification(_Modification):
         for lazy_context in self._wrapped_value.py__iter__(contextualized_node):
             yield lazy_context
         yield self._contextualized_key
+
+    def get_key_values(self):
+        return self._wrapped_value.get_key_values() | self._contextualized_key.infer()
 
 
 class ListModification(_Modification):

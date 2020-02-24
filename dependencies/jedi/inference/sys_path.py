@@ -10,6 +10,8 @@ from jedi.file_io import FileIO
 from jedi import settings
 from jedi import debug
 
+_BUILDOUT_PATH_INSERTION_LIMIT = 10
+
 
 def _abs_path(module_context, path):
     if os.path.isabs(path):
@@ -138,6 +140,8 @@ def discover_buildout_paths(inference_state, script_path):
     for buildout_script_path in _get_buildout_script_paths(script_path):
         for path in _get_paths_from_buildout_script(inference_state, buildout_script_path):
             buildout_script_paths.add(path)
+            if len(buildout_script_paths) >= _BUILDOUT_PATH_INSERTION_LIMIT:
+                break
 
     return buildout_script_paths
 
@@ -156,7 +160,8 @@ def _get_paths_from_buildout_script(inference_state, buildout_script_path):
 
     from jedi.inference.value import ModuleValue
     module_context = ModuleValue(
-        inference_state, module_node, file_io,
+        inference_state, module_node,
+        file_io=file_io,
         string_names=None,
         code_lines=get_cached_code_lines(inference_state.grammar, buildout_script_path),
     ).as_context()

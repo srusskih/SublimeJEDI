@@ -640,7 +640,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
     return None
 
 
-if py_version < 34:
+if not is_py3:
     # Simplified backport of Python 3 weakref.finalize:
     # https://github.com/python/cpython/blob/ded4737989316653469763230036b04513cb62b3/Lib/weakref.py#L502-L662
     class finalize(object):

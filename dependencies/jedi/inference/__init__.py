@@ -104,6 +104,7 @@ class InferenceState(object):
         self.project = project
         self.access_cache = {}
         self.allow_descriptor_getattr = False
+        self.flow_analysis_enabled = True
 
         self.reset_recursion_limitations()
 
@@ -143,7 +144,7 @@ class InferenceState(object):
         """Convenience function"""
         return self.project._get_sys_path(self, environment=self.environment, **kwargs)
 
-    def goto_definitions(self, context, name):
+    def infer(self, context, name):
         def_ = name.get_definition(import_name_always=True)
         if def_ is not None:
             type_ = def_.type
@@ -169,6 +170,8 @@ class InferenceState(object):
                 return imports.infer_import(context, name)
             if type_ == 'with_stmt':
                 return tree_name_to_values(self, context, name)
+            elif type_ == 'param':
+                return context.py__getattribute__(name.value, position=name.end_pos)
         else:
             result = follow_error_node_imports_if_possible(context, name)
             if result is not None:
