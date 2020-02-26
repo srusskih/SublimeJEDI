@@ -5,10 +5,11 @@ from parso.python.tree import search_ancestor
 from jedi import debug
 from jedi import settings
 from jedi.inference import compiled
-from jedi.inference.compiled.value import CompiledObjectFilter
-from jedi.inference.helpers import values_from_qualified_names
+from jedi.inference.compiled.value import CompiledValueFilter
+from jedi.inference.helpers import values_from_qualified_names, is_big_annoying_library
 from jedi.inference.filters import AbstractFilter, AnonymousFunctionExecutionFilter
-from jedi.inference.names import ValueName, TreeNameDefinition, ParamName
+from jedi.inference.names import ValueName, TreeNameDefinition, ParamName, \
+    NameWrapper
 from jedi.inference.base_value import Value, NO_VALUES, ValueSet, \
     iterator_to_value_set, ValueWrapper
 from jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues
@@ -16,9 +17,10 @@ from jedi.inference.cache import inference_state_method_cache
 from jedi.inference.arguments import ValuesArguments, TreeArgumentsWrapper
 from jedi.inference.value.function import \
     FunctionValue, FunctionMixin, OverloadedFunctionValue, \
-    BaseFunctionExecutionContext, FunctionExecutionContext
+    BaseFunctionExecutionContext, FunctionExecutionContext, FunctionNameInClass
 from jedi.inference.value.klass import ClassFilter
 from jedi.inference.value.dynamic_arrays import get_dynamic_array_instance
+from jedi.parser_utils import function_is_staticmethod, function_is_classmethod
 
 
 class InstanceExecutedParamName(ParamName):
@@ -41,7 +43,18 @@ class AnonymousMethodExecutionFilter(AnonymousFunctionExecutionFilter):
 
     def _convert_param(self, param, name):
         if param.position_index == 0:
-            return InstanceExecutedParamName(self._instance, self._function_value, name)
+            if function_is_classmethod(self._function_value.tree_node):
+                return InstanceExecutedParamName(
+                    self._instance.py__class__(),
+                    self._function_value,
+                    name
+                )
+            elif not function_is_staticmethod(self._function_value.tree_node):
+                return InstanceExecutedParamName(
+                    self._instance,
+                    self._function_value,
+                    name
+                )
         return super(AnonymousMethodExecutionFilter, self)._convert_param(param, name)
 
 
@@ -62,7 +75,7 @@ class AnonymousMethodExecutionContext(BaseFunctionExecutionContext):
         # set the self name
         param_names[0] = InstanceExecutedParamName(
             self.instance,
-            self._function_value,
+            self._value,
             param_names[0].tree_name
         )
         return param_names
@@ -176,19 +189,11 @@ class _BaseTreeInstance(AbstractInstanceValue):
         for f in class_filters:
             if isinstance(f, ClassFilter):
                 yield InstanceClassFilter(self, f)
-            elif isinstance(f, CompiledObjectFilter):
+            elif isinstance(f, CompiledValueFilter):
                 yield CompiledInstanceClassFilter(self, f)
             else:
                 # Propably from the metaclass.
                 yield f
-
-    def _get_annotation_init_functions(self):
-        filter = next(self.class_value.get_filters())
-        for init_name in filter.get('__init__'):
-            for init in init_name.infer():
-                if init.is_function():
-                    for signature in init.get_signatures():
-                        yield signature.value
 
     @inference_state_method_cache()
     def create_instance_context(self, class_context, node):
@@ -198,7 +203,7 @@ class _BaseTreeInstance(AbstractInstanceValue):
             new = search_ancestor(new, 'funcdef', 'classdef')
             if class_context.tree_node is new:
                 func = FunctionValue.from_context(class_context, func_node)
-                bound_method = BoundMethod(self, func)
+                bound_method = BoundMethod(self, class_context, func)
                 if func_node.name.value == '__init__':
                     context = bound_method.as_context(self._arguments)
                 else:
@@ -224,8 +229,10 @@ class _BaseTreeInstance(AbstractInstanceValue):
         # We are inversing this, because a hand-crafted `__getattribute__`
         # could still call another hand-crafted `__getattr__`, but not the
         # other way around.
-        names = (self.get_function_slot_names(u'__getattr__') or
-                 self.get_function_slot_names(u'__getattribute__'))
+        if is_big_annoying_library(self.parent_context):
+            return NO_VALUES
+        names = (self.get_function_slot_names(u'__getattr__')
+                 or self.get_function_slot_names(u'__getattribute__'))
         return self.execute_function_slots(names, name)
 
     def py__getitem__(self, index_value_set, contextualized_node):
@@ -328,7 +335,7 @@ class TreeInstance(_BaseTreeInstance):
                 # First check if the signature even matches, if not we don't
                 # need to infer anything.
                 continue
-            bound_method = BoundMethod(self, signature.value)
+            bound_method = BoundMethod(self, self.class_value.as_context(), signature.value)
             all_annotations = py__annotations__(signature.value.tree_node)
             type_var_dict = infer_type_vars_for_execution(bound_method, args, all_annotations)
             if type_var_dict:
@@ -341,6 +348,24 @@ class TreeInstance(_BaseTreeInstance):
 
     def get_annotated_class_object(self):
         return self._get_annotated_class_object() or self.class_value
+
+    def get_key_values(self):
+        values = NO_VALUES
+        if self.array_type == 'dict':
+            for i, (key, instance) in enumerate(self._arguments.unpack()):
+                if key is None and i == 0:
+                    values |= ValueSet.from_sets(
+                        v.get_key_values()
+                        for v in instance.infer()
+                        if v.array_type == 'dict'
+                    )
+                if key:
+                    values |= ValueSet([compiled.create_simple_object(
+                        self.inference_state,
+                        key,
+                    )])
+
+        return values
 
     def py__simple_getitem__(self, index):
         if self.array_type == 'dict':
@@ -376,9 +401,11 @@ class AnonymousInstance(_BaseTreeInstance):
 
 class CompiledInstanceName(compiled.CompiledName):
     def __init__(self, inference_state, instance, klass, name):
+        parent_value = klass.parent_context.get_value()
+        assert parent_value is not None, "How? Please reproduce and report"
         super(CompiledInstanceName, self).__init__(
             inference_state,
-            klass.parent_context,
+            parent_value,
             name.string_name
         )
         self._instance = instance
@@ -405,7 +432,7 @@ class CompiledInstanceClassFilter(AbstractFilter):
         return self._convert(self._class_filter.values())
 
     def _convert(self, names):
-        klass = self._class_filter.compiled_object
+        klass = self._class_filter.compiled_value
         return [
             CompiledInstanceName(self._instance.inference_state, self._instance, klass, n)
             for n in names
@@ -413,12 +440,20 @@ class CompiledInstanceClassFilter(AbstractFilter):
 
 
 class BoundMethod(FunctionMixin, ValueWrapper):
-    def __init__(self, instance, function):
+    def __init__(self, instance, class_context, function):
         super(BoundMethod, self).__init__(function)
         self.instance = instance
+        self._class_context = class_context
 
     def is_bound_method(self):
         return True
+
+    @property
+    def name(self):
+        return FunctionNameInClass(
+            self._class_context,
+            super(BoundMethod, self).name
+        )
 
     def py__class__(self):
         c, = values_from_qualified_names(self.inference_state, u'types', u'MethodType')
@@ -444,7 +479,7 @@ class BoundMethod(FunctionMixin, ValueWrapper):
 
     def get_signature_functions(self):
         return [
-            BoundMethod(self.instance, f)
+            BoundMethod(self.instance, self._class_context, f)
             for f in self._wrapped_value.get_signature_functions()
         ]
 
@@ -476,23 +511,26 @@ class SelfName(TreeNameDefinition):
     def parent_context(self):
         return self._instance.create_instance_context(self.class_context, self.tree_name)
 
+    def get_defining_qualified_value(self):
+        return self._instance
 
-class LazyInstanceClassName(object):
+
+class LazyInstanceClassName(NameWrapper):
     def __init__(self, instance, class_member_name):
+        super(LazyInstanceClassName, self).__init__(class_member_name)
         self._instance = instance
-        self._class_member_name = class_member_name
 
     @iterator_to_value_set
     def infer(self):
-        for result_value in self._class_member_name.infer():
+        for result_value in self._wrapped_name.infer():
             for c in result_value.py__get__(self._instance, self._instance.py__class__()):
                 yield c
 
-    def __getattr__(self, name):
-        return getattr(self._class_member_name, name)
+    def get_signatures(self):
+        return self.infer().get_signatures()
 
-    def __repr__(self):
-        return '<%s: %s>' % (self.__class__.__name__, self._class_member_name)
+    def get_defining_qualified_value(self):
+        return self._instance
 
 
 class InstanceClassFilter(AbstractFilter):
@@ -548,17 +586,18 @@ class SelfAttributeFilter(ClassFilter):
                 if name.is_definition() and self._access_possible(name, from_instance=True):
                     # TODO filter non-self assignments instead of this bad
                     #      filter.
-                    if self._is_in_right_scope(name):
+                    if self._is_in_right_scope(trailer.parent.children[0], name):
                         yield name
 
-    def _is_in_right_scope(self, name):
-        base = name
-        hit_funcdef = False
-        while True:
-            base = search_ancestor(base, 'funcdef', 'classdef', 'lambdef')
-            if base is self._parser_scope:
-                return hit_funcdef
-            hit_funcdef = True
+    def _is_in_right_scope(self, self_name, name):
+        self_context = self._node_context.create_context(self_name)
+        names = self_context.goto(self_name, position=self_name.start_pos)
+        return any(
+            n.api_type == 'param'
+            and n.tree_name.get_definition().position_index == 0
+            and n.parent_context.tree_node is self._parser_scope
+            for n in names
+        )
 
     def _convert_names(self, names):
         return [SelfName(self._instance, self._node_context, name) for name in names]

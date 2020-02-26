@@ -134,7 +134,7 @@ class JediFacade:
         """Jedi completion."""
         completions = chain(
             self._complete_call_assigments(with_keywords=True,
-                                           with_values=False),
+                                           with_values=True),
             self._completion()
         )
         return list(unique(completions, itemgetter(0)))

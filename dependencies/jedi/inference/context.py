@@ -133,6 +133,9 @@ class AbstractContext(object):
     def py__name__(self):
         raise NotImplementedError
 
+    def get_value(self):
+        raise NotImplementedError
+
     @property
     def name(self):
         return None
@@ -200,6 +203,9 @@ class ValueContext(AbstractContext):
     def py__doc__(self):
         return self._value.py__doc__()
 
+    def get_value(self):
+        return self._value
+
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, self._value)
 
@@ -226,6 +232,7 @@ class TreeContextMixin(object):
                     self.inference_state, parent_context.parent_context, class_value)
                 func = value.BoundMethod(
                     instance=instance,
+                    class_context=class_value.as_context(),
                     function=func
                 )
             return func
@@ -308,10 +315,13 @@ class ModuleContext(TreeContextMixin, ValueContext):
                 until_position=until_position,
                 origin_scope=origin_scope
             ),
-            GlobalNameFilter(self, self.tree_node),
+            self.get_global_filter(),
         )
         for f in filters:  # Python 2...
             yield f
+
+    def get_global_filter(self):
+        return GlobalNameFilter(self, self.tree_node)
 
     @property
     def string_names(self):
@@ -361,6 +371,9 @@ class CompForContext(TreeContextMixin, AbstractContext):
 
     def get_filters(self, until_position=None, origin_scope=None):
         yield ParserTreeFilter(self)
+
+    def get_value(self):
+        return None
 
     def py__name__(self):
         return '<comprehension context>'
@@ -465,7 +478,7 @@ def get_global_filters(context, until_position, origin_scope):
                 until_position=until_position,
                 origin_scope=origin_scope):
             yield filter
-        if isinstance(context, BaseFunctionExecutionContext):
+        if isinstance(context, (BaseFunctionExecutionContext, ModuleContext)):
             # The position should be reset if the current scope is a function.
             until_position = None
 

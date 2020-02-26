@@ -44,8 +44,6 @@ class Parser(BaseParser):
         # avoid extreme amounts of work around the subtle difference of 2/3
         # grammar in list comoprehensions.
         'list_for': tree.SyncCompFor,
-        # Same here. This just exists in Python 2.6.
-        'gen_for': tree.SyncCompFor,
         'decorator': tree.Decorator,
         'lambdef': tree.Lambda,
         'old_lambdef': tree.Lambda,

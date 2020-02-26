@@ -19,7 +19,6 @@ import itertools as _itertools
 from codecs import BOM_UTF8
 
 from parso.python.token import PythonTokenTypes
-from parso._compatibility import py_version
 from parso.utils import split_lines
 
 
@@ -50,7 +49,7 @@ BOM_UTF8_STRING = BOM_UTF8.decode('utf-8')
 
 _token_collection_cache = {}
 
-if py_version >= 30:
+if sys.version_info.major >= 3:
     # Python 3 has str.isidentifier() to check if a char is a valid identifier
     is_identifier = str.isidentifier
 else:
@@ -86,7 +85,7 @@ def _all_string_prefixes(version_info, include_fstring=False, only_fstring=False
     #  and don't contain any permuations (include 'fr', but not
     #  'rf'). The various permutations will be generated.
     valid_string_prefixes = ['b', 'r', 'u']
-    if version_info >= (3, 0):
+    if version_info.major >= 3:
         valid_string_prefixes.append('br')
 
     result = set([''])
@@ -106,7 +105,7 @@ def _all_string_prefixes(version_info, include_fstring=False, only_fstring=False
             # create a list with upper and lower versions of each
             #  character
             result.update(different_case_versions(t))
-    if version_info <= (2, 7):
+    if version_info.major == 2:
         # In Python 2 the order cannot just be random.
         result.update(different_case_versions('ur'))
         result.update(different_case_versions('br'))
@@ -164,7 +163,7 @@ def _create_token_collection(version_info):
     else:
         Hexnumber = r'0[xX][0-9a-fA-F]+'
         Binnumber = r'0[bB][01]+'
-        if version_info >= (3, 0):
+        if version_info.major >= 3:
             Octnumber = r'0[oO][0-7]+'
         else:
             Octnumber = '0[oO]?[0-7]+'

@@ -1,6 +1,7 @@
+import sys
 from abc import abstractmethod, abstractproperty
 
-from parso._compatibility import utf8_repr, encoding, py_version
+from parso._compatibility import utf8_repr, encoding
 from parso.utils import split_lines
 
 
@@ -321,7 +322,7 @@ class BaseNode(NodeOrLeaf):
     @utf8_repr
     def __repr__(self):
         code = self.get_code().replace('\n', ' ').replace('\r', ' ').strip()
-        if not py_version >= 30:
+        if not sys.version_info.major >= 3:
             code = code.encode(encoding, 'replace')
         return "<%s: %s@%s,%s>" % \
             (type(self).__name__, code, self.start_pos[0], self.start_pos[1])

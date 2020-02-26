@@ -133,8 +133,6 @@ class ClassMixin(object):
 
     def py__call__(self, arguments=None):
         from jedi.inference.value import TreeInstance
-        if arguments is None:
-            arguments = ValuesArguments([])
         return ValueSet([TreeInstance(self.inference_state, self.parent_context, self, arguments)])
 
     def py__class__(self):
@@ -146,12 +144,6 @@ class ClassMixin(object):
 
     def py__name__(self):
         return self.name.string_name
-
-    def get_param_names(self):
-        for value_ in self.py__getattribute__(u'__init__'):
-            if value_.is_function():
-                return list(value_.get_param_names())[1:]
-        return []
 
     @inference_state_method_generator_cache()
     def py__mro__(self):
@@ -193,7 +185,7 @@ class ClassMixin(object):
                 yield f
 
         for cls in self.py__mro__():
-            if isinstance(cls, compiled.CompiledObject):
+            if cls.is_compiled():
                 for filter in cls.get_filters(is_instance=is_instance):
                     yield filter
             else:
@@ -207,7 +199,11 @@ class ClassMixin(object):
             type_ = builtin_from_name(self.inference_state, u'type')
             assert isinstance(type_, ClassValue)
             if type_ != self:
-                for instance in type_.py__call__():
+                # We are not using execute_with_values here, because the
+                # plugin function for type would get executed instead of an
+                # instance creation.
+                args = ValuesArguments([])
+                for instance in type_.py__call__(args):
                     instance_filters = instance.get_filters()
                     # Filter out self filters
                     next(instance_filters)
@@ -215,7 +211,11 @@ class ClassMixin(object):
                     yield next(instance_filters)
 
     def get_signatures(self):
-        init_funcs = self.py__call__().py__getattribute__('__init__')
+        # Since calling staticmethod without a function is illegal, the Jedi
+        # plugin doesn't return anything. Therefore call directly and get what
+        # we want: An instance of staticmethod.
+        args = ValuesArguments([])
+        init_funcs = self.py__call__(args).py__getattribute__('__init__')
         return [sig.bind(self) for sig in init_funcs.get_signatures()]
 
     def _as_context(self):
@@ -278,6 +278,13 @@ class ClassValue(use_metaclass(CachedMetaClass, ClassMixin, FunctionAndClassBase
                 )
             )
             for index_value in index_value_set
+        )
+
+    def with_generics(self, generics_tuple):
+        from jedi.inference.gradual.base import GenericClass
+        return GenericClass(
+            self,
+            TupleGenericManager(generics_tuple)
         )
 
     def define_generics(self, type_var_dict):

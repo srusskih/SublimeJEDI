@@ -172,5 +172,5 @@ A list of syntax/indentation errors I've encountered in CPython.
 Version specific:
 Python 3.5:
     'yield' inside async function
-Python 3.3/3.4:
+Python 3.4:
     can use starred expression only as assignment target

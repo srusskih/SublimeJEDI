@@ -176,8 +176,7 @@ class _Context(object):
         self._analyze_names(self._global_names, 'global')
         self._analyze_names(self._nonlocal_names, 'nonlocal')
 
-        # Python2.6 doesn't have dict comprehensions.
-        global_name_strs = dict((n.value, n) for n in self._global_names)
+        global_name_strs = {n.value: n for n in self._global_names}
         for nonlocal_name in self._nonlocal_names:
             try:
                 global_name = global_name_strs[nonlocal_name.value]
@@ -864,6 +863,7 @@ class _TryStmtRule(SyntaxRule):
 @ErrorFinder.register_rule(type='fstring')
 class _FStringRule(SyntaxRule):
     _fstring_grammar = None
+    message_expr = "f-string expression part cannot include a backslash"
     message_nested = "f-string: expressions nested too deeply"
     message_conversion = "f-string: invalid conversion character: expected 's', 'r', or 'a'"
 
@@ -873,6 +873,10 @@ class _FStringRule(SyntaxRule):
     def _check_fstring_expr(self, fstring_expr, depth):
         if depth >= 2:
             self.add_issue(fstring_expr, message=self.message_nested)
+
+        expr = fstring_expr.children[1]
+        if '\\' in expr.get_code():
+            self.add_issue(expr, message=self.message_expr)
 
         conversion = fstring_expr.children[2]
         if conversion.type == 'fstring_conversion':
@@ -915,6 +919,14 @@ class _CheckAssignmentRule(SyntaxRule):
                     if second.type == 'yield_expr':
                         error = 'yield expression'
                     elif second.type == 'testlist_comp':
+                        # ([a, b] := [1, 2])
+                        # ((a, b) := [1, 2])
+                        if is_namedexpr:
+                            if first == '(':
+                                error = 'tuple'
+                            elif first == '[':
+                                error = 'list'
+
                         # This is not a comprehension, they were handled
                         # further above.
                         for child in second.children[::2]:
@@ -964,6 +976,8 @@ class _CheckAssignmentRule(SyntaxRule):
 
         if error is not None:
             if is_namedexpr:
+                # c.f. CPython bpo-39176, should be changed in next release
+                # message = 'cannot use assignment expressions with %s' % error
                 message = 'cannot use named assignment with %s' % error
             else:
                 cannot = "can't" if self._normalizer.version < (3, 8) else "cannot"

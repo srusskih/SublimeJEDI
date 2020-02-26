@@ -5,6 +5,7 @@ import sys
 import operator as op
 from collections import namedtuple
 import warnings
+import re
 
 from jedi._compatibility import unicode, is_py3, builtins, \
     py_version, force_unicode
@@ -35,9 +36,6 @@ if is_py3:
         types.MappingProxyType,
         types.SimpleNamespace,
     )
-
-    if py_version >= 34:
-        NOT_CLASS_TYPES += (types.DynamicClassAttribute,)
 
 
 # Those types don't exist in typing.
@@ -105,32 +103,13 @@ SignatureParam = namedtuple(
 )
 
 
-def compiled_objects_cache(attribute_name):
-    def decorator(func):
-        """
-        This decorator caches just the ids, oopposed to caching the object itself.
-        Caching the id has the advantage that an object doesn't need to be
-        hashable.
-        """
-        def wrapper(inference_state, obj, parent_context=None):
-            cache = getattr(inference_state, attribute_name)
-            # Do a very cheap form of caching here.
-            key = id(obj)
-            try:
-                cache[key]
-                return cache[key][0]
-            except KeyError:
-                # TODO wuaaaarrghhhhhhhh
-                if attribute_name == 'mixed_cache':
-                    result = func(inference_state, obj, parent_context)
-                else:
-                    result = func(inference_state, obj)
-                # Need to cache all of them, otherwise the id could be overwritten.
-                cache[key] = result, obj, parent_context
-                return result
-        return wrapper
-
-    return decorator
+def shorten_repr(func):
+    def wrapper(self):
+        r = func(self)
+        if len(r) > 50:
+            r = r[:50] + '..'
+        return r
+    return wrapper
 
 
 def create_access(inference_state, obj):
@@ -285,6 +264,7 @@ class DirectObjectAccess(object):
         return paths
 
     @_force_unicode_decorator
+    @shorten_repr
     def get_repr(self):
         builtins = 'builtins', '__builtin__'
 
@@ -305,6 +285,9 @@ class DirectObjectAccess(object):
 
     def is_class(self):
         return inspect.isclass(self._obj)
+
+    def is_function(self):
+        return inspect.isfunction(self._obj) or inspect.ismethod(self._obj)
 
     def is_module(self):
         return inspect.ismodule(self._obj)
@@ -412,12 +395,29 @@ class DirectObjectAccess(object):
         return [self._create_access(module), access]
 
     def get_safe_value(self):
-        if type(self._obj) in (bool, bytes, float, int, str, unicode, slice):
+        if type(self._obj) in (bool, bytes, float, int, str, unicode, slice) or self._obj is None:
             return self._obj
         raise ValueError("Object is type %s and not simple" % type(self._obj))
 
     def get_api_type(self):
         return get_api_type(self._obj)
+
+    def get_array_type(self):
+        if isinstance(self._obj, dict):
+            return 'dict'
+        return None
+
+    def get_key_paths(self):
+        def iter_partial_keys():
+            # We could use list(keys()), but that might take a lot more memory.
+            for (i, k) in enumerate(self._obj.keys()):
+                # Limit key listing at some point. This is artificial, but this
+                # way we don't get stalled because of slow completions
+                if i > 50:
+                    break
+                yield k
+
+        return [self._create_access_path(k) for k in iter_partial_keys()]
 
     def get_access_path_tuples(self):
         accesses = [create_access(self._inference_state, o) for o in self._get_objects_path()]
@@ -458,6 +458,27 @@ class DirectObjectAccess(object):
         other_access = other_access_handle.access
         op = _OPERATORS[operator]
         return self._create_access_path(op(self._obj, other_access._obj))
+
+    def get_annotation_name_and_args(self):
+        """
+        Returns Tuple[Optional[str], Tuple[AccessPath, ...]]
+        """
+        if sys.version_info < (3, 5):
+            return None, ()
+
+        name = None
+        args = ()
+        if safe_getattr(self._obj, '__module__', default='') == 'typing':
+            m = re.match(r'typing.(\w+)\[', repr(self._obj))
+            if m is not None:
+                name = m.group(1)
+
+                import typing
+                if sys.version_info >= (3, 8):
+                    args = typing.get_args(self._obj)
+                else:
+                    args = safe_getattr(self._obj, '__args__', default=None)
+        return name, tuple(self._create_access_path(arg) for arg in args)
 
     def needs_type_completions(self):
         return inspect.isclass(self._obj) and self._obj != type
@@ -512,6 +533,17 @@ class DirectObjectAccess(object):
 
         if o is None:
             return None
+
+        try:
+            # Python 2 doesn't have typing.
+            import typing
+        except ImportError:
+            pass
+        else:
+            try:
+                o = typing.get_type_hints(self._obj).get('return')
+            except Exception:
+                pass
 
         return self._create_access_path(o)
 

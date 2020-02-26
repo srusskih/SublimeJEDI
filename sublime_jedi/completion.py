@@ -3,7 +3,6 @@ import re
 
 import sublime
 import sublime_plugin
-from threading import Lock
 
 from .console_logging import getLogger
 from .daemon import ask_daemon
@@ -11,7 +10,7 @@ from .utils import get_settings, is_python_scope, is_repl
 
 
 logger = getLogger(__name__)
-FOLLOWING_CHARS = set(["\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"])
+FOLLOWING_CHARS = {"\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"}
 PLUGIN_ONLY_COMPLETION = (sublime.INHIBIT_WORD_COMPLETIONS |
                           sublime.INHIBIT_EXPLICIT_COMPLETIONS)
 
@@ -115,7 +114,6 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
 class Autocomplete(sublime_plugin.ViewEventListener):
     """Sublime Text autocompletion integration."""
 
-    _lock = Lock()
     _completions = []
     _previous_completions = []
     _last_location = None
@@ -151,6 +149,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
         """
         if not self.__enabled():
             return False
+
         logger.info('JEDI completion triggered.')
 
         settings = get_settings(self.view)
@@ -159,20 +158,19 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             if not re.match(settings['only_complete_after_regex'], previous_char):  # noqa
                 return False
 
-        with self._lock:
-            if self._last_location != locations[0]:
-                self._last_location = locations[0]
-                ask_daemon(
-                    self.view,
-                    self._receive_completions,
-                    'autocomplete',
-                    location=locations[0],
-                )
-                return [], PLUGIN_ONLY_COMPLETION
+        if self._last_location != locations[0]:
+            self._last_location = locations[0]
+            ask_daemon(
+                self.view,
+                self._receive_completions,
+                'autocomplete',
+                location=locations[0],
+            )
+            return [], PLUGIN_ONLY_COMPLETION
 
-            if self._last_location == locations[0] and self._completions:
-                self._last_location = None
-                return self._completions
+        if self._last_location == locations[0] and self._completions:
+            self._last_location = None
+            return self._completions
 
     def _receive_completions(self, view, completions):
         if not completions:
@@ -180,9 +178,8 @@ class Autocomplete(sublime_plugin.ViewEventListener):
 
         logger.debug("Completions: {0}".format(completions))
 
-        with self._lock:
-            self._previous_completions = self._completions
-            self._completions = completions
+        self._previous_completions = self._completions
+        self._completions = completions
 
         if (completions and (
                 not view.is_auto_complete_visible() or
@@ -199,9 +196,6 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             })
 
     def _is_completions_subset(self):
-        with self._lock:
-            completions = set(
-                completion for _, completion in self._completions)
-            previous = set(
-                completion for _, completion in self._previous_completions)
+        completions = {completion for _, completion in self._completions}
+        previous = {completion for _, completion in self._previous_completions}
         return completions.issubset(previous)

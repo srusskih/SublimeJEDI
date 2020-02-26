@@ -18,7 +18,7 @@ def try_iter_content(types, depth=0):
     """Helper method for static analysis."""
     if depth > 10:
         # It's possible that a loop has references on itself (especially with
-        # CompiledObject). Therefore don't loop infinitely.
+        # CompiledValue). Therefore don't loop infinitely.
         return
 
     for typ in types:
@@ -161,8 +161,7 @@ def unpack_arglist(arglist):
     # definitions.
     if not (arglist.type in ('arglist', 'testlist') or (
             # in python 3.5 **arg is an argument, not arglist
-            (arglist.type == 'argument') and
-            arglist.children[0] in ('*', '**'))):
+            arglist.type == 'argument' and arglist.children[0] in ('*', '**'))):
         yield 0, arglist
         return
 
