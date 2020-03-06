@@ -1,0 +1,13 @@
+Sublime Jedi v0.17.0
+====================
+
+7a8538c Upgrade to jedi 0.16.0
+a6cabbc Improvement when completing kwargs of a function: selection should be on the value not on the argument name.
+c154a8e Fix condition and bring comment back
+5901c58 Revert to old sorting
+73eb194 Remove unused function
+26a366e Redo the sorting of completions using line proximity
+944fc18 Show completions if there is any at all
+02bc918 Tiny optimization
+ce02153 Prevent flickering of autocompletion
+694b8e7 Make the auto-completion asynchronous
