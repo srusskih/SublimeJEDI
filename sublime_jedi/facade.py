@@ -162,7 +162,6 @@ def format_completion(complete, with_keywords=True):
         final = str(len(params_insert) + 1)
         insert = complete.name + '(' + ', '.join(params_insert) + ')$' + final
         display = complete.name + '(' + ', '.join(params_display) + ')'
-        print(display, insert)
     else:
         display = complete.name
         insert = complete.name
