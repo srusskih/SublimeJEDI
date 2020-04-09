@@ -11,64 +11,6 @@ from .utils import unique
 logger = getLogger(__name__)
 
 
-def format_completion(complete):
-    """Returns a tuple of the string that would be visible in
-    the completion dialogue and the completion word
-
-    :type complete: jedi.api_classes.Completion
-    :rtype: (str, str)
-    """
-    display, insert = complete.name + '\t' + complete.type, complete.name
-    return display, insert
-
-
-def get_function_parameters(call_signature, with_keywords=True):
-    """Return list function parameters, prepared for sublime completion.
-
-    Tuple contains parameter name and default value
-
-    Parameters list excludes: self, *args and **kwargs parameters
-
-    :type call_signature: jedi.api.classes.CallSignature
-    :rtype: list of (str, str or None)
-    """
-    if not call_signature:
-        return []
-
-    params = []
-    for param in call_signature.params:
-        logger.debug('Parameter: {0}'.format((
-            type(param._name),
-            param._name.get_kind(),
-            param._name.string_name,
-            param.description,
-        )))
-
-        # print call sign looks like: "value, ..., sep, end, file, flush"
-        # and all params after '...' are non required and not a keywords
-        if not with_keywords and param.name == '...':
-            break
-
-        if (not param.name or
-                param.name in ('self', '...') or
-                param._name.get_kind() == Parameter.VAR_POSITIONAL or
-                param._name.get_kind() == Parameter.VAR_KEYWORD):
-            continue
-
-        param_description = param.description.replace('param ', '')
-        is_keyword = '=' in param_description
-
-        if is_keyword and with_keywords:
-            default_value = param_description.rsplit('=', 1)[1].lstrip()
-            params.append((param.name, default_value))
-        elif is_keyword and not with_keywords:
-            continue
-        else:
-            params.append((param.name, None))
-
-    return params
-
-
 class JediFacade:
     """Facade to call Jedi API.
 
@@ -126,16 +68,15 @@ class JediFacade:
         complete_all = self.auto_complete_function_params == 'all'
         call_parameters = self._complete_call_assigments(
             with_keywords=complete_all,
-            with_values=complete_all
         )
         return ', '.join(p[1] for p in call_parameters)
 
     def get_autocomplete(self, *args, **kwargs):
         """Jedi completion."""
+        complete_all = self.auto_complete_function_params == 'all'
         completions = chain(
-            self._complete_call_assigments(with_keywords=True,
-                                           with_values=True),
-            self._completion()
+            self._complete_call_assigments(with_keywords=True),
+            self._completion(with_keywords=complete_all)
         )
         return list(unique(completions, itemgetter(0)))
 
@@ -160,14 +101,14 @@ class JediFacade:
             else:
                 return defs[0].docstring()
 
-    def _completion(self):
+    def _completion(self, with_keywords=True):
         """Regular completions.
 
         :rtype: list of (str, str)
         """
         completions = self.script.completions(fuzzy=True)
         for complete in completions:
-            yield format_completion(complete)
+            yield format_completion(complete, with_keywords=with_keywords)
 
     def _goto(self, follow_imports):
         """Jedi "go to Definitions" functionality.
@@ -192,10 +133,7 @@ class JediFacade:
         return [(i.module_path, i.line, i.column + 1)
                 for i in usages if not i.in_builtin_module()]
 
-    def _complete_call_assigments(
-            self,
-            with_keywords=True,
-            with_values=True):
+    def _complete_call_assigments(self, with_keywords=True):
         """Get function or class parameters and build Sublime Snippet string
         for completion
 
@@ -207,13 +145,82 @@ class JediFacade:
             # probably not a function/class call
             return
 
-        parameters = get_function_parameters(call_definition, with_keywords)
-        for index, parameter in enumerate(parameters):
-            name, value = parameter
+        yield from get_function_parameters(call_definition, with_keywords)
 
-            if value is not None and with_values:
-                yield (name + '\tparam',
-                       '%s=${%d:%s}' % (name, index + 1, value))
-            else:
-                yield (name + '\tparam',
-                       '${%d:%s}' % (index + 1, name))
+
+def format_completion(complete, with_keywords=True):
+    """Returns a tuple of the string that would be visible in
+    the completion dialogue and the completion word
+
+    :type complete: jedi.api_classes.Completion
+    :rtype: (str, str)
+    """
+    if complete.type in ('function', 'class'):
+        params = list(get_function_parameters(complete, with_keywords))
+        params_insert = [i for _, i in params] or ['$1']
+        params_display = [d.split('\t', 1)[0] for d, _ in params]
+        final = str(len(params_insert) + 1)
+        insert = complete.name + '(' + ', '.join(params_insert) + ')$' + final
+        display = complete.name + '(' + ', '.join(params_display) + ')'
+        print(display, insert)
+    else:
+        display = complete.name
+        insert = complete.name
+
+    display += '\t' + complete.type
+    return display, insert
+
+
+def get_function_parameters(call_signature, with_keywords=True):
+    """Return list function parameters, prepared for sublime completion.
+
+    Tuple contains parameter name and default value
+
+    Parameters list excludes: self, *args and **kwargs parameters
+
+    :type call_signature: jedi.api.classes.CallSignature
+    :rtype: list of (str, str or None)
+    """
+    if not call_signature:
+        return []
+
+    params = []
+    for param in call_signature.params:
+        logger.debug('Parameter: {0}'.format((
+            type(param._name),
+            param._name.get_kind(),
+            param._name.string_name,
+            param.description,
+        )))
+
+        # print call sign looks like: "value, ..., sep, end, file, flush"
+        # and all params after '...' are non required and not a keywords
+        if not with_keywords and param.name == '...':
+            break
+
+        if (not param.name or
+                param.name in ('self', '...') or
+                param._name.get_kind() == Parameter.VAR_POSITIONAL or
+                param._name.get_kind() == Parameter.VAR_KEYWORD):
+            continue
+
+        param_description = param.description.replace('param ', '')
+        is_keyword = '=' in param_description
+
+        if is_keyword and with_keywords:
+            default_value = param_description.rsplit('=', 1)[1].lstrip()
+            params.append((param.name, default_value))
+        elif is_keyword and not with_keywords:
+            continue
+        else:
+            params.append((param.name, None))
+
+    yield from format_function_parameters(params)
+
+
+def format_function_parameters(parameters):
+    for index, (name, value) in enumerate(parameters, 1):
+        if value is not None:
+            yield (name + '\tparam', '%s=${%d:%s}' % (name, index, value))
+        else:
+            yield (name + '\tparam', '${%d:%s}' % (index, name))
