@@ -55,13 +55,6 @@ class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
         """
         self._insert_characters(edit, characters, ')')
 
-        # Deprecated: scope should be tested in key bindings
-        #
-        # nothing to do with non-python code
-        # if not is_python_scope(self.view, self.view.sel()[0].begin()):
-        #     logger.info('no function args completion in strings')
-        #     return
-
         if get_settings(self.view)['complete_funcargs']:
             ask_daemon(
                 self.view,
@@ -159,6 +152,24 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             return False
 
         return True
+
+    def on_post_text_command(self, command, args):
+        """Complete call arguments of a just committed function."""
+        if command != 'commit_completion' or not self.__enabled():
+            return
+
+        location = self.view.sel()[0]
+
+        # do not autocomplete on import lines
+        line = self.view.substr(self.view.line(location)).split()
+        if 'import' in line:
+            return
+
+        committed = self.view.substr(self.view.word(location))
+        for display, insert in self._completions:
+            if committed == insert and display.endswith('\tfunction'):
+                self.view.run_command('sublime_jedi_params_autocomplete')
+                break
 
     def on_query_completions(self, prefix, locations):
         """Sublime autocomplete event handler.

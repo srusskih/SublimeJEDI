@@ -108,7 +108,7 @@ class JediFacade:
         """
         completions = self.script.completions(fuzzy=True)
         for complete in completions:
-            yield format_completion(complete, with_keywords=with_keywords)
+            yield complete.name + '\t' + complete.type, complete.name
 
     def _goto(self, follow_imports):
         """Jedi "go to Definitions" functionality.
@@ -146,28 +146,6 @@ class JediFacade:
             return
 
         yield from get_function_parameters(call_definition, with_keywords)
-
-
-def format_completion(complete, with_keywords=True):
-    """Returns a tuple of the string that would be visible in
-    the completion dialogue and the completion word
-
-    :type complete: jedi.api_classes.Completion
-    :rtype: (str, str)
-    """
-    if complete.type == 'function':
-        params = list(get_function_parameters(complete, with_keywords))
-        params_insert = [i for _, i in params] or ['$1']
-        params_display = [d.split('\t', 1)[0] for d, _ in params]
-        final = str(len(params_insert) + 1)
-        insert = complete.name + '(' + ', '.join(params_insert) + ')$' + final
-        display = complete.name + '(' + ', '.join(params_display) + ')'
-    else:
-        display = complete.name
-        insert = complete.name
-
-    display += '\t' + complete.type
-    return display, insert
 
 
 def get_function_parameters(call_signature, with_keywords=True):
