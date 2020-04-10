@@ -155,7 +155,7 @@ def format_completion(complete, with_keywords=True):
     :type complete: jedi.api_classes.Completion
     :rtype: (str, str)
     """
-    if complete.type in ('function', 'class'):
+    if complete.type == 'function':
         params = list(get_function_parameters(complete, with_keywords))
         params_insert = [i for _, i in params] or ['$1']
         params_display = [d.split('\t', 1)[0] for d, _ in params]
