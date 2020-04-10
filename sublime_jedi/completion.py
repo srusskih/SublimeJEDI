@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+from threading import Timer
 
 import sublime
 import sublime_plugin
@@ -11,8 +12,33 @@ from .utils import get_settings, is_python_scope, is_repl
 
 logger = getLogger(__name__)
 FOLLOWING_CHARS = {"\r", "\n", "\t", " ", ")", "]", ";", "}", "\x00"}
-PLUGIN_ONLY_COMPLETION = (sublime.INHIBIT_WORD_COMPLETIONS |
-                          sublime.INHIBIT_EXPLICIT_COMPLETIONS)
+PLUGIN_ONLY_COMPLETION = (
+    sublime.INHIBIT_WORD_COMPLETIONS |
+    sublime.INHIBIT_EXPLICIT_COMPLETIONS
+)
+
+
+def debounce(wait):
+    """ Decorator that will postpone a functions
+        execution until after wait seconds
+        have elapsed since the last time it was invoked. """
+    def decorator(fn):
+        def debounced(*args, **kwargs):
+            def call_it():
+                fn(*args, **kwargs)
+            try:
+                debounced.t.cancel()
+            except(AttributeError):
+                pass
+            debounced.t = Timer(wait, call_it)
+            debounced.t.start()
+        return debounced
+    return decorator
+
+
+@debounce(0.2)
+def debounced_ask_daemon(*args, **kwargs):
+    ask_daemon(*args, **kwargs)
 
 
 class SublimeJediParamsAutocomplete(sublime_plugin.TextCommand):
@@ -160,7 +186,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
 
         if self._last_location != locations[0]:
             self._last_location = locations[0]
-            ask_daemon(
+            debounced_ask_daemon(
                 self.view,
                 self._receive_completions,
                 'autocomplete',
@@ -168,7 +194,7 @@ class Autocomplete(sublime_plugin.ViewEventListener):
             )
             return [], PLUGIN_ONLY_COMPLETION
 
-        if self._last_location == locations[0] and self._completions:
+        if self._last_location == locations[0]:
             self._last_location = None
             return self._completions
 
@@ -180,7 +206,6 @@ class Autocomplete(sublime_plugin.ViewEventListener):
 
         self._previous_completions = self._completions
         self._completions = completions
-
         if (completions and (
                 not view.is_auto_complete_visible() or
                 not self._is_completions_subset())):
