@@ -73,10 +73,9 @@ class JediFacade:
 
     def get_autocomplete(self, *args, **kwargs):
         """Jedi completion."""
-        complete_all = self.auto_complete_function_params == 'all'
         completions = chain(
             self._complete_call_assigments(with_keywords=True),
-            self._completion(with_keywords=complete_all)
+            self._completion()
         )
         return list(unique(completions, itemgetter(0)))
 
@@ -101,7 +100,7 @@ class JediFacade:
             else:
                 return defs[0].docstring()
 
-    def _completion(self, with_keywords=True):
+    def _completion(self):
         """Regular completions.
 
         :rtype: list of (str, str)
