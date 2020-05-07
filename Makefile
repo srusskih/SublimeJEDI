@@ -11,10 +11,10 @@ _get_dependency:
 dependencies:
 	rm -rf dependencies/
 	mkdir dependencies/
-	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/jedi -e TAG=v0.16.0 -e TARGET=jedi
-	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/parso -e TAG=v0.6.1 -e TARGET=parso
-	patch --dry-run -p0 < jedi_0.16.x.patch
-	patch -p0 < jedi_0.16.x.patch
+	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/jedi -e TAG=v0.17.1 -e TARGET=jedi
+	$(MAKE) _get_dependency -e REPO=https://github.com/davidhalter/parso -e TAG=v0.7.0 -e TARGET=parso
+	patch --dry-run -p0 < jedi_0.17.x.patch
+	patch -p0 < jedi_0.17.x.patch
 
 
 clean:

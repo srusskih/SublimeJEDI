@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
+import os
+from os.path import dirname as up, abspath
 
 from functools import wraps
 from collections import defaultdict
 
 import jedi
-from jedi.api import environment
 
 import sublime
 
@@ -17,21 +18,24 @@ logger = getLogger(__name__)
 DAEMONS = defaultdict(dict)  # per window
 
 
-def _prepare_request_data(view, location):
-    if location is None:
-        location = view.sel()[0].begin()
-    current_line, current_column = view.rowcol(location)
-
-    filename = view.file_name() or ''
-    source = view.substr(sublime.Region(0, view.size()))
-    return filename, source, current_line, current_column
-
-
 def _get_daemon(view):
-    window_id = view.window().id()
-    if window_id not in DAEMONS:
-        DAEMONS[window_id] = Daemon(settings=get_settings(view))
-    return DAEMONS[window_id]
+    project_path = _find_project(view)
+    if project_path not in DAEMONS:
+        DAEMONS[project_path] = Daemon(
+            project_path=project_path,
+            settings=get_settings(view)
+        )
+    return DAEMONS[project_path]
+
+
+def _find_project(view):
+    directory = up(abspath(view.file_name()))
+    while '__init__.py' in os.listdir(directory) and directory != '/':
+        directory = up(directory)
+    if directory == '/':
+        return up(abspath(view.file_name()))
+    else:
+        return directory
 
 
 def ask_daemon_sync(view, ask_type, ask_kwargs, location=None):
@@ -46,7 +50,8 @@ def ask_daemon_sync(view, ask_type, ask_kwargs, location=None):
     return daemon.request(
         ask_type,
         ask_kwargs or {},
-        *_prepare_request_data(view, location))
+        *_prepare_request_data(view, location)
+    )
 
 
 def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):
@@ -62,13 +67,13 @@ def ask_daemon(view, callback, ask_type, ask_kwargs=None, location=None):
 
     def _async_summon():
         answer = ask_daemon_sync(view, ask_type, ask_kwargs, location)
-        run_in_active_view(window_id)(callback)(answer)
+        _run_in_active_view(window_id)(callback)(answer)
 
     if callback:
         sublime.set_timeout_async(_async_summon, 0)
 
 
-def run_in_active_view(window_id):
+def _run_in_active_view(window_id):
     """Run function in active ST active view for binded window.
 
     sublime.View instance would be passed as first parameter to function.
@@ -87,35 +92,35 @@ def run_in_active_view(window_id):
     return _decorator
 
 
+def _prepare_request_data(view, location):
+    if location is None:
+        location = view.sel()[0].begin()
+    current_line, current_column = view.rowcol(location)
+
+    filename = view.file_name() or ''
+    source = view.substr(sublime.Region(0, view.size()))
+    return filename, source, current_line, current_column
+
+
 class Daemon:
     """Jedi Requester."""
 
-    def __init__(self, settings):
+    def __init__(self, project_path, settings):
         """Prepare to call daemon.
 
         :type settings: dict
         """
-        python_virtualenv = settings.get('python_virtualenv')
-        python_interpreter = settings.get('python_interpreter')
-
-        logger.debug('Jedi Environment: {0}'.format(
-            (python_virtualenv, python_interpreter))
+        environment_path = (
+            settings.get('python_interpreter') or
+            settings.get('python_virtualenv') or
+            None
         )
 
-        if python_virtualenv:
-            self.env = environment.create_environment(python_virtualenv,
-                                                      safe=False)
-        elif python_interpreter:
-            self.env = environment.create_environment(python_interpreter,
-                                                      safe=False)
-        else:
-            self.env = jedi.get_default_environment()
-
-        self.sys_path = self.env.get_sys_path()
-        # prepare the extra packages if any
-        extra_packages = settings.get('extra_packages')
-        if extra_packages:
-            self.sys_path = extra_packages + self.sys_path
+        self.project = jedi.Project(
+            project_path,
+            environment_path=environment_path,
+            added_sys_path=settings.get('extra_packages') or [],
+        )
 
         # how to autocomplete arguments
         self.complete_funcargs = settings.get('complete_funcargs')
@@ -133,13 +138,12 @@ class Daemon:
         logger.debug((request_type, request_kwargs, filename, line, column))
 
         facade = JediFacade(
-            env=self.env,
+            project=self.project,
             complete_funcargs=self.complete_funcargs,
             source=source,
             line=line + 1,
             column=column,
             filename=filename,
-            sys_path=self.sys_path,
         )
 
         answer = facade.get(request_type, request_kwargs)

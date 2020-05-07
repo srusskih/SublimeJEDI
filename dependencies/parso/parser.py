@@ -134,7 +134,7 @@ class BaseParser(object):
                 # However, the error recovery might have added the token again, if
                 # the stack is empty, we're fine.
                 raise InternalParseError(
-                    "incomplete input", token.type, token.value, token.start_pos
+                    "incomplete input", token.type, token.string, token.start_pos
                 )
 
             if len(self.stack) > 1:

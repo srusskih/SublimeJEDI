@@ -21,7 +21,7 @@ from jedi.inference.context import CompiledContext, CompiledModuleContext
 
 
 class CheckAttribute(object):
-    """Raises an AttributeError if the attribute X isn't available."""
+    """Raises :exc:`AttributeError` if the attribute X is not available."""
     def __init__(self, check_name=None):
         # Remove the py in front of e.g. py__call__.
         self.check_name = check_name
@@ -284,6 +284,11 @@ class CompiledValue(Value):
             create_from_access_path(self.inference_state, k)
             for k in self.access_handle.get_key_paths()
         ]
+
+    def get_type_hint(self, add_class_info=True):
+        if self.access_handle.get_repr() in ('None', "<class 'NoneType'>"):
+            return 'None'
+        return None
 
 
 class CompiledModule(CompiledValue):
@@ -584,9 +589,6 @@ def _parse_function_doc(doc):
 
 def create_from_name(inference_state, compiled_value, name):
     access_paths = compiled_value.access_handle.getattr_paths(name, default=None)
-    parent_context = compiled_value
-    if parent_context.is_class():
-        parent_context = parent_context.parent_context
 
     value = None
     for access_path in access_paths:

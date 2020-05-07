@@ -12,7 +12,6 @@ memory optimizations here.
 from __future__ import absolute_import
 
 import sys
-import string
 import re
 from collections import namedtuple
 import itertools as _itertools
@@ -218,10 +217,10 @@ def _create_token_collection(version_info):
     Funny = group(Operator, Bracket, Special)
 
     # First (or only) line of ' or " string.
-    ContStr = group(StringPrefix + r"'[^\r\n'\\]*(?:\\.[^\r\n'\\]*)*" +
-                    group("'", r'\\(?:\r\n?|\n)'),
-                    StringPrefix + r'"[^\r\n"\\]*(?:\\.[^\r\n"\\]*)*' +
-                    group('"', r'\\(?:\r\n?|\n)'))
+    ContStr = group(StringPrefix + r"'[^\r\n'\\]*(?:\\.[^\r\n'\\]*)*"
+                    + group("'", r'\\(?:\r\n?|\n)'),
+                    StringPrefix + r'"[^\r\n"\\]*(?:\\.[^\r\n"\\]*)*'
+                    + group('"', r'\\(?:\r\n?|\n)'))
     pseudo_extra_pool = [Comment, Triple]
     all_quotes = '"', "'", '"""', "'''"
     if fstring_prefixes:
@@ -258,11 +257,14 @@ def _create_token_collection(version_info):
             fstring_pattern_map[t + quote] = quote
 
     ALWAYS_BREAK_TOKENS = (';', 'import', 'class', 'def', 'try', 'except',
-                           'finally', 'while', 'with', 'return')
+                           'finally', 'while', 'with', 'return', 'continue',
+                           'break', 'del', 'pass', 'global', 'assert')
+    if version_info >= (3, 5):
+        ALWAYS_BREAK_TOKENS += ('async', 'nonlocal')
     pseudo_token_compiled = _compile(PseudoToken)
     return TokenCollection(
         pseudo_token_compiled, single_quoted, triple_quoted, endpats,
-        whitespace, fstring_pattern_map, ALWAYS_BREAK_TOKENS
+        whitespace, fstring_pattern_map, set(ALWAYS_BREAK_TOKENS)
     )
 
 
@@ -311,7 +313,7 @@ class FStringNode(object):
         return not self.is_in_expr() and self.format_spec_count
 
 
-def _close_fstring_if_necessary(fstring_stack, string, start_pos, additional_prefix):
+def _close_fstring_if_necessary(fstring_stack, string, line_nr, column, additional_prefix):
     for fstring_stack_index, node in enumerate(fstring_stack):
         lstripped_string = string.lstrip()
         len_lstrip = len(string) - len(lstripped_string)
@@ -319,7 +321,7 @@ def _close_fstring_if_necessary(fstring_stack, string, start_pos, additional_pre
             token = PythonToken(
                 FSTRING_END,
                 node.quote,
-                start_pos,
+                (line_nr, column + len_lstrip),
                 prefix=additional_prefix+string[:len_lstrip],
             )
             additional_prefix = ''
@@ -381,13 +383,14 @@ def _print_tokens(func):
     """
     def wrapper(*args, **kwargs):
         for token in func(*args, **kwargs):
+            print(token)  # This print is intentional for debugging!
             yield token
 
     return wrapper
 
 
 # @_print_tokens
-def tokenize_lines(lines, version_info, start_pos=(1, 0)):
+def tokenize_lines(lines, version_info, start_pos=(1, 0), indents=None, is_first_token=True):
     """
     A heavily modified Python standard library tokenizer.
 
@@ -398,17 +401,19 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
     def dedent_if_necessary(start):
         while start < indents[-1]:
             if start > indents[-2]:
-                yield PythonToken(ERROR_DEDENT, '', (lnum, 0), '')
+                yield PythonToken(ERROR_DEDENT, '', (lnum, start), '')
+                indents[-1] = start
                 break
-            yield PythonToken(DEDENT, '', spos, '')
             indents.pop()
+            yield PythonToken(DEDENT, '', spos, '')
 
     pseudo_token, single_quoted, triple_quoted, endpats, whitespace, \
         fstring_pattern_map, always_break_tokens, = \
         _get_token_collection(version_info)
     paren_level = 0  # count parentheses
-    indents = [0]
-    max = 0
+    if indents is None:
+        indents = [0]
+    max_ = 0
     numchars = '0123456789'
     contstr = ''
     contline = None
@@ -419,25 +424,24 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
     new_line = True
     prefix = ''  # Should never be required, but here for safety
     additional_prefix = ''
-    first = True
     lnum = start_pos[0] - 1
     fstring_stack = []
     for line in lines:  # loop over lines in stream
         lnum += 1
         pos = 0
-        max = len(line)
-        if first:
+        max_ = len(line)
+        if is_first_token:
             if line.startswith(BOM_UTF8_STRING):
                 additional_prefix = BOM_UTF8_STRING
                 line = line[1:]
-                max = len(line)
+                max_ = len(line)
 
             # Fake that the part before was already parsed.
             line = '^' * start_pos[1] + line
             pos = start_pos[1]
-            max += start_pos[1]
+            max_ += start_pos[1]
 
-            first = False
+            is_first_token = False
 
         if contstr:                                         # continued string
             endmatch = endprog.match(line)
@@ -453,7 +457,7 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                 contline = contline + line
                 continue
 
-        while pos < max:
+        while pos < max_:
             if fstring_stack:
                 tos = fstring_stack[-1]
                 if not tos.is_in_expr():
@@ -468,14 +472,15 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                         )
                         tos.previous_lines = ''
                         continue
-                    if pos == max:
+                    if pos == max_:
                         break
 
                 rest = line[pos:]
                 fstring_end_token, additional_prefix, quote_length = _close_fstring_if_necessary(
                     fstring_stack,
                     rest,
-                    (lnum, pos),
+                    lnum,
+                    pos,
                     additional_prefix,
                 )
                 pos += quote_length
@@ -496,9 +501,39 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                 pseudomatch = pseudo_token.match(string_line, pos)
             else:
                 pseudomatch = pseudo_token.match(line, pos)
+
+            if pseudomatch:
+                prefix = additional_prefix + pseudomatch.group(1)
+                additional_prefix = ''
+                start, pos = pseudomatch.span(2)
+                spos = (lnum, start)
+                token = pseudomatch.group(2)
+                if token == '':
+                    assert prefix
+                    additional_prefix = prefix
+                    # This means that we have a line with whitespace/comments at
+                    # the end, which just results in an endmarker.
+                    break
+                initial = token[0]
+            else:
+                match = whitespace.match(line, pos)
+                initial = line[match.end()]
+                start = match.end()
+                spos = (lnum, start)
+
+            if new_line and initial not in '\r\n#' and (initial != '\\' or pseudomatch is None):
+                new_line = False
+                if paren_level == 0 and not fstring_stack:
+                    indent_start = start
+                    if indent_start > indents[-1]:
+                        yield PythonToken(INDENT, '', spos, '')
+                        indents.append(indent_start)
+                    for t in dedent_if_necessary(indent_start):
+                        yield t
+
             if not pseudomatch:  # scan for tokens
                 match = whitespace.match(line, pos)
-                if pos == 0:
+                if new_line and paren_level == 0 and not fstring_stack:
                     for t in dedent_if_necessary(match.end()):
                         yield t
                 pos = match.end()
@@ -511,50 +546,18 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                 pos += 1
                 continue
 
-            prefix = additional_prefix + pseudomatch.group(1)
-            additional_prefix = ''
-            start, pos = pseudomatch.span(2)
-            spos = (lnum, start)
-            token = pseudomatch.group(2)
-            if token == '':
-                assert prefix
-                additional_prefix = prefix
-                # This means that we have a line with whitespace/comments at
-                # the end, which just results in an endmarker.
-                break
-            initial = token[0]
-
-            if new_line and initial not in '\r\n\\#':
-                new_line = False
-                if paren_level == 0 and not fstring_stack:
-                    i = 0
-                    indent_start = start
-                    while line[i] == '\f':
-                        i += 1
-                        # TODO don't we need to change spos as well?
-                        indent_start -= 1
-                    if indent_start > indents[-1]:
-                        yield PythonToken(INDENT, '', spos, '')
-                        indents.append(indent_start)
-                    for t in dedent_if_necessary(indent_start):
-                        yield t
-
-            if (initial in numchars or                      # ordinary number
-                    (initial == '.' and token != '.' and token != '...')):
+            if (initial in numchars                      # ordinary number
+                    or (initial == '.' and token != '.' and token != '...')):
                 yield PythonToken(NUMBER, token, spos, prefix)
             elif pseudomatch.group(3) is not None:            # ordinary name
-                if token in always_break_tokens:
+                if token in always_break_tokens and (fstring_stack or paren_level):
                     fstring_stack[:] = []
                     paren_level = 0
                     # We only want to dedent if the token is on a new line.
-                    if re.match(r'[ \f\t]*$', line[:start]):
-                        while True:
-                            indent = indents.pop()
-                            if indent > start:
-                                yield PythonToken(DEDENT, '', spos, '')
-                            else:
-                                indents.append(indent)
-                                break
+                    m = re.match(r'[ \f\t]*$', line[:start])
+                    if m is not None:
+                        for t in dedent_if_necessary(m.end()):
+                            yield t
                 if is_identifier(token):
                     yield PythonToken(NAME, token, spos, prefix)
                 else:
@@ -587,7 +590,7 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
                     token = line[start:pos]
                     yield PythonToken(STRING, token, spos, prefix)
                 else:
-                    contstr_start = (lnum, start)           # multiple lines
+                    contstr_start = spos                    # multiple lines
                     contstr = line[start:]
                     contline = line
                     break
@@ -649,10 +652,22 @@ def tokenize_lines(lines, version_info, start_pos=(1, 0)):
         if contstr.endswith('\n') or contstr.endswith('\r'):
             new_line = True
 
-    end_pos = lnum, max
+    if fstring_stack:
+        tos = fstring_stack[-1]
+        if tos.previous_lines:
+            yield PythonToken(
+                FSTRING_STRING, tos.previous_lines,
+                tos.last_string_start_pos,
+                # Never has a prefix because it can start anywhere and
+                # include whitespace.
+                prefix=''
+            )
+
+    end_pos = lnum, max_
     # As the last position we just take the maximally possible position. We
     # remove -1 for the last new line.
     for indent in indents[1:]:
+        indents.pop()
         yield PythonToken(DEDENT, '', end_pos, '')
     yield PythonToken(ENDMARKER, '', end_pos, additional_prefix)
 

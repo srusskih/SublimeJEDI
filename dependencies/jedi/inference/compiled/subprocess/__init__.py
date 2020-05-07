@@ -13,6 +13,7 @@ import subprocess
 import socket
 import errno
 import traceback
+import atexit
 from functools import partial
 from threading import Thread
 try:
@@ -31,6 +32,55 @@ from jedi.api.exceptions import InternalError
 
 
 _MAIN_PATH = os.path.join(os.path.dirname(__file__), '__main__.py')
+
+
+class finalize(object):
+    """Class for finalization of weakrefable objects.
+
+    finalize(obj, func, *args, **kwargs) returns a callable finalizer
+    object which will be called when obj is garbage collected. The
+    first time the finalizer is called it evaluates func(*arg, **kwargs)
+    and returns the result. After this the finalizer is dead, and
+    calling it just returns None.
+
+    When the program exits any remaining finalizers will be run.
+    """
+
+    # Finalizer objects don't have any state of their own.
+    # This ensures that they cannot be part of a ref-cycle.
+    __slots__ = ()
+    _registry = {}
+
+    def __init__(self, obj, func, *args, **kwargs):
+        info = partial(func, *args, **kwargs)
+        info.weakref = weakref.ref(obj, self)
+        self._registry[self] = info
+
+    # To me it's an absolute mystery why in Python 2 we need _=None. It
+    # makes really no sense since it's never really called. Then again it
+    # might be called by Python 2.7 itself, but weakref.finalize is not
+    # documented in Python 2 and therefore shouldn't be randomly called.
+    # We never call this stuff with a parameter and therefore this
+    # parameter should not be needed. But it is. ~dave
+    def __call__(self, _=None):
+        """Return func(*args, **kwargs) if alive."""
+        info = self._registry.pop(self, None)
+        if info:
+            return info()
+
+    @classmethod
+    def _exitfunc(cls):
+        if not cls._registry:
+            return
+        for finalizer in list(cls._registry):
+            try:
+                finalizer()
+            except Exception:
+                sys.excepthook(*sys.exc_info())
+            assert finalizer not in cls._registry
+
+
+atexit.register(finalize._exitfunc)
 
 
 def _enqueue_output(out, queue):
@@ -181,6 +231,15 @@ class CompiledSubprocess(object):
             os.path.dirname(os.path.dirname(parso_path)),
             '.'.join(str(x) for x in sys.version_info[:3]),
         )
+        # Use explicit envionment to ensure reliable results (#1540)
+        env = {}
+        if os.name == 'nt':
+            # if SYSTEMROOT (or case variant) exists in environment,
+            # ensure it goes to subprocess
+            for k, v in os.environ.items():
+                if 'SYSTEMROOT' == k.upper():
+                    env.update({k: os.environ[k]})
+                    break  # don't risk multiple entries
         process = GeneralizedPopen(
             args,
             stdin=subprocess.PIPE,
@@ -188,7 +247,8 @@ class CompiledSubprocess(object):
             stderr=subprocess.PIPE,
             # Use system default buffering on Python 2 to improve performance
             # (this is already the case on Python 3).
-            bufsize=-1
+            bufsize=-1,
+            env=env
         )
         self._stderr_queue = Queue()
         self._stderr_thread = t = Thread(
@@ -199,10 +259,10 @@ class CompiledSubprocess(object):
         t.start()
         # Ensure the subprocess is properly cleaned up when the object
         # is garbage collected.
-        self._cleanup_callable = weakref.finalize(self,
-                                                  _cleanup_process,
-                                                  process,
-                                                  t)
+        self._cleanup_callable = finalize(self,
+                                          _cleanup_process,
+                                          process,
+                                          t)
         return process
 
     def run(self, inference_state, function, args=(), kwargs={}):
@@ -297,7 +357,7 @@ class Listener(object):
         try:
             inference_state = self._inference_states[inference_state_id]
         except KeyError:
-            from jedi.api.environment import InterpreterEnvironment
+            from jedi import InterpreterEnvironment
             inference_state = InferenceState(
                 # The project is not actually needed. Nothing should need to
                 # access it.

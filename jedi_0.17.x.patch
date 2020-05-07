@@ -1,0 +1,95 @@
+diff --git dependencies/jedi/inference/compiled/access.py dependencies/jedi/inference/compiled/access.py
+index 99bd843c..aec1b79f 100644
+--- dependencies/jedi/inference/compiled/access.py
++++ dependencies/jedi/inference/compiled/access.py
+@@ -35,7 +35,6 @@ if is_py3:
+     NOT_CLASS_TYPES += (
+         types.MappingProxyType,
+         types.SimpleNamespace,
+-        types.DynamicClassAttribute,
+     )
+
+
+diff --git dependencies/jedi/inference/compiled/subprocess/__init__.py dependencies/jedi/inference/compiled/subprocess/__init__.py
+index 246cffa5..b0f9f4ca 100644
+--- dependencies/jedi/inference/compiled/subprocess/__init__.py
++++ dependencies/jedi/inference/compiled/subprocess/__init__.py
+@@ -13,6 +13,7 @@ import subprocess
+ import socket
+ import errno
+ import traceback
++import atexit
+ from functools import partial
+ from threading import Thread
+ try:
+@@ -33,6 +34,55 @@ from jedi.api.exceptions import InternalError
+ _MAIN_PATH = os.path.join(os.path.dirname(__file__), '__main__.py')
+
+
++class finalize(object):
++    """Class for finalization of weakrefable objects.
++
++    finalize(obj, func, *args, **kwargs) returns a callable finalizer
++    object which will be called when obj is garbage collected. The
++    first time the finalizer is called it evaluates func(*arg, **kwargs)
++    and returns the result. After this the finalizer is dead, and
++    calling it just returns None.
++
++    When the program exits any remaining finalizers will be run.
++    """
++
++    # Finalizer objects don't have any state of their own.
++    # This ensures that they cannot be part of a ref-cycle.
++    __slots__ = ()
++    _registry = {}
++
++    def __init__(self, obj, func, *args, **kwargs):
++        info = partial(func, *args, **kwargs)
++        info.weakref = weakref.ref(obj, self)
++        self._registry[self] = info
++
++    # To me it's an absolute mystery why in Python 2 we need _=None. It
++    # makes really no sense since it's never really called. Then again it
++    # might be called by Python 2.7 itself, but weakref.finalize is not
++    # documented in Python 2 and therefore shouldn't be randomly called.
++    # We never call this stuff with a parameter and therefore this
++    # parameter should not be needed. But it is. ~dave
++    def __call__(self, _=None):
++        """Return func(*args, **kwargs) if alive."""
++        info = self._registry.pop(self, None)
++        if info:
++            return info()
++
++    @classmethod
++    def _exitfunc(cls):
++        if not cls._registry:
++            return
++        for finalizer in list(cls._registry):
++            try:
++                finalizer()
++            except Exception:
++                sys.excepthook(*sys.exc_info())
++            assert finalizer not in cls._registry
++
++
++atexit.register(finalize._exitfunc)
++
++
+ def _enqueue_output(out, queue):
+     for line in iter(out.readline, b''):
+         queue.put(line)
+@@ -199,10 +249,10 @@ class CompiledSubprocess(object):
+         t.start()
+         # Ensure the subprocess is properly cleaned up when the object
+         # is garbage collected.
+-        self._cleanup_callable = weakref.finalize(self,
+-                                                  _cleanup_process,
+-                                                  process,
+-                                                  t)
++        self._cleanup_callable = finalize(self,
++                                          _cleanup_process,
++                                          process,
++                                          t)
+         return process
+
+     def run(self, inference_state, function, args=(), kwargs={}):
