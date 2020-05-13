@@ -6,8 +6,8 @@ SublimeJEDI
 [SublimeJEDI](https://github.com/srusskih/SublimeJEDI) is a [Sublime Text 3](http://www.sublimetext.com/) and [Sublime Text 2](http://www.sublimetext.com/2) and plugin
 to the awesome autocomplete library [Jedi](https://github.com/davidhalter/jedi)
 
-Python Vesion Support
----------------------
+Python Version Support
+----------------------
 
 
 | Sublime Jedi Plugin  | Branch   | Jedi version   | Python 2.6.x   | Python 2.7.x   | Python >3.3   | Python 3.3   |Sublime Text 2   | Sublime Text 3
