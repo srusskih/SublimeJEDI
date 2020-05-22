@@ -45,8 +45,12 @@ class NodeOrLeaf(object):
         Returns the node immediately following this node in this parent's
         children list. If this node does not have a next sibling, it is None
         """
+        parent = self.parent
+        if parent is None:
+            return None
+
         # Can't use index(); we need to test by identity
-        for i, child in enumerate(self.parent.children):
+        for i, child in enumerate(parent.children):
             if child is self:
                 try:
                     return self.parent.children[i + 1]
@@ -59,8 +63,12 @@ class NodeOrLeaf(object):
         children list. If this node does not have a previous sibling, it is
         None.
         """
+        parent = self.parent
+        if parent is None:
+            return None
+
         # Can't use index(); we need to test by identity
-        for i, child in enumerate(self.parent.children):
+        for i, child in enumerate(parent.children):
             if child is self:
                 if i == 0:
                     return None
@@ -71,6 +79,9 @@ class NodeOrLeaf(object):
         Returns the previous leaf in the parser tree.
         Returns `None` if this is the first element in the parser tree.
         """
+        if self.parent is None:
+            return None
+
         node = self
         while True:
             c = node.parent.children
@@ -94,6 +105,9 @@ class NodeOrLeaf(object):
         Returns the next leaf in the parser tree.
         Returns None if this is the last element in the parser tree.
         """
+        if self.parent is None:
+            return None
+
         node = self
         while True:
             c = node.parent.children

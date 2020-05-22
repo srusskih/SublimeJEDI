@@ -12,6 +12,9 @@ class _NormalizerMeta(type):
 
 
 class Normalizer(use_metaclass(_NormalizerMeta)):
+    _rule_type_instances = {}
+    _rule_value_instances = {}
+
     def __init__(self, grammar, config):
         self.grammar = grammar
         self._config = config
@@ -181,3 +184,20 @@ class Rule(object):
         if self.is_issue(node):
             issue_node = self.get_node(node)
             self.add_issue(issue_node)
+
+
+class RefactoringNormalizer(Normalizer):
+    def __init__(self, node_to_str_map):
+        self._node_to_str_map = node_to_str_map
+
+    def visit(self, node):
+        try:
+            return self._node_to_str_map[node]
+        except KeyError:
+            return super(RefactoringNormalizer, self).visit(node)
+
+    def visit_leaf(self, leaf):
+        try:
+            return self._node_to_str_map[leaf]
+        except KeyError:
+            return super(RefactoringNormalizer, self).visit_leaf(leaf)

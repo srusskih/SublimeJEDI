@@ -976,9 +976,7 @@ class _CheckAssignmentRule(SyntaxRule):
 
         if error is not None:
             if is_namedexpr:
-                # c.f. CPython bpo-39176, should be changed in next release
-                # message = 'cannot use assignment expressions with %s' % error
-                message = 'cannot use named assignment with %s' % error
+                message = 'cannot use assignment expressions with %s' % error
             else:
                 cannot = "can't" if self._normalizer.version < (3, 8) else "cannot"
                 message = ' '.join([cannot, "delete" if is_deletion else "assign to", error])

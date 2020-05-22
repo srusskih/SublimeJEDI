@@ -1,9 +1,29 @@
 """
-Basically a contains parser that is faster, because it tries to parse only
-parts and if anything changes, it only reparses the changed parts.
+The diff parser is trying to be a faster version of the normal parser by trying
+to reuse the nodes of a previous pass over the same file. This is also called
+incremental parsing in parser literature. The difference is mostly that with
+incremental parsing you get a range that needs to be reparsed. Here we
+calculate that range ourselves by using difflib. After that it's essentially
+incremental parsing.
 
-It works with a simple diff in the beginning and will try to reuse old parser
-fragments.
+The biggest issue of this approach is that we reuse nodes in a mutable way. The
+intial design and idea is quite problematic for this parser, but it is also
+pretty fast. Measurements showed that just copying nodes in Python is simply
+quite a bit slower (especially for big files >3 kLOC). Therefore we did not
+want to get rid of the mutable nodes, since this is usually not an issue.
+
+This is by far the hardest software I ever wrote, exactly because the initial
+design is crappy. When you have to account for a lot of mutable state, it
+creates a ton of issues that you would otherwise not have. This file took
+probably 3-6 months to write, which is insane for a parser.
+
+There is a fuzzer in that helps test this whole thing. Please use it if you
+make changes here. If you run the fuzzer like::
+
+    test/fuzz_diff_parser.py random -n 100000
+
+you can be pretty sure that everything is still fine. I sometimes run the
+fuzzer up to 24h to make sure everything is still ok.
 """
 import re
 import difflib
@@ -13,7 +33,7 @@ import logging
 from parso.utils import split_lines
 from parso.python.parser import Parser
 from parso.python.tree import EndMarker
-from parso.python.tokenize import PythonToken
+from parso.python.tokenize import PythonToken, BOM_UTF8_STRING
 from parso.python.token import PythonTokenTypes
 
 LOG = logging.getLogger(__name__)
@@ -21,19 +41,35 @@ DEBUG_DIFF_PARSER = False
 
 _INDENTATION_TOKENS = 'INDENT', 'ERROR_DEDENT', 'DEDENT'
 
+NEWLINE = PythonTokenTypes.NEWLINE
+DEDENT = PythonTokenTypes.DEDENT
+NAME = PythonTokenTypes.NAME
+ERROR_DEDENT = PythonTokenTypes.ERROR_DEDENT
+ENDMARKER = PythonTokenTypes.ENDMARKER
+
+
+def _is_indentation_error_leaf(node):
+    return node.type == 'error_leaf' and node.token_type in _INDENTATION_TOKENS
+
 
 def _get_previous_leaf_if_indentation(leaf):
-    while leaf and leaf.type == 'error_leaf' \
-            and leaf.token_type in _INDENTATION_TOKENS:
+    while leaf and _is_indentation_error_leaf(leaf):
         leaf = leaf.get_previous_leaf()
     return leaf
 
 
 def _get_next_leaf_if_indentation(leaf):
-    while leaf and leaf.type == 'error_leaf' \
-            and leaf.token_type in _INDENTATION_TOKENS:
-        leaf = leaf.get_previous_leaf()
+    while leaf and _is_indentation_error_leaf(leaf):
+        leaf = leaf.get_next_leaf()
     return leaf
+
+
+def _get_suite_indentation(tree_node):
+    return _get_indentation(tree_node.children[1])
+
+
+def _get_indentation(tree_node):
+    return tree_node.start_pos[1]
 
 
 def _assert_valid_graph(node):
@@ -70,12 +106,36 @@ def _assert_valid_graph(node):
             actual = line, len(splitted[-1])
         else:
             actual = previous_start_pos[0], previous_start_pos[1] + len(content)
+            if content.startswith(BOM_UTF8_STRING) \
+                    and node.get_start_pos_of_prefix() == (1, 0):
+                # Remove the byte order mark
+                actual = actual[0], actual[1] - 1
 
         assert node.start_pos == actual, (node.start_pos, actual)
     else:
         for child in children:
             assert child.parent == node, (node, child)
             _assert_valid_graph(child)
+
+
+def _assert_nodes_are_equal(node1, node2):
+    try:
+        children1 = node1.children
+    except AttributeError:
+        assert not hasattr(node2, 'children'), (node1, node2)
+        assert node1.value == node2.value, (node1, node2)
+        assert node1.type == node2.type, (node1, node2)
+        assert node1.prefix == node2.prefix, (node1, node2)
+        assert node1.start_pos == node2.start_pos, (node1, node2)
+        return
+    else:
+        try:
+            children2 = node2.children
+        except AttributeError:
+            assert False, (node1, node2)
+    for n1, n2 in zip(children1, children2):
+        _assert_nodes_are_equal(n1, n2)
+    assert len(children1) == len(children2), '\n' + repr(children1) + '\n' + repr(children2)
 
 
 def _get_debug_error_message(module, old_lines, new_lines):
@@ -95,6 +155,15 @@ def _get_last_line(node_or_leaf):
     if _ends_with_newline(last_leaf):
         return last_leaf.start_pos[0]
     else:
+        n = last_leaf.get_next_leaf()
+        if n.type == 'endmarker' and '\n' in n.prefix:
+            # This is a very special case and has to do with error recovery in
+            # Parso. The problem is basically that there's no newline leaf at
+            # the end sometimes (it's required in the grammar, but not needed
+            # actually before endmarker, CPython just adds a newline to make
+            # source code pass the parser, to account for that Parso error
+            # recovery allows small_stmt instead of simple_stmt).
+            return last_leaf.end_pos[0] + 1
         return last_leaf.end_pos[0]
 
 
@@ -233,7 +302,7 @@ class DiffParser(object):
 
             if operation == 'equal':
                 line_offset = j1 - i1
-                self._copy_from_old_parser(line_offset, i2, j2)
+                self._copy_from_old_parser(line_offset, i1 + 1, i2, j2)
             elif operation == 'replace':
                 self._parse(until_line=j2)
             elif operation == 'insert':
@@ -249,8 +318,14 @@ class DiffParser(object):
             # If there is reasonable suspicion that the diff parser is not
             # behaving well, this should be enabled.
             try:
-                assert self._module.get_code() == ''.join(new_lines)
+                code = ''.join(new_lines)
+                assert self._module.get_code() == code
                 _assert_valid_graph(self._module)
+                without_diff_parser_module = Parser(
+                    self._pgen_grammar,
+                    error_recovery=True
+                ).parse(self._tokenizer(new_lines))
+                _assert_nodes_are_equal(self._module, without_diff_parser_module)
             except AssertionError:
                 print(_get_debug_error_message(self._module, old_lines, new_lines))
                 raise
@@ -268,7 +343,7 @@ class DiffParser(object):
         if self._module.get_code() != ''.join(lines_new):
             LOG.warning('parser issue:\n%s\n%s', ''.join(old_lines), ''.join(lines_new))
 
-    def _copy_from_old_parser(self, line_offset, until_line_old, until_line_new):
+    def _copy_from_old_parser(self, line_offset, start_line_old, until_line_old, until_line_new):
         last_until_line = -1
         while until_line_new > self._nodes_tree.parsed_until_line:
             parsed_until_line_old = self._nodes_tree.parsed_until_line - line_offset
@@ -282,12 +357,18 @@ class DiffParser(object):
                 p_children = line_stmt.parent.children
                 index = p_children.index(line_stmt)
 
-                from_ = self._nodes_tree.parsed_until_line + 1
-                copied_nodes = self._nodes_tree.copy_nodes(
-                    p_children[index:],
-                    until_line_old,
-                    line_offset
-                )
+                if start_line_old == 1 \
+                        and p_children[0].get_first_leaf().prefix.startswith(BOM_UTF8_STRING):
+                    # If there's a BOM in the beginning, just reparse. It's too
+                    # complicated to account for it otherwise.
+                    copied_nodes = []
+                else:
+                    from_ = self._nodes_tree.parsed_until_line + 1
+                    copied_nodes = self._nodes_tree.copy_nodes(
+                        p_children[index:],
+                        until_line_old,
+                        line_offset
+                    )
                 # Match all the nodes that are in the wanted range.
                 if copied_nodes:
                     self._copy_count += 1
@@ -333,7 +414,10 @@ class DiffParser(object):
             node = self._try_parse_part(until_line)
             nodes = node.children
 
-            self._nodes_tree.add_parsed_nodes(nodes)
+            self._nodes_tree.add_parsed_nodes(nodes, self._keyword_token_indents)
+            if self._replace_tos_indent is not None:
+                self._nodes_tree.indents[-1] = self._replace_tos_indent
+
             LOG.debug(
                 'parse_part from %s to %s (to %s in part parser)',
                 nodes[0].get_start_pos_of_prefix()[0],
@@ -369,34 +453,39 @@ class DiffParser(object):
         return self._active_parser.parse(tokens=tokens)
 
     def _diff_tokenize(self, lines, until_line, line_offset=0):
-        is_first_token = True
-        omitted_first_indent = False
-        indents = []
-        tokens = self._tokenizer(lines, (1, 0))
-        stack = self._active_parser.stack
-        for typ, string, start_pos, prefix in tokens:
-            start_pos = start_pos[0] + line_offset, start_pos[1]
-            if typ == PythonTokenTypes.INDENT:
-                indents.append(start_pos[1])
-                if is_first_token:
-                    omitted_first_indent = True
-                    # We want to get rid of indents that are only here because
-                    # we only parse part of the file. These indents would only
-                    # get parsed as error leafs, which doesn't make any sense.
-                    is_first_token = False
-                    continue
-            is_first_token = False
+        was_newline = False
+        indents = self._nodes_tree.indents
+        initial_indentation_count = len(indents)
 
-            # In case of omitted_first_indent, it might not be dedented fully.
-            # However this is a sign for us that a dedent happened.
-            if typ == PythonTokenTypes.DEDENT \
-                    or typ == PythonTokenTypes.ERROR_DEDENT \
-                    and omitted_first_indent and len(indents) == 1:
-                indents.pop()
-                if omitted_first_indent and not indents:
+        tokens = self._tokenizer(
+            lines,
+            start_pos=(line_offset + 1, 0),
+            indents=indents,
+            is_first_token=line_offset == 0,
+        )
+        stack = self._active_parser.stack
+        self._replace_tos_indent = None
+        self._keyword_token_indents = {}
+        # print('start', line_offset + 1, indents)
+        for token in tokens:
+            # print(token, indents)
+            typ = token.type
+            if typ == DEDENT:
+                if len(indents) < initial_indentation_count:
                     # We are done here, only thing that can come now is an
                     # endmarker or another dedented code block.
-                    typ, string, start_pos, prefix = next(tokens)
+                    while True:
+                        typ, string, start_pos, prefix = token = next(tokens)
+                        if typ in (DEDENT, ERROR_DEDENT):
+                            if typ == ERROR_DEDENT:
+                                # We want to force an error dedent in the next
+                                # parser/pass. To make this possible we just
+                                # increase the location by one.
+                                self._replace_tos_indent = start_pos[1] + 1
+                                pass
+                        else:
+                            break
+
                     if '\n' in prefix or '\r' in prefix:
                         prefix = re.sub(r'[^\n\r]+\Z', '', prefix)
                     else:
@@ -404,36 +493,38 @@ class DiffParser(object):
                         if start_pos[1] - len(prefix) == 0:
                             prefix = ''
                     yield PythonToken(
-                        PythonTokenTypes.ENDMARKER, '',
-                        (start_pos[0] + line_offset, 0),
+                        ENDMARKER, '',
+                        start_pos,
                         prefix
                     )
                     break
-            elif typ == PythonTokenTypes.NEWLINE and start_pos[0] >= until_line:
-                yield PythonToken(typ, string, start_pos, prefix)
-                # Check if the parser is actually in a valid suite state.
-                if _suite_or_file_input_is_valid(self._pgen_grammar, stack):
-                    start_pos = start_pos[0] + 1, 0
-                    while len(indents) > int(omitted_first_indent):
-                        indents.pop()
-                        yield PythonToken(PythonTokenTypes.DEDENT, '', start_pos, '')
+            elif typ == NEWLINE and token.start_pos[0] >= until_line:
+                was_newline = True
+            elif was_newline:
+                was_newline = False
+                if len(indents) == initial_indentation_count:
+                    # Check if the parser is actually in a valid suite state.
+                    if _suite_or_file_input_is_valid(self._pgen_grammar, stack):
+                        yield PythonToken(ENDMARKER, '', token.start_pos, '')
+                        break
 
-                    yield PythonToken(PythonTokenTypes.ENDMARKER, '', start_pos, '')
-                    break
-                else:
-                    continue
+            if typ == NAME and token.string in ('class', 'def'):
+                self._keyword_token_indents[token.start_pos] = list(indents)
 
-            yield PythonToken(typ, string, start_pos, prefix)
+            yield token
 
 
 class _NodesTreeNode(object):
-    _ChildrenGroup = namedtuple('_ChildrenGroup', 'prefix children line_offset last_line_offset_leaf')
+    _ChildrenGroup = namedtuple(
+        '_ChildrenGroup',
+        'prefix children line_offset last_line_offset_leaf')
 
-    def __init__(self, tree_node, parent=None):
+    def __init__(self, tree_node, parent=None, indentation=0):
         self.tree_node = tree_node
         self._children_groups = []
         self.parent = parent
         self._node_children = []
+        self.indentation = indentation
 
     def finish(self):
         children = []
@@ -461,10 +552,13 @@ class _NodesTreeNode(object):
     def add_child_node(self, child_node):
         self._node_children.append(child_node)
 
-    def add_tree_nodes(self, prefix, children, line_offset=0, last_line_offset_leaf=None):
+    def add_tree_nodes(self, prefix, children, line_offset=0,
+                       last_line_offset_leaf=None):
         if last_line_offset_leaf is None:
             last_line_offset_leaf = children[-1].get_last_leaf()
-        group = self._ChildrenGroup(prefix, children, line_offset, last_line_offset_leaf)
+        group = self._ChildrenGroup(
+            prefix, children, line_offset, last_line_offset_leaf
+        )
         self._children_groups.append(group)
 
     def get_last_line(self, suffix):
@@ -491,6 +585,9 @@ class _NodesTreeNode(object):
             return max(line, self._node_children[-1].get_last_line(suffix))
         return line
 
+    def __repr__(self):
+        return '<%s: %s>' % (self.__class__.__name__, self.tree_node)
+
 
 class _NodesTree(object):
     def __init__(self, module):
@@ -499,34 +596,19 @@ class _NodesTree(object):
         self._module = module
         self._prefix_remainder = ''
         self.prefix = ''
+        self.indents = [0]
 
     @property
     def parsed_until_line(self):
         return self._working_stack[-1].get_last_line(self.prefix)
 
-    def _get_insertion_node(self, indentation_node):
-        indentation = indentation_node.start_pos[1]
-
-        # find insertion node
-        while True:
-            node = self._working_stack[-1]
-            tree_node = node.tree_node
-            if tree_node.type == 'suite':
-                # A suite starts with NEWLINE, ...
-                node_indentation = tree_node.children[1].start_pos[1]
-
-                if indentation >= node_indentation:  # Not a Dedent
-                    # We might be at the most outer layer: modules. We
-                    # don't want to depend on the first statement
-                    # having the right indentation.
-                    return node
-
-            elif tree_node.type == 'file_input':
+    def _update_insertion_node(self, indentation):
+        for node in reversed(list(self._working_stack)):
+            if node.indentation < indentation or node is self._working_stack[0]:
                 return node
-
             self._working_stack.pop()
 
-    def add_parsed_nodes(self, tree_nodes):
+    def add_parsed_nodes(self, tree_nodes, keyword_token_indents):
         old_prefix = self.prefix
         tree_nodes = self._remove_endmarker(tree_nodes)
         if not tree_nodes:
@@ -535,23 +617,27 @@ class _NodesTree(object):
 
         assert tree_nodes[0].type != 'newline'
 
-        node = self._get_insertion_node(tree_nodes[0])
+        node = self._update_insertion_node(tree_nodes[0].start_pos[1])
         assert node.tree_node.type in ('suite', 'file_input')
         node.add_tree_nodes(old_prefix, tree_nodes)
         # tos = Top of stack
-        self._update_tos(tree_nodes[-1])
+        self._update_parsed_node_tos(tree_nodes[-1], keyword_token_indents)
 
-    def _update_tos(self, tree_node):
-        if tree_node.type in ('suite', 'file_input'):
-            new_tos = _NodesTreeNode(tree_node)
+    def _update_parsed_node_tos(self, tree_node, keyword_token_indents):
+        if tree_node.type == 'suite':
+            def_leaf = tree_node.parent.children[0]
+            new_tos = _NodesTreeNode(
+                tree_node,
+                indentation=keyword_token_indents[def_leaf.start_pos][-1],
+            )
             new_tos.add_tree_nodes('', list(tree_node.children))
 
             self._working_stack[-1].add_child_node(new_tos)
             self._working_stack.append(new_tos)
 
-            self._update_tos(tree_node.children[-1])
+            self._update_parsed_node_tos(tree_node.children[-1], keyword_token_indents)
         elif _func_or_class_has_suite(tree_node):
-            self._update_tos(tree_node.children[-1])
+            self._update_parsed_node_tos(tree_node.children[-1], keyword_token_indents)
 
     def _remove_endmarker(self, tree_nodes):
         """
@@ -561,7 +647,8 @@ class _NodesTree(object):
         is_endmarker = last_leaf.type == 'endmarker'
         self._prefix_remainder = ''
         if is_endmarker:
-            separation = max(last_leaf.prefix.rfind('\n'), last_leaf.prefix.rfind('\r'))
+            prefix = last_leaf.prefix
+            separation = max(prefix.rfind('\n'), prefix.rfind('\r'))
             if separation > -1:
                 # Remove the whitespace part of the prefix after a newline.
                 # That is not relevant if parentheses were opened. Always parse
@@ -577,6 +664,26 @@ class _NodesTree(object):
             tree_nodes = tree_nodes[:-1]
         return tree_nodes
 
+    def _get_matching_indent_nodes(self, tree_nodes, is_new_suite):
+        # There might be a random dedent where we have to stop copying.
+        # Invalid indents are ok, because the parser handled that
+        # properly before. An invalid dedent can happen, because a few
+        # lines above there was an invalid indent.
+        node_iterator = iter(tree_nodes)
+        if is_new_suite:
+            yield next(node_iterator)
+
+        first_node = next(node_iterator)
+        indent = _get_indentation(first_node)
+        if not is_new_suite and indent not in self.indents:
+            return
+        yield first_node
+
+        for n in node_iterator:
+            if _get_indentation(n) != indent:
+                return
+            yield n
+
     def copy_nodes(self, tree_nodes, until_line, line_offset):
         """
         Copies tree nodes from the old parser tree.
@@ -588,19 +695,38 @@ class _NodesTree(object):
             # issues.
             return []
 
-        self._get_insertion_node(tree_nodes[0])
+        indentation = _get_indentation(tree_nodes[0])
+        old_working_stack = list(self._working_stack)
+        old_prefix = self.prefix
+        old_indents = self.indents
+        self.indents = [i for i in self.indents if i <= indentation]
 
-        new_nodes, self._working_stack, self.prefix = self._copy_nodes(
+        self._update_insertion_node(indentation)
+
+        new_nodes, self._working_stack, self.prefix, added_indents = self._copy_nodes(
             list(self._working_stack),
             tree_nodes,
             until_line,
             line_offset,
             self.prefix,
         )
+        if new_nodes:
+            self.indents += added_indents
+        else:
+            self._working_stack = old_working_stack
+            self.prefix = old_prefix
+            self.indents = old_indents
         return new_nodes
 
-    def _copy_nodes(self, working_stack, nodes, until_line, line_offset, prefix=''):
+    def _copy_nodes(self, working_stack, nodes, until_line, line_offset,
+                    prefix='', is_nested=False):
         new_nodes = []
+        added_indents = []
+
+        nodes = list(self._get_matching_indent_nodes(
+            nodes,
+            is_new_suite=is_nested,
+        ))
 
         new_prefix = ''
         for node in nodes:
@@ -620,26 +746,83 @@ class _NodesTree(object):
                 if _func_or_class_has_suite(node):
                     new_nodes.append(node)
                 break
+            try:
+                c = node.children
+            except AttributeError:
+                pass
+            else:
+                # This case basically appears with error recovery of one line
+                # suites like `def foo(): bar.-`. In this case we might not
+                # include a newline in the statement and we need to take care
+                # of that.
+                n = node
+                if n.type == 'decorated':
+                    n = n.children[-1]
+                if n.type in ('async_funcdef', 'async_stmt'):
+                    n = n.children[-1]
+                if n.type in ('classdef', 'funcdef'):
+                    suite_node = n.children[-1]
+                else:
+                    suite_node = c[-1]
+
+                if suite_node.type in ('error_leaf', 'error_node'):
+                    break
 
             new_nodes.append(node)
 
+        # Pop error nodes at the end from the list
+        if new_nodes:
+            while new_nodes:
+                last_node = new_nodes[-1]
+                if (last_node.type in ('error_leaf', 'error_node')
+                        or _is_flow_node(new_nodes[-1])):
+                    # Error leafs/nodes don't have a defined start/end. Error
+                    # nodes might not end with a newline (e.g. if there's an
+                    # open `(`). Therefore ignore all of them unless they are
+                    # succeeded with valid parser state.
+                    # If we copy flows at the end, they might be continued
+                    # after the copy limit (in the new parser).
+                    # In this while loop we try to remove until we find a newline.
+                    new_prefix = ''
+                    new_nodes.pop()
+                    while new_nodes:
+                        last_node = new_nodes[-1]
+                        if last_node.get_last_leaf().type == 'newline':
+                            break
+                        new_nodes.pop()
+                    continue
+                if len(new_nodes) > 1 and new_nodes[-2].type == 'error_node':
+                    # The problem here is that Parso error recovery sometimes
+                    # influences nodes before this node.
+                    # Since the new last node is an error node this will get
+                    # cleaned up in the next while iteration.
+                    new_nodes.pop()
+                    continue
+                break
+
         if not new_nodes:
-            return [], working_stack, prefix
+            return [], working_stack, prefix, added_indents
 
         tos = working_stack[-1]
         last_node = new_nodes[-1]
         had_valid_suite_last = False
+        # Pop incomplete suites from the list
         if _func_or_class_has_suite(last_node):
             suite = last_node
             while suite.type != 'suite':
                 suite = suite.children[-1]
 
-            suite_tos = _NodesTreeNode(suite)
+            indent = _get_suite_indentation(suite)
+            added_indents.append(indent)
+
+            suite_tos = _NodesTreeNode(suite, indentation=_get_indentation(last_node))
             # Don't need to pass line_offset here, it's already done by the
             # parent.
-            suite_nodes, new_working_stack, new_prefix = self._copy_nodes(
-                working_stack + [suite_tos], suite.children, until_line, line_offset
+            suite_nodes, new_working_stack, new_prefix, ai = self._copy_nodes(
+                working_stack + [suite_tos], suite.children, until_line, line_offset,
+                is_nested=True,
             )
+            added_indents += ai
             if len(suite_nodes) < 2:
                 # A suite only with newline is not valid.
                 new_nodes.pop()
@@ -649,25 +832,6 @@ class _NodesTree(object):
                 tos.add_child_node(suite_tos)
                 working_stack = new_working_stack
                 had_valid_suite_last = True
-
-        if new_nodes:
-            last_node = new_nodes[-1]
-            if (last_node.type in ('error_leaf', 'error_node') or
-                    _is_flow_node(new_nodes[-1])):
-                # Error leafs/nodes don't have a defined start/end. Error
-                # nodes might not end with a newline (e.g. if there's an
-                # open `(`). Therefore ignore all of them unless they are
-                # succeeded with valid parser state.
-                # If we copy flows at the end, they might be continued
-                # after the copy limit (in the new parser).
-                # In this while loop we try to remove until we find a newline.
-                new_prefix = ''
-                new_nodes.pop()
-                while new_nodes:
-                    last_node = new_nodes[-1]
-                    if last_node.get_last_leaf().type == 'newline':
-                        break
-                    new_nodes.pop()
 
         if new_nodes:
             if not _ends_with_newline(new_nodes[-1].get_last_leaf()) and not had_valid_suite_last:
@@ -688,11 +852,13 @@ class _NodesTree(object):
                 assert last_line_offset_leaf == ':'
             else:
                 last_line_offset_leaf = new_nodes[-1].get_last_leaf()
-            tos.add_tree_nodes(prefix, new_nodes, line_offset, last_line_offset_leaf)
+            tos.add_tree_nodes(
+                prefix, new_nodes, line_offset, last_line_offset_leaf,
+            )
             prefix = new_prefix
             self._prefix_remainder = ''
 
-        return new_nodes, working_stack, prefix
+        return new_nodes, working_stack, prefix, added_indents
 
     def close(self):
         self._base_node.finish()
@@ -708,6 +874,8 @@ class _NodesTree(object):
         lines = split_lines(self.prefix)
         assert len(lines) > 0
         if len(lines) == 1:
+            if lines[0].startswith(BOM_UTF8_STRING) and end_pos == [1, 0]:
+                end_pos[1] -= 1
             end_pos[1] += len(lines[0])
         else:
             end_pos[0] += len(lines) - 1

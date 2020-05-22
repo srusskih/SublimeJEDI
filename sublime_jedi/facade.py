@@ -27,25 +27,22 @@ class JediFacade:
     --------------------------------
     """
     def __init__(
-            self,
-            env,
-            complete_funcargs,
-            source,
-            line,
-            column,
-            filename='',
-            encoding='utf-8',
-            sys_path=None):
+        self,
+        project,
+        complete_funcargs,
+        source,
+        line,
+        column,
+        filename=''
+    ):
         filename = filename or None
         self.script = jedi.Script(
             source=source,
-            line=line,
-            column=column,
             path=filename,
-            encoding=encoding,
-            environment=env,
-            sys_path=sys_path,
+            project=project,
         )
+        self._line = line
+        self._column = column
         self.auto_complete_function_params = complete_funcargs
 
     def get(self, _action, *args, **kwargs):
@@ -90,7 +87,7 @@ class JediFacade:
 
         :rtype: str
         """
-        defs = self.script.goto_definitions()
+        defs = self.script.infer(line=self._line, column=self._column)
         assert isinstance(defs, list)
 
         if len(defs) > 0:
@@ -105,7 +102,11 @@ class JediFacade:
 
         :rtype: list of (str, str)
         """
-        completions = self.script.completions(fuzzy=True)
+        completions = self.script.complete(
+            line=self._line,
+            column=self._column,
+            fuzzy=True,
+        )
         for complete in completions:
             yield complete.name + '\t' + complete.type, complete.name
 
@@ -114,12 +115,17 @@ class JediFacade:
 
         :rtype: list of (str, int, int) or None
         """
-        definitions = self.script.goto_assignments(
-            follow_imports=follow_imports
+        definitions = self.script.goto(
+            line=self._line,
+            column=self._column,
+            follow_imports=follow_imports,
         )
         if all(d.type == 'import' for d in definitions):
             # check if it an import string and if it is get definition
-            definitions = self.script.goto_definitions()
+            definitions = self.script.infer(
+                line=self._line,
+                column=self._column,
+            )
         return [(i.module_path, i.line, i.column + 1)
                 for i in definitions if not i.in_builtin_module()]
 
@@ -128,9 +134,14 @@ class JediFacade:
 
         :rtype: list of (str, int, int)
         """
-        usages = self.script.usages()
-        return [(i.module_path, i.line, i.column + 1)
-                for i in usages if not i.in_builtin_module()]
+        usages = self.script.get_references(
+            line=self._line,
+            column=self._column,
+        )
+        return [
+            (i.module_path, i.line, i.column + 1)
+            for i in usages if not i.in_builtin_module()
+        ]
 
     def _complete_call_assigments(self, with_keywords=True):
         """Get function or class parameters and build Sublime Snippet string
@@ -139,7 +150,10 @@ class JediFacade:
         :rtype: str
         """
         try:
-            call_definition = self.script.call_signatures()[0]
+            call_definition = self.script.get_signatures(
+                line=self._line,
+                column=self._column,
+            )[0]
         except IndexError:
             # probably not a function/class call
             return

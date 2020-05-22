@@ -16,7 +16,7 @@
 #       eval_input is the input for the eval() functions.
 # NB: compound_stmt in single_input is followed by extra NEWLINE!
 single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
-file_input: (NEWLINE | stmt)* ENDMARKER
+file_input: stmt* ENDMARKER
 eval_input: testlist NEWLINE* ENDMARKER
 
 decorator: '@' dotted_name [ '(' [arglist] ')' ] NEWLINE
@@ -33,7 +33,7 @@ varargslist: (vfpdef ['=' test] (',' vfpdef ['=' test])* [','
      |  '*' [vfpdef] (',' vfpdef ['=' test])* [',' '**' vfpdef] | '**' vfpdef)
 vfpdef: NAME
 
-stmt: simple_stmt | compound_stmt
+stmt: simple_stmt | compound_stmt | NEWLINE
 simple_stmt: small_stmt (';' small_stmt)* [';'] NEWLINE
 small_stmt: (expr_stmt | del_stmt | pass_stmt | flow_stmt |
              import_stmt | global_stmt | nonlocal_stmt | assert_stmt)

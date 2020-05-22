@@ -13,6 +13,7 @@ from parso.python.parser import Parser as PythonParser
 from parso.python.errors import ErrorFinderConfig
 from parso.python import pep8
 from parso.file_io import FileIO, KnownContentFileIO
+from parso.normalizer import RefactoringNormalizer
 
 _loaded_grammars = {}
 
@@ -137,7 +138,7 @@ class Grammar(object):
                             cache_path=cache_path)
                 return new_node
 
-        tokens = self._tokenizer(lines, start_pos)
+        tokens = self._tokenizer(lines, start_pos=start_pos)
 
         p = self._parser(
             self._pgen_grammar,
@@ -169,6 +170,9 @@ class Grammar(object):
             raise ValueError("No error normalizer specified for this grammar.")
 
         return self._get_normalizer_issues(node, self._error_normalizer_config)
+
+    def refactor(self, base_node, node_to_str_map):
+        return RefactoringNormalizer(node_to_str_map).walk(base_node)
 
     def _get_normalizer(self, normalizer_config):
         if normalizer_config is None:
@@ -211,8 +215,8 @@ class PythonGrammar(Grammar):
         )
         self.version_info = version_info
 
-    def _tokenize_lines(self, lines, start_pos):
-        return tokenize_lines(lines, self.version_info, start_pos=start_pos)
+    def _tokenize_lines(self, lines, **kwargs):
+        return tokenize_lines(lines, self.version_info, **kwargs)
 
     def _tokenize(self, code):
         # Used by Jedi.

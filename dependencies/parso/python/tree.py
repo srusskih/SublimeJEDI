@@ -1081,7 +1081,13 @@ class ExprStmt(PythonBaseNode, DocstringMixin):
 
     def get_rhs(self):
         """Returns the right-hand-side of the equals."""
-        return self.children[-1]
+        node = self.children[-1]
+        if node.type == 'annassign':
+            if len(node.children) == 4:
+                node = node.children[3]
+            else:
+                node = node.children[1]
+        return node
 
     def yield_operators(self):
         """
