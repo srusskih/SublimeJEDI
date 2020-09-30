@@ -88,6 +88,8 @@ class SublimeJediTooltip(sublime_plugin.EventListener):
     def on_activated(self, view):
         """Handle view.on_activated event."""
         if not (self.enabled() and view.match_selector(0, 'source.python')):
+            # enable default goto definition popup
+            view.settings().set('show_definitions', True)
             return
 
         # disable default goto definition popup
