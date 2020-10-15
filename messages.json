@@ -18,5 +18,7 @@
     "0.13.4": "CHANGELOG.txt",
     "0.14.0": "CHANGELOG.txt",
     "0.15.0": "CHANGELOG.txt",
-    "0.16.0": "CHANGELOG-0.16.x.txt"
+    "0.16.0": "CHANGELOG-0.16.x.txt",
+    "0.17.0": "CHANGELOG-0.17.x.txt",
+    "0.18.0": "CHANGELOG-0.18.x.txt"
 }

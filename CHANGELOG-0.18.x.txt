@@ -1,0 +1,8 @@
+Sublime Jedi v0.18.0
+====================
+
+* Re-Enable default goto popup
+* Migration to Jedi 0.17.1, first part (does not take advantage of jedi rename)
+* Debounce autocompletion calls by 200 milliseconds, to increase responsive ness
+* Autocomplete just functions
+* Autocomplete function and classes on normal autocompletion
