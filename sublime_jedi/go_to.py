@@ -268,7 +268,7 @@ class SublimeJediEventListener(sublime_plugin.EventListener):
 
     def on_selection_modified_async(self, view) -> None:
         should_highlight = get_settings_param(view, 'highlight_usages_on_select')
-        if not is_python_scope(view, view.sel()[0].begin()) or not view.file_name() or not should_highlight:
+        if not view.file_name() or not is_python_scope(view, view.sel()[0].begin()) or not should_highlight:
             return
         highlight_usages(view)
 
