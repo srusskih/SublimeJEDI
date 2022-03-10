@@ -166,13 +166,11 @@ def get_project_file_name(window):
             folders = project_json['folders']
             found_all = True
             for directory in window.folders():
-                found = False
                 for folder in folders:
-                    folder_path = re.sub(r'^/([^/])/', '\\1:/', folder['path'])
+                    folder_path = re.sub('^/([^/])/', '\\1:/', folder['path'])
                     if folder_path == directory.replace('\\', '/'):
-                        found = True
                         break
-                if not found:
+                else:
                     found_all = False
                     break
 
