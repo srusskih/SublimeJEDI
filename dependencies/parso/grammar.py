@@ -7,7 +7,7 @@ from parso.utils import split_lines, python_bytes_to_unicode, parse_version_stri
 from parso.python.diff import DiffParser
 from parso.python.tokenize import tokenize_lines, tokenize
 from parso.python.token import PythonTokenTypes
-from parso.cache import parser_cache, load_module, save_module
+from parso.cache import parser_cache, load_module, try_to_save_module
 from parso.parser import BaseParser
 from parso.python.parser import Parser as PythonParser
 from parso.python.errors import ErrorFinderConfig
@@ -132,7 +132,7 @@ class Grammar(object):
                     old_lines=old_lines,
                     new_lines=lines
                 )
-                save_module(self._hashed, file_io, new_node, lines,
+                try_to_save_module(self._hashed, file_io, new_node, lines,
                             # Never pickle in pypy, it's slow as hell.
                             pickling=cache and not is_pypy,
                             cache_path=cache_path)
@@ -148,7 +148,7 @@ class Grammar(object):
         root_node = p.parse(tokens=tokens)
 
         if cache or diff_cache:
-            save_module(self._hashed, file_io, root_node, lines,
+            try_to_save_module(self._hashed, file_io, root_node, lines,
                         # Never pickle in pypy, it's slow as hell.
                         pickling=cache and not is_pypy,
                         cache_path=cache_path)
@@ -252,7 +252,7 @@ def load_grammar(**kwargs):
                     grammar = PythonGrammar(version_info, bnf_text)
                     return _loaded_grammars.setdefault(path, grammar)
                 except FileNotFoundError:
-                    message = "Python version %s is currently not supported." % version
+                    message = "Python version %s.%s is currently not supported." % (version_info.major, version_info.minor)
                     raise NotImplementedError(message)
         else:
             raise NotImplementedError("No support for language %s." % language)
