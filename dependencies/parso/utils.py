@@ -120,10 +120,10 @@ def version_info():
 
 
 def _parse_version(version):
-    match = re.match(r'(\d+)(?:\.(\d)(?:\.\d+)?)?$', version)
+    match = re.match(r'(\d+)(?:\.(\d+)(?:\.\d+)?)?$', version)
     if match is None:
-        raise ValueError('The given version is not in the right format. '
-                         'Use something like "3.8" or "3".')
+        raise ValueError('The given version %s is not in the right format. '
+                         'Use something like "3.8" or "3".' % version)
 
     major = int(match.group(1))
     minor = match.group(2)
