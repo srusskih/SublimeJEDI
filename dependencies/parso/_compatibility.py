@@ -2,6 +2,7 @@
 To ensure compatibility from Python ``2.7`` - ``3.3``, a module has been
 created. Clearly there is huge need to use conforming syntax.
 """
+import os
 import sys
 import platform
 
@@ -44,11 +45,17 @@ def u(string):
 
 
 try:
-    # Python 2.7
+    # Python 3.3+
     FileNotFoundError = FileNotFoundError
 except NameError:
+    # Python 2.7 (both IOError + OSError)
+    FileNotFoundError = EnvironmentError
+try:
     # Python 3.3+
-    FileNotFoundError = IOError
+    PermissionError = PermissionError
+except NameError:
+    # Python 2.7 (both IOError + OSError)
+    PermissionError = EnvironmentError
 
 
 def utf8_repr(func):
@@ -67,3 +74,28 @@ def utf8_repr(func):
         return func
     else:
         return wrapper
+
+
+if sys.version_info < (3, 5):
+    """
+    A super-minimal shim around listdir that behave like
+    scandir for the information we need.
+    """
+    class _DirEntry:
+
+        def __init__(self, name, basepath):
+            self.name = name
+            self.basepath = basepath
+
+        @property
+        def path(self):
+            return os.path.join(self.basepath, self.name)
+
+        def stat(self):
+            # won't follow symlinks
+            return os.lstat(os.path.join(self.basepath, self.name))
+
+    def scandir(dir):
+        return [_DirEntry(name, dir) for name in os.listdir(dir)]
+else:
+    from os import scandir

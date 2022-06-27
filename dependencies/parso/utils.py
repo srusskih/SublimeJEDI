@@ -105,8 +105,17 @@ def python_bytes_to_unicode(source, encoding='utf-8', errors='strict'):
     if not isinstance(encoding, unicode):
         encoding = unicode(encoding, 'utf-8', 'replace')
 
-    # Cast to unicode
-    return unicode(source, encoding, errors)
+    try:
+        # Cast to unicode
+        return unicode(source, encoding, errors)
+    except LookupError:
+        if errors == 'replace':
+            # This is a weird case that can happen if the given encoding is not
+            # a valid encoding. This usually shouldn't happen with provided
+            # encodings, but can happen if somebody uses encoding declarations
+            # like `# coding: foo-8`.
+            return unicode(source, 'utf-8', errors)
+        raise
 
 
 def version_info():
@@ -120,7 +129,7 @@ def version_info():
 
 
 def _parse_version(version):
-    match = re.match(r'(\d+)(?:\.(\d)(?:\.\d+)?)?$', version)
+    match = re.match(r'(\d+)(?:\.(\d{1,2})(?:\.\d+)?)?((a|b|rc)\d)?$', version)
     if match is None:
         raise ValueError('The given version is not in the right format. '
                          'Use something like "3.8" or "3".')

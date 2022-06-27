@@ -212,7 +212,8 @@ def _dump_nfa(start, finish):
     todo = [start]
     for i, state in enumerate(todo):
         print("  State", i, state is finish and "(final)" or "")
-        for label, next_ in state.arcs:
+        for arc in state.arcs:
+            label, next_ = arc.nonterminal_or_string, arc.next
             if next_ in todo:
                 j = todo.index(next_)
             else:
@@ -244,7 +245,7 @@ def generate_grammar(bnf_grammar, token_namespace):
     rule_to_dfas = {}
     start_nonterminal = None
     for nfa_a, nfa_z in GrammarParser(bnf_grammar).parse():
-        #_dump_nfa(a, z)
+        #_dump_nfa(nfa_a, nfa_z)
         dfas = _make_dfas(nfa_a, nfa_z)
         #_dump_dfas(dfas)
         # oldlen = len(dfas)

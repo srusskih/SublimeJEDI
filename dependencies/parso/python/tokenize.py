@@ -260,7 +260,7 @@ def _create_token_collection(version_info):
                            'finally', 'while', 'with', 'return', 'continue',
                            'break', 'del', 'pass', 'global', 'assert')
     if version_info >= (3, 5):
-        ALWAYS_BREAK_TOKENS += ('async', 'nonlocal')
+        ALWAYS_BREAK_TOKENS += ('nonlocal', )
     pseudo_token_compiled = _compile(PseudoToken)
     return TokenCollection(
         pseudo_token_compiled, single_quoted, triple_quoted, endpats,

@@ -168,7 +168,7 @@ class NodeOrLeaf(object):
     @abstractmethod
     def get_code(self, include_prefix=True):
         """
-        Returns the code that was input the input for the parser for this node.
+        Returns the code that was the input for the parser for this node.
 
         :param include_prefix: Removes the prefix (whitespace and comments) of
             e.g. a statement.

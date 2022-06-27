@@ -163,7 +163,7 @@ class Rule(object):
     def get_node(self, node):
         return node
 
-    def _get_message(self, message):
+    def _get_message(self, message, node):
         if message is None:
             message = self.message
             if message is None:
@@ -176,7 +176,7 @@ class Rule(object):
             if code is None:
                 raise ValueError("The error code on the class is not set.")
 
-        message = self._get_message(message)
+        message = self._get_message(message, node)
 
         self._normalizer.add_issue(node, code, message)
 
