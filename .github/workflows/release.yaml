@@ -2,6 +2,9 @@ name: Bump Version
 on:
   push:
     branches: ["master"]
+  workflow_dispatch:
+    inputs: {}
+    
 jobs:
   tag:
     runs-on: ubuntu-latest
