@@ -322,7 +322,7 @@ Some workarounds how to update completion rules and fix the issue:
 1. install Package https://packagecontrol.io/packages/PackageResourceViewer
 2. cmd+shift+p (Command Panel)
 3. type `PackageResourceViewer: Open Resource`
-4. type `python` and select Python package
+4. type `python` and select [Python package](https://www.scaler.com/topics/python/python-packages/)
 5. type `Completion Rules.tmPreferences`
 6. remove `import` from the regexp.
 7. save
